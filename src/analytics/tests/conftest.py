@@ -18,7 +18,7 @@ os.environ.setdefault("APP_ENV", "development")
 import pytest
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -252,19 +252,6 @@ def sample_df() -> pd.DataFrame:
 @pytest.fixture
 def empty_df() -> pd.DataFrame:
     return pd.DataFrame()
-
-
-@pytest.fixture
-def mock_bq_result(sample_df):
-    """Default BigQuery return value: (DataFrame, metadata)."""
-    metadata = {"total_count": 2, "has_more": False, "next": None}
-    return sample_df, metadata
-
-
-@pytest.fixture
-def mock_bq_empty(empty_df):
-    metadata = {"total_count": 0, "has_more": False, "next": None}
-    return empty_df, metadata
 
 
 @pytest.fixture

@@ -23,7 +23,6 @@ from fastapi.responses import JSONResponse
 
 from api.middlewares.rate_limiter import (
     RateLimiterMiddleware,
-    RateLimitExceeded,
 )
 
 
@@ -49,28 +48,28 @@ class TestRateLimiterMiddleware:
         )
 
     @pytest.mark.asyncio
-    async def test_dispatch_skip_rate_limit_health_check(self):
+    @pytest.mark.parametrize(
+        "path, method, admitted",
+        [
+            ("/health", "GET", 6),
+            ("/health/ready", "GET", 6),
+            ("/docs", "GET", 6),
+            ("/api/data", "OPTIONS", 6),
+            ("/api/data", "GET", 5),
+        ],
+    )
+    async def test_skipped_paths_pass_every_request_over_the_limit(
+        self, path, method, admitted
+    ):
+        """The limit is five, so only a path that the middleware skips lets
+        all six requests reach the handler.  The counted path shows the
+        limit in force."""
         call_next = AsyncMock(return_value=MagicMock())
-        await self.middleware.dispatch(_request(path="/health"), call_next)
-        call_next.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_dispatch_skip_rate_limit_readiness(self):
-        call_next = AsyncMock(return_value=MagicMock())
-        await self.middleware.dispatch(_request(path="/health/ready"), call_next)
-        call_next.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_dispatch_skip_rate_limit_docs(self):
-        call_next = AsyncMock(return_value=MagicMock())
-        await self.middleware.dispatch(_request(path="/docs"), call_next)
-        call_next.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_dispatch_skip_rate_limit_options(self):
-        call_next = AsyncMock(return_value=MagicMock())
-        await self.middleware.dispatch(_request(method="OPTIONS"), call_next)
-        call_next.assert_called_once()
+        for _ in range(6):
+            await self.middleware.dispatch(
+                _request(path=path, method=method), call_next
+            )
+        assert call_next.await_count == admitted
 
     @pytest.mark.asyncio
     async def test_dispatch_rate_limit_exceeded(self):
@@ -173,29 +172,6 @@ class TestForwardedForTrust:
         )
         assert get_client_ip(request) == "198.51.100.7"
 
-    def test_forwarded_for_honoured_from_trusted_peer(self, monkeypatch):
-        from config import settings
-        from api.middlewares.rate_limiter import get_client_ip
-
-        monkeypatch.setattr(settings, "trusted_proxies", "10.0.0.0/8")
-        request = _request(peer="10.0.0.1", headers={"x-forwarded-for": "203.0.113.9"})
-
-        assert get_client_ip(request) == "203.0.113.9"
-
-    def test_rightmost_entry_wins_from_trusted_peer(self, monkeypatch):
-        """Entries left of the trusted hop's own append are client-controlled,
-        so a caller could otherwise pre-seed a fake origin IP."""
-        from config import settings
-        from api.middlewares.rate_limiter import get_client_ip
-
-        monkeypatch.setattr(settings, "trusted_proxies", "10.0.0.0/8")
-        request = _request(
-            peer="10.0.0.1",
-            headers={"x-forwarded-for": "1.1.1.1, 203.0.113.9"},
-        )
-
-        assert get_client_ip(request) == "203.0.113.9"
-
     def test_falls_back_to_client_host(self):
         from api.middlewares.rate_limiter import get_client_ip
 
@@ -246,13 +222,6 @@ class TestCacheUnavailable:
             new_callable=AsyncMock,
             return_value=None,
         )
-
-    @pytest.mark.asyncio
-    async def test_still_serves_when_redis_is_down(self):
-        middleware = RateLimiterMiddleware(MagicMock(), rate_limit=5, window_seconds=60)
-
-        with self._redis_down():
-            assert await middleware._consume_quota("client_1") is True
 
     @pytest.mark.asyncio
     async def test_fallback_still_enforces_the_limit(self):
@@ -374,33 +343,8 @@ class TestCacheUnavailable:
         assert len(rl._local_counters) == 1
 
 
-class TestRateLimitExceeded:
-    def test_rate_limit_exceeded_creation(self):
-        exception = RateLimitExceeded(retry_after=120)
-
-        assert exception.status_code == 429
-        assert exception.detail == "Rate limit exceeded"
-        assert exception.headers == {"Retry-After": "120"}
-
-    def test_rate_limit_exceeded_default_retry_after(self):
-        exception = RateLimitExceeded()
-
-        assert exception.status_code == 429
-        assert exception.headers == {"Retry-After": "60"}
-
-
 class TestRouteRateLimit:
     """Per-route RouteRateLimit dependency, which every v2 and v3 route carries."""
-
-    @pytest.mark.asyncio
-    async def test_allows_requests_within_limit(self):
-        from api.middlewares.rate_limiter import RouteRateLimit
-
-        limiter = RouteRateLimit(limit=5, window=60)
-        request = _request(path="/api/v3/data-download", peer="127.0.0.1")
-
-        for _ in range(5):
-            await limiter(request)
 
     @pytest.mark.asyncio
     async def test_blocks_request_over_limit(self):

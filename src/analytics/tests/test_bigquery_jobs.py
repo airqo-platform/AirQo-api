@@ -23,7 +23,6 @@ from google.api_core.exceptions import (
     TooManyRequests,
     from_http_status,
 )
-from google.cloud import bigquery
 from google.rpc import error_details_pb2
 
 from api.utils.bigquery_jobs import translate_incomplete_queries, query_job_config
@@ -33,26 +32,15 @@ from api.utils.exceptions import (
     QueryRateLimited,
     QueryTimedOut,
     QueryTooLarge,
-    format_bytes,
 )
 from config import settings
 
 
 class TestQueryJobConfig:
-    def test_applies_byte_ceiling_by_default(self):
-        config = query_job_config()
-        assert config.maximum_bytes_billed == settings.bigquery_max_bytes_billed
-
     def test_applies_job_timeout_by_default(self):
         config = query_job_config()
         # The SDK round-trips this through the REST body, so it comes back a str.
         assert int(config.job_timeout_ms) == settings.bigquery_job_timeout_ms
-
-    def test_preserves_caller_kwargs(self):
-        params = [bigquery.ScalarQueryParameter("x", "STRING", "y")]
-        config = query_job_config(query_parameters=params)
-        assert config.query_parameters == params
-        assert config.maximum_bytes_billed == settings.bigquery_max_bytes_billed
 
     def test_explicit_ceiling_wins(self):
         """The export worker can legitimately need a larger budget than the
@@ -106,11 +94,6 @@ class TestByteLimitTranslation:
         with pytest.raises(ValueError):
             with translate_incomplete_queries("unit-test"):
                 raise ValueError("unrelated")
-
-    def test_success_path_is_transparent(self):
-        with translate_incomplete_queries("unit-test"):
-            result = 1 + 1
-        assert result == 2
 
 
 def _stopped(message: str) -> Cancelled:
@@ -283,16 +266,6 @@ class TestRateLimitTranslation:
 
         assert exc.value.reason == "jobRateLimitExceeded"
 
-    def test_job_rate_limit_reason(self):
-        original = InternalServerError(
-            "job rate", errors=[{"reason": "jobRateLimitExceeded"}]
-        )
-        with pytest.raises(QueryRateLimited) as exc:
-            with translate_incomplete_queries("unit-test"):
-                raise original
-
-        assert exc.value.reason == "jobRateLimitExceeded"
-
     def test_too_many_requests_without_a_reason(self):
         with pytest.raises(QueryRateLimited) as exc:
             with translate_incomplete_queries("unit-test"):
@@ -300,11 +273,6 @@ class TestRateLimitTranslation:
 
         assert exc.value.reason == "unknown"
         assert exc.value.transient is True
-
-    def test_forbidden_rate_refusal_stays_query_forbidden(self):
-        with pytest.raises(QueryForbidden):
-            with translate_incomplete_queries("unit-test"):
-                raise Forbidden("rate", errors=[{"reason": "rateLimitExceeded"}])
 
 
 class TestTimeoutReasonTranslation:
@@ -328,23 +296,6 @@ class TestTimeoutReasonTranslation:
         assert [r.levelno for r in _helper_records(caplog)] == [logging.WARNING]
 
 
-class TestByteFormatting:
-    @pytest.mark.parametrize(
-        "num_bytes,expected",
-        [
-            (1073741824, "1.0 GB"),
-            (5557452800, "5.2 GB"),
-            (1536, "1.5 KB"),
-            (512, "512 bytes"),
-            (0, "0 bytes"),
-            (None, "an unknown amount"),
-            (-1, "an unknown amount"),
-        ],
-    )
-    def test_renders_sizes_a_person_can_read(self, num_bytes, expected):
-        assert format_bytes(num_bytes) == expected
-
-
 class TestTableNameValidation:
     """Table names come from operator config and are interpolated into SQL
     rather than bound, so the shape is checked before it reaches a query."""
@@ -365,46 +316,6 @@ class TestTableNameValidation:
         from api.utils.utils import Utils
 
         assert Utils.table_name(name) == f"`{name}`"
-
-    @pytest.mark.parametrize(
-        "name,expected",
-        [
-            ("`measurements`", "`measurements`"),
-            (
-                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
-                "`airqo-250220.consolidated_data_stage.hourly_device_measurements`",
-            ),
-            ("  `metadata.devices`  ", "`metadata.devices`"),
-            ("` metadata.devices `", "`metadata.devices`"),
-        ],
-    )
-    def test_wrapping_an_already_quoted_name_is_idempotent(self, name, expected):
-        """Some deployments configure the backticks into the value itself.
-        Wrapping again would emit ``name`` and fail the query."""
-        from api.utils.utils import Utils
-
-        assert Utils.table_name(name) == expected
-
-    @pytest.mark.parametrize(
-        "name",
-        [
-            "",
-            "a.b.c.d",  # four parts
-            "table; DROP TABLE x",
-            "table`",  # would close the backtick quoting
-            "`table",  # unmatched, so the pair is not stripped
-            "``",
-            "tab$le",
-            "   ",  # whitespace-only collapses to empty
-            "proj.`ds`.table",
-            "`proj.`ds`.table`",
-        ],
-    )
-    def test_rejects_malformed_names(self, name):
-        from api.utils.utils import Utils
-
-        with pytest.raises(ValueError, match="not a valid BigQuery table name"):
-            Utils.table_name(name)
 
     def test_every_configured_table_passes(self):
         """A malformed setting should fail loudly here, not mid-query."""

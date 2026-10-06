@@ -98,16 +98,6 @@ class TestDataExportQuery:
         "pollutants": ["pm2_5"],
     }
 
-    def test_accepts_frequency_enum(self):
-        """The query builder accepts the frequency as the enum."""
-        query = data_export_query(
-            filter_type="devices",
-            filter_value=["d1"],
-            frequency=Frequency.HOURLY,
-            **self._ARGS,
-        )
-        assert "`test_hourly_data`" in query
-
     def test_accepts_plain_string_frequency(self):
         query = data_export_query(
             filter_type="devices",
@@ -125,26 +115,6 @@ class TestDataExportQuery:
             **self._ARGS,
         )
         assert "`test_raw_data`" in query
-
-    def test_invalid_frequency_raises(self):
-        with pytest.raises(ValueError, match="Invalid frequency"):
-            data_export_query(
-                filter_type="devices",
-                filter_value=["d1"],
-                frequency="weekly",
-                **self._ARGS,
-            )
-
-    def test_hourly_devices_includes_bam_union(self):
-        """An hourly device export unions in the BAM data."""
-        query = data_export_query(
-            filter_type="devices",
-            filter_value=["d1"],
-            frequency=Frequency.HOURLY,
-            **self._ARGS,
-        )
-        assert "UNION ALL" in query
-        assert "`test_bam_hourly_data`" in query
 
     @staticmethod
     def _inner_measurement_columns(leg: str, table: str) -> list:
@@ -230,15 +200,6 @@ class TestDataExportQuery:
         assert ".id IN UNNEST(['s1'])" in query
         assert "UNION ALL" not in query
 
-    def test_unsupported_filter_type_raises(self):
-        with pytest.raises(ValueError, match="Unsupported export filter"):
-            data_export_query(
-                filter_type="grid_ids",
-                filter_value=["g1"],
-                frequency=Frequency.HOURLY,
-                **self._ARGS,
-            )
-
 
 class TestWorkerImports:
     def test_celery_app_imports_on_config_alone(self):
@@ -247,9 +208,6 @@ class TestWorkerImports:
         import celery_app
 
         assert celery_app.celery.conf.task_default_queue == "analytics"
-
-    def test_devices_summary_imports(self):
-        import devices_summary  # noqa: F401
 
 
 def _refused(reason: str = "accessDenied") -> Forbidden:

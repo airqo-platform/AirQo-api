@@ -56,13 +56,7 @@ class FakeRowIterator:
         else:
             page = frame.iloc[self._start : self._start + self._max]
         self._client.reads.append(
-            SimpleNamespace(
-                job_id=self._job_id,
-                start_index=self._start,
-                max_results=self._max,
-                bqstorage=create_bqstorage_client,
-                rows=len(page),
-            )
+            SimpleNamespace(start_index=self._start, bqstorage=create_bqstorage_client)
         )
         return page.reset_index(drop=True).copy()
 
@@ -94,16 +88,19 @@ class FakeBigQueryClient:
     """
     FakeBigQueryClient stores each query result in memory.
 
-    ``result_frame`` is the result of the next query.  ``queries``,
-    ``job_lookups`` and ``reads`` record every call, so a test can prove how
-    many queries ran and which rows each page read.  Every read raises
-    ``read_error`` when a test sets it.
+    ``result_frame`` is the result of the next query.  ``queued_frames`` holds
+    the results of a sequence of queries: each query takes the first queued
+    frame, and ``result_frame`` serves the queries after the queue is empty.
+    ``queries``, ``job_lookups`` and ``reads`` record every call, so a test
+    can prove how many queries ran and where each page read started.  Every read
+    raises ``read_error`` when a test sets it.
     """
 
     def __init__(self) -> None:
         self.project = PROJECT
         self.location = LOCATION
         self.result_frame = pd.DataFrame()
+        self.queued_frames: List[pd.DataFrame] = []
         self.stored: Dict[str, pd.DataFrame] = {}
         self.jobs: set = set()
         self.queries: List[Any] = []
@@ -115,7 +112,8 @@ class FakeBigQueryClient:
     def query(self, query, job_config=None, **kwargs) -> FakeQueryJob:
         self.queries.append(SimpleNamespace(sql=query, job_config=job_config))
         job_id = f"job_2026_{next(self._ids)}"
-        self.stored[job_id] = self.result_frame.reset_index(drop=True).copy()
+        frame = self.queued_frames.pop(0) if self.queued_frames else self.result_frame
+        self.stored[job_id] = frame.reset_index(drop=True).copy()
         self.jobs.add(job_id)
         return FakeQueryJob(self, job_id)
 
