@@ -228,9 +228,16 @@ def format_to_aqcsv(
             },
             inplace=True,
         )
-        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[
-            f"{pollutant}_calibrated_value"
-        ]
+        status_key = f"{pollutant}_calibrated_value"
+        if (
+            f"value_{pollutant}" not in dataframe.columns
+            and pollutant in dataframe.columns
+        ):
+            # Uncalibrated and raw data carry the measured value under the
+            # name of the pollutant itself, with the data status of a raw value.
+            dataframe.rename(columns={pollutant: f"value_{pollutant}"}, inplace=True)
+            status_key = pollutant
+        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[status_key]
 
     dataframe.drop(
         columns=[

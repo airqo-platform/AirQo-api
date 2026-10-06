@@ -308,6 +308,18 @@ class DataExportRequest(BaseFilterRequest):
             and self.frequency != Frequency.RAW
         ):
             raise ValueError("Mobile devices only support frequency='raw'")
+        # AQCSV states the duration of each value as a fixed number of
+        # minutes, so a CSV in that format covers raw, hourly and daily data.
+        if (
+            self.download_type == "csv"
+            and self.output_format == "aqcsv"
+            and self.frequency
+            in (Frequency.WEEKLY, Frequency.MONTHLY, Frequency.YEARLY)
+        ):
+            raise ValueError(
+                "outputFormat 'aqcsv' supports the raw, hourly and daily "
+                "frequencies only."
+            )
 
     def offers_coarser_frequency(self) -> bool:
         """

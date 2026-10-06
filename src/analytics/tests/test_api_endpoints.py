@@ -804,6 +804,71 @@ class TestCsvDownload:
         assert "x-next-cursor" not in resp.headers
 
 
+class TestAqcsvDownload:
+    """A CSV export in the AQCSV format runs the real export with the fake
+    BigQuery client, whose times end with "Z" as the times of the queries do."""
+
+    def test_hourly_calibrated_export_writes_the_aqcsv_fields(
+        self, client, fake_bigquery
+    ):
+        from tests.paging_support import DOWNLOAD, device_frame
+
+        fake_bigquery.result_frame = device_frame(2).rename(
+            columns={"pm2_5": "pm2_5_calibrated_value"}
+        )
+
+        resp = client.post(
+            "/api/v2/analytics/data-download",
+            json={**DOWNLOAD, "downloadType": "csv", "outputFormat": "aqcsv"},
+        )
+
+        assert resp.status_code == 200
+        rows = _csv_rows(resp.text)
+        assert [(row["datetime"], row["duration"], row["qc"]) for row in rows] == [
+            ("20260301T0000", "60", "2")
+        ] * 2
+        assert sorted(row["value_pm2_5"] for row in rows) == ["10.0", "11.0"]
+        assert {row["data_status_pm2_5"] for row in rows} == {"1"}
+
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    def test_raw_export_writes_the_raw_value(self, client, fake_bigquery, path):
+        from tests.paging_support import RAW, device_frame
+
+        fake_bigquery.result_frame = device_frame(2)
+
+        resp = client.post(
+            path, json={**RAW, "downloadType": "csv", "outputFormat": "aqcsv"}
+        )
+
+        assert resp.status_code == 200
+        rows = _csv_rows(resp.text)
+        assert sorted(row["value_pm2_5"] for row in rows) == ["10.0", "11.0"]
+        assert {
+            (row["duration"], row["qc"], row["data_status_pm2_5"]) for row in rows
+        } == {("1", "4", "0")}
+
+    @pytest.mark.parametrize("frequency", ["weekly", "monthly", "yearly"])
+    def test_aqcsv_at_a_coarser_frequency_is_a_422(
+        self, client, fake_bigquery, frequency
+    ):
+        from tests.paging_support import DOWNLOAD
+
+        resp = client.post(
+            "/api/v2/analytics/data-download",
+            json={
+                **DOWNLOAD,
+                "frequency": frequency,
+                "downloadType": "csv",
+                "outputFormat": "aqcsv",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert fake_bigquery.queries == []
+
+
 # ---------------------------------------------------------------------------
 # Stored-result paging through the routes
 #

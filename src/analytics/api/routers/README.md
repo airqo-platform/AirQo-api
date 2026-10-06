@@ -174,6 +174,12 @@ shared fields plus:
 | `outputFormat` | enum    | `airqo-standard` | `airqo-standard`, `aqcsv`                               |
 | `minimum`      | boolean | `false`          | Minimal column set — excludes metadata and weather      |
 
+`outputFormat` applies to CSV downloads. `aqcsv` writes the columns of the
+AirNow AQCSV standard for each requested pollutant: the time, the duration in
+minutes, the parameter and unit codes, the value, the quality-control code and
+the data status. It covers raw, hourly and daily data, and a CSV request in
+that format at weekly, monthly or yearly frequency gets **422**.
+
 Request:
 
 ```json
