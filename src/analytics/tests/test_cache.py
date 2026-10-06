@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import api.utils.cache
 from api.utils.cache import (
     init_cache,
-    get_cache,
     close_cache,
     cache_get,
     cache_incr,

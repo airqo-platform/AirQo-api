@@ -134,16 +134,6 @@ async def init_cache() -> None:
         )
 
 
-async def get_cache() -> Optional[redis_asyncio.Redis]:
-    """
-    Get the cache instance.
-
-    Returns:
-        Redis cache instance or None if not initialized
-    """
-    return _cache
-
-
 async def close_cache() -> None:
     """
     Close the cache connection.
