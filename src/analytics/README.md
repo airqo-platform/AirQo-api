@@ -145,7 +145,9 @@ diagnose from the symptom. The rest have sane defaults.
 
 Every route on both versions carries a per-route limit of 10 requests per
 minute for each client IP, and `raw-data` carries 5, on top of the global 100
-requests per minute middleware. Both versions apply the same date-range
+requests per minute middleware. On the routes that page, the per-route limit
+counts the request that starts an export, and the requests for later pages
+count only against the global limit. Both versions apply the same date-range
 limits.
 
 `report` and `summary` are the same endpoints as their v2 counterparts. On

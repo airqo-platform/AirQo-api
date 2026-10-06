@@ -3,9 +3,11 @@ FastAPI Router for API v2
 
 Internal analytics API.  Every route carries the per-route limit
 (route_rate_limit): 5 requests per minute per IP on raw-data and 10 on every
-other route.  The global RateLimiterMiddleware applies 100 requests per
-minute per IP on top.  The global exception handlers in main.py handle
-errors: services raise HTTPException directly, so route handlers stay thin.
+other route.  On the routes that page, that limit counts the request that
+starts an export, and a request that carries a cursor passes it.  The global
+RateLimiterMiddleware applies 100 requests per minute per IP to every request.
+The global exception handlers in main.py handle errors: services raise
+HTTPException directly, so route handlers stay thin.
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -77,7 +79,9 @@ async def raw_data_export(
     """
     Export raw (unprocessed) air quality measurements.
 
-    The route allows 5 requests per minute for each client IP.
+    The route allows 5 exports per minute for each client IP.  The per-route
+    limit counts the request that starts an export, and the requests for later
+    pages count only against the global limit of 100 requests per minute.
     """
     return await service.export_raw_data(request)
 

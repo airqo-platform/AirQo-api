@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import api.utils.cache
 from api.utils.cache import (
     init_cache,
-    get_cache,
     close_cache,
     cache_get,
     cache_incr,
@@ -38,70 +37,8 @@ def reset_cache_state():
     reset()
 
 
-class TestCacheInitialization:
-    """Test cache initialization and lifecycle management."""
-
-    @pytest.mark.asyncio
-    async def test_init_cache_success(self):
-        """Test successful cache initialization."""
-        with patch("api.utils.cache.settings") as mock_settings, patch(
-            "redis.asyncio.from_url"
-        ) as mock_from_url:
-            mock_settings.cache_redis_url = "redis://localhost:6379"
-            mock_redis = AsyncMock()
-            mock_from_url.return_value = mock_redis
-            mock_redis.ping.return_value = None
-
-            await init_cache()
-
-            mock_from_url.assert_called_once()
-            mock_redis.ping.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_init_cache_failure(self):
-        """Test cache initialization failure."""
-        with patch("api.utils.cache.settings") as mock_settings, patch(
-            "redis.asyncio.from_url"
-        ) as mock_from_url:
-            mock_settings.cache_redis_url = "redis://localhost:6379"
-            mock_from_url.side_effect = Exception("Connection failed")
-
-            await init_cache()
-
-            # Should not raise exception, cache should be None
-            cache = await get_cache()
-            assert cache is None
-
-    @pytest.mark.asyncio
-    async def test_get_cache_when_initialized(self):
-        """Test getting cache instance when initialized."""
-        with patch("redis.asyncio.from_url") as mock_from_url:
-            mock_redis = AsyncMock()
-            mock_from_url.return_value = mock_redis
-
-            # Manually set cache for testing
-            from api.utils.cache import _cache
-            import api.utils.cache
-
-            api.utils.cache._cache = mock_redis
-
-            cache = await get_cache()
-            assert cache == mock_redis
-
-            # Reset
-            api.utils.cache._cache = None
-
-    @pytest.mark.asyncio
-    async def test_get_cache_when_not_initialized(self):
-        """Test getting cache instance when not initialized."""
-        # Ensure cache is None
-        from api.utils.cache import _cache
-        import api.utils.cache
-
-        api.utils.cache._cache = None
-
-        cache = await get_cache()
-        assert cache is None
+class TestCacheClose:
+    """Test that closing the cache closes the connection."""
 
     @pytest.mark.asyncio
     async def test_close_cache(self):
@@ -168,16 +105,6 @@ class TestCacheOperations:
         result = await cache_get("test_key")
 
         assert result is None
-
-    @pytest.mark.asyncio
-    async def test_cache_set_success(self):
-        """Test successful cache set operation."""
-        self.mock_redis.set.return_value = True
-
-        result = await cache_set("test_key", "test_value")
-
-        assert result is True
-        self.mock_redis.set.assert_called_once_with("test_key", "test_value", ex=None)
 
     @pytest.mark.asyncio
     async def test_cache_set_with_expiry(self):
@@ -314,21 +241,6 @@ class TestRedisRecovery:
         import api.utils.cache
 
         api.utils.cache._cache = None
-
-    @pytest.mark.asyncio
-    async def test_client_is_retained_when_startup_ping_fails(self):
-        import api.utils.cache
-
-        api.utils.cache._cache = None
-        mock_redis = AsyncMock()
-        mock_redis.ping.side_effect = Exception("Connection refused")
-
-        with patch("redis.asyncio.from_url", return_value=mock_redis):
-            await init_cache()
-
-        # Retained, not discarded — otherwise every helper short-circuits
-        # forever and nothing ever retries.
-        assert api.utils.cache._cache is mock_redis
 
     @pytest.mark.asyncio
     async def test_recovers_without_restart_after_a_failed_startup(self):

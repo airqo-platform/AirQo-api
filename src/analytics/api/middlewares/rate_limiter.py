@@ -174,9 +174,11 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
 
 class RateLimitExceeded(HTTPException):
     """
-    Exception raised when rate limit is exceeded.
+    This exception gives the 429 answer to a client that is over the
+    per-route limit.
 
-    This can be used in route handlers for custom rate limiting logic.
+    RouteRateLimit raises it.  The answer carries the message "Rate limit
+    exceeded" and a Retry-After header that names the seconds to wait.
     """
 
     def __init__(self, retry_after: int = 60):
@@ -273,6 +275,22 @@ async def _consume(cache_key: str, limit: int, window_seconds: int) -> bool:
     return count <= limit
 
 
+async def _carries_cursor(request: Request) -> bool:
+    """
+    Report whether the JSON body of ``request`` holds a non-empty ``cursor``.
+
+    FastAPI reads the body of a route before it solves the route
+    dependencies, so this call reads the cached body.  An empty body or a
+    body outside JSON counts as a body without a cursor.
+    """
+    try:
+        body = await request.json()
+    except ValueError:
+        return False
+    cursor = body.get("cursor") if isinstance(body, dict) else None
+    return isinstance(cursor, str) and bool(cursor)
+
+
 class RouteRateLimit:
     """
     FastAPI dependency for per-route rate limiting.
@@ -287,8 +305,15 @@ class RouteRateLimit:
 
     ``path_limits`` maps a path suffix to its own limit.  A route whose path
     ends with the suffix takes that limit, and every other route takes
-    ``limit``.  One instance serves both, so each request takes one unit
-    from one counter.
+    ``limit``.  One instance serves both, so each counted request takes one
+    unit from one counter.
+
+    ``paged_paths`` lists the path suffixes of the routes that page.  On
+    such a route, the limit counts the request that starts an export.  A
+    request whose body carries a non-empty ``cursor`` reads the next page of
+    the stored BigQuery result of that export, and it passes this limit.  The
+    global RateLimiterMiddleware limit counts every request.  An empty
+    cursor starts a new export, so it counts.
     """
 
     def __init__(
@@ -296,10 +321,12 @@ class RouteRateLimit:
         limit: int = 10,
         window: int = 60,
         path_limits: Optional[Dict[str, int]] = None,
+        paged_paths: Tuple[str, ...] = (),
     ):
         self.limit = limit
         self.window = window
         self.path_limits = dict(path_limits or {})
+        self.paged_paths = tuple(paged_paths)
 
     def limit_for(self, path: str) -> int:
         """
@@ -311,23 +338,38 @@ class RouteRateLimit:
                 return limit
         return self.limit
 
+    def is_paged(self, path: str) -> bool:
+        """Return True when ``path`` ends with one of ``paged_paths``."""
+        return path.endswith(self.paged_paths)
+
     async def __call__(self, request: Request) -> None:
         path = request.url.path
+        if self.is_paged(path) and await _carries_cursor(request):
+            return
+
         cache_key = (
             f"{settings.cache_key_prefix}:route_ratelimit:"
             f"{path}:{get_client_ip(request)}"
         )
 
         if not await _consume(cache_key, self.limit_for(path), self.window):
-            raise HTTPException(
-                status_code=429,
-                detail="Rate limit exceeded",
-                headers={"Retry-After": str(self.window)},
-            )
+            raise RateLimitExceeded(retry_after=self.window)
 
 
 #: The limit that every router applies to each of its routes: 10 requests in
 #: 60 seconds for each route path and client IP, and 5 for the raw-data route
-#: of v2 and v3.  The global RateLimiterMiddleware limit applies to the same
-#: requests as well.
-route_rate_limit = RouteRateLimit(limit=10, window=60, path_limits={"/raw-data": 5})
+#: of v2 and v3.  On the routes that page, the limit counts the request that
+#: starts an export, and the requests that carry a cursor pass it.  The global
+#: RateLimiterMiddleware limit counts every request.
+route_rate_limit = RouteRateLimit(
+    limit=10,
+    window=60,
+    path_limits={"/raw-data": 5},
+    paged_paths=(
+        "/data-download",
+        "/raw-data",
+        "/forecast-data",
+        "/chart/data",
+        "/chart/d3/data",
+    ),
+)

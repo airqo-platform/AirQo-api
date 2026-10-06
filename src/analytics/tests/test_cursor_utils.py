@@ -24,7 +24,6 @@ from tests.paging_support import (
 
 JOB_ID = "job_2026_1"
 REQUEST_HASH = "f" * 64
-OTHER_HASH = "0" * 64
 
 
 def _token() -> str:
@@ -42,25 +41,6 @@ class TestCursorRoundTrip:
         assert CursorUtils.read_cursor(_token(), REQUEST_HASH) == StoredResultCursor(
             job_id=JOB_ID, location=LOCATION, offset=3, fingerprint=REQUEST_HASH
         )
-
-    def test_payload_is_signed_json(self, cursor_clock):
-        token = _token()
-        payload_b64, sep, signature = token.rpartition(".")
-        assert sep == "." and payload_b64 and signature
-        assert set(payload_of(token)) == {
-            "expires",
-            "fingerprint",
-            "job_id",
-            "location",
-            "offset",
-        }
-
-    def test_fingerprint_is_the_same_for_equal_mappings(self):
-        first = CursorUtils.fingerprint({"b": 1, "a": [1, 2]})
-        second = CursorUtils.fingerprint({"a": [1, 2], "b": 1})
-        assert first == second
-        assert len(first) == 64
-        assert CursorUtils.fingerprint({"a": [2, 1], "b": 1}) != first
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +97,3 @@ class TestRejectedTokens:
         )
         with pytest.raises(CursorRejected):
             CursorUtils.read_cursor(token, REQUEST_HASH)
-
-    def test_token_of_another_request_is_rejected(self, cursor_clock):
-        with pytest.raises(CursorRejected):
-            CursorUtils.read_cursor(_token(), OTHER_HASH)

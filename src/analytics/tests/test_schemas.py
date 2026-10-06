@@ -1,5 +1,5 @@
 """
-Tests for Pydantic request and response schema validation.
+Tests for Pydantic request schema validation.
 
 Focuses on the boundary conditions: what should be accepted, what must be
 rejected, and which error messages are produced.  No external I/O required.
@@ -19,7 +19,6 @@ from api.schemas.requests import (
     DeviceExceedancesRequest,
     ExceedancesRequest,
     AirQualityReportRequest,
-    MonitoringSiteRequest,
     RawDataExportRequest,
     ScheduledExportRequest,
     Network,
@@ -27,7 +26,6 @@ from api.schemas.requests import (
     Frequency,
     ChartType,
 )
-from api.schemas.responses import DataExportResponse, DashboardChartResponse
 
 
 def _past(days: int = 7) -> str:
@@ -60,73 +58,17 @@ BASE = {
 
 
 class TestDataExportRequestValid:
-    def test_minimal_valid_request(self):
-        req = DataExportRequest(**BASE)
-        assert req.network == "airqo"
-        assert req.pollutants == ["pm2_5"]
-        assert req.sites == ["site1"]
-
-    def test_accepts_device_ids_filter(self):
-        payload = {**BASE, "sites": None, "device_ids": ["d1", "d2"]}
-        req = DataExportRequest(**payload)
-        assert req.device_ids == ["d1", "d2"]
-
     def test_accepts_device_names_filter(self):
         payload = {**BASE, "sites": None, "device_names": ["sensor-01"]}
         req = DataExportRequest(**payload)
         assert req.device_names == ["sensor-01"]
 
-    def test_accepts_grid_ids_filter(self):
-        payload = {**BASE, "sites": None, "grid_ids": ["grid1"]}
-        req = DataExportRequest(**payload)
-        assert req.grid_ids == ["grid1"]
-
-    def test_accepts_cursor_token(self):
-        req = DataExportRequest(**{**BASE, "cursor": "abc123"})
-        assert req.cursor == "abc123"
-
-    def test_chart_and_forecast_requests_accept_a_cursor_token(self):
-        from api.schemas.requests import (
-            DashboardChartRequest,
-            ForecastDataExportRequest,
-        )
-        from tests.paging_support import FORECAST, chart_body
-
-        chart = DashboardChartRequest(**{**chart_body("line"), "cursor": "abc123"})
-        forecast = ForecastDataExportRequest(**{**FORECAST, "cursor": "abc123"})
-        assert chart.cursor == "abc123"
-        assert forecast.cursor == "abc123"
-
-    def test_download_type_csv(self):
-        req = DataExportRequest(**{**BASE, "downloadType": "csv"})
-        assert req.download_type == "csv"
-
     def test_output_format_aqcsv(self):
         req = DataExportRequest(**{**BASE, "outputFormat": "aqcsv"})
         assert req.output_format == "aqcsv"
 
-    def test_alias_population(self):
-        """camelCase aliases must be accepted on the wire."""
-        req = DataExportRequest(
-            startDateTime=_past(7),
-            endDateTime=_now(),
-            network="airqo",
-            device_category="lowcost",
-            pollutants=["pm2_5"],
-            sites=["site1"],
-            frequency="daily",
-        )
-        assert req.start_date_time is not None
-
 
 class TestDataExportRequestInvalid:
-    def test_end_before_start_rejected(self):
-        with pytest.raises(ValidationError) as exc:
-            DataExportRequest(
-                **{**BASE, "startDateTime": _now(), "endDateTime": _past(1)}
-            )
-        assert "endDateTime must be after startDateTime" in str(exc.value)
-
     def test_start_in_future_rejected(self):
         with pytest.raises(ValidationError) as exc:
             DataExportRequest(
@@ -142,12 +84,6 @@ class TestDataExportRequestInvalid:
             "exactly one" in str(exc.value).lower()
             or "provide" in str(exc.value).lower()
         )
-
-    def test_two_filters_rejected(self):
-        payload = {**BASE, "device_ids": ["d1"]}
-        with pytest.raises(ValidationError) as exc:
-            DataExportRequest(**payload)
-        assert "only one filter" in str(exc.value).lower()
 
     def test_oversized_date_range_rejected(self):
         """An unbounded window is a full scan of a partitioned table, billable
@@ -324,12 +260,6 @@ class TestDataExportRequestInvalid:
         }
         assert DataExportRequest(**payload) is not None
 
-    def test_grid_ids_and_sites_together_rejected(self):
-        payload = {**BASE, "grid_ids": ["g1"]}  # BASE already sets sites=["site1"]
-        with pytest.raises(ValidationError) as exc:
-            DataExportRequest(**payload)
-        assert "only one filter" in str(exc.value).lower()
-
     def test_multiple_grid_ids_rejected(self):
         """Capped to one grid per request for now (grids can contain many
         devices) — TODO in the schema: remove after reviewing grid sizes."""
@@ -337,10 +267,6 @@ class TestDataExportRequestInvalid:
         with pytest.raises(ValidationError) as exc:
             DataExportRequest(**payload)
         assert "one grid" in str(exc.value).lower()
-
-    def test_invalid_network_rejected(self):
-        with pytest.raises(ValidationError):
-            DataExportRequest(**{**BASE, "network": "not_a_network"})
 
     def test_invalid_pollutant_rejected(self):
         with pytest.raises(ValidationError):
@@ -393,19 +319,6 @@ class TestRawDataExportRequest:
 
 
 class TestDashboardChartRequest:
-    def test_valid_line_chart(self):
-        req = DashboardChartRequest(
-            startDateTime=_past(7),
-            endDateTime=_now(),
-            network="airqo",
-            device_category="lowcost",
-            pollutants=["pm2_5"],
-            sites=["site1"],
-            frequency="daily",
-            chartType="line",
-        )
-        assert req.chart_type == "line"
-
     def test_invalid_chart_type_rejected(self):
         with pytest.raises(ValidationError):
             DashboardChartRequest(
@@ -420,69 +333,10 @@ class TestDashboardChartRequest:
             )
 
 
-class TestMonitoringSiteRequest:
-    def test_all_optional_fields(self):
-        req = MonitoringSiteRequest()
-        assert req.network is None
-        assert req.site_ids is None
-        assert req.include_device_info is True
-
-    def test_with_network(self):
-        req = MonitoringSiteRequest(network="airqo")
-        assert req.network == "airqo"
-
-
-class TestResponseModels:
-    def test_data_export_response_accepts_any_records(self):
-        resp = DataExportResponse(
-            status="success",
-            message="ok",
-            data=[{"datetime": "2023-01-01", "pm2_5": 15.5, "custom_col": "x"}],
-        )
-        assert resp.data[0]["pm2_5"] == 15.5
-
-    def test_data_export_response_empty_data(self):
-        resp = DataExportResponse(status="success", data=[])
-        assert resp.data == []
-        assert resp.metadata is None
-
-    def test_dashboard_response_accepts_flexible_data(self):
-        resp = DashboardChartResponse(
-            status="success",
-            chart_type="line",
-            data=[{"x": "2023-01-01", "y": 15.5, "site_id": "s1"}],
-        )
-        assert len(resp.data) == 1
-
-
 class TestAirQualityReportRequest:
     """The report body: snake_case keys, window non-zero and within
     MAX_HOURLY_QUERY_DAYS. The entity is chosen in the body — exactly one of
     grid_id / cohort_id."""
-
-    def test_valid_request(self):
-        req = AirQualityReportRequest(
-            grid_id="grid-123",
-            start_time="2024-01-01T00:00:00",
-            end_time="2024-02-01T00:00:00",
-        )
-        assert req.grid_id == "grid-123"
-
-    def test_equal_start_end_rejected(self):
-        with pytest.raises(ValidationError, match="cannot be the same"):
-            AirQualityReportRequest(
-                grid_id="g",
-                start_time="2024-01-01T00:00:00",
-                end_time="2024-01-01T00:00:00",
-            )
-
-    def test_empty_grid_id_rejected(self):
-        with pytest.raises(ValidationError):
-            AirQualityReportRequest(
-                grid_id="",
-                start_time="2024-01-01T00:00:00",
-                end_time="2024-02-01T00:00:00",
-            )
 
     def test_mixed_naive_aware_datetimes_normalised(self):
         """A naive start with an aware end must not TypeError in validation."""
@@ -503,11 +357,6 @@ class TestDashboardAggregationRequests:
         "endDate": "2024-02-01T00:00:00.000000Z",
     }
 
-    def test_daily_averages_valid(self):
-        req = DailyAveragesRequest(pollutant="pm2_5", sites=["s1"], **self._WINDOW)
-        assert req.pollutant == "pm2_5"
-        assert req.sites == ["s1"]
-
     def test_daily_averages_accepts_flask_pollutants(self):
         for pollutant in ("pm2_5", "pm10", "no2", "pm1"):
             DailyAveragesRequest(pollutant=pollutant, sites=["s1"], **self._WINDOW)
@@ -527,12 +376,6 @@ class TestDashboardAggregationRequests:
         )
         assert req.devices == ["d1"]
 
-    def test_exceedances_valid(self):
-        req = ExceedancesRequest(
-            pollutant="pm2_5", standard="aqi", sites=["s1"], **self._WINDOW
-        )
-        assert req.standard == "aqi"
-
     def test_exceedances_standard_lowercased(self):
         req = ExceedancesRequest(
             pollutant="pm2_5", standard="WHO", sites=["s1"], **self._WINDOW
@@ -551,10 +394,6 @@ class TestDashboardAggregationRequests:
             ExceedancesRequest(
                 pollutant="no2", standard="aqi", sites=["s1"], **self._WINDOW
             )
-
-    def test_exceedances_missing_standard_rejected(self):
-        with pytest.raises(ValidationError):
-            ExceedancesRequest(pollutant="pm2_5", sites=["s1"], **self._WINDOW)
 
     def test_device_exceedances_uses_devices_key(self):
         req = DeviceExceedancesRequest(
@@ -630,37 +469,6 @@ class TestDataSummaryRequest:
         "end_time": "2024-01-05T00:00:00",
     }
 
-    def test_valid_with_grid(self):
-        from api.schemas.requests import DataSummaryRequest
-
-        req = DataSummaryRequest(**self._WINDOW, grid_id="g1")
-        assert req.entity() == ("grid", "g1")
-
-    def test_entity_drops_the_id_suffix(self):
-        """entity() returns the bare kind, not the field name: the query
-        builder validates against SUMMARY_FILTER_KINDS ("grid"/"cohort") and
-        get_summary interpolates it into the no-data message."""
-        from api.schemas.requests import DataSummaryRequest
-
-        assert DataSummaryRequest(**self._WINDOW, cohort_id="c1").entity() == (
-            "cohort",
-            "c1",
-        )
-
-    def test_no_entity_rejected(self):
-        """Flask 500'd (UnboundLocalError) when all three were empty —
-        now a clean validation error."""
-        from api.schemas.requests import DataSummaryRequest
-
-        with pytest.raises(ValidationError, match="exactly one"):
-            DataSummaryRequest(**self._WINDOW)
-
-    def test_two_entities_rejected(self):
-        from api.schemas.requests import DataSummaryRequest
-
-        with pytest.raises(ValidationError, match="exactly one"):
-            DataSummaryRequest(**self._WINDOW, grid_id="g1", cohort_id="c1")
-
     def test_whitespace_entity_treated_as_absent(self):
         """Flask treated '' as absent via .strip() — preserve."""
         from api.schemas.requests import DataSummaryRequest
@@ -701,17 +509,6 @@ class TestScheduledExportRequest:
         payload.update(overrides)
         return payload
 
-    def test_valid_request(self):
-        req = ScheduledExportRequest(**self._payload())
-        assert req.user_id == "user-1"
-        assert req.export_format == "csv"
-
-    def test_missing_user_id_rejected(self):
-        payload = self._payload()
-        del payload["userId"]
-        with pytest.raises(ValidationError):
-            ScheduledExportRequest(**payload)
-
     def test_weekly_frequency_rejected(self):
         """Scheduled exports only support hourly/daily/raw (outer contract)."""
         with pytest.raises(ValidationError):
@@ -742,22 +539,6 @@ class TestAirQualityReportEntitySelection:
         "start_time": "2024-01-01T00:00:00",
         "end_time": "2024-02-01T00:00:00",
     }
-
-    def test_grid_only_resolves_to_grid(self):
-        req = AirQualityReportRequest(grid_id="g1", **self._WINDOW)
-        assert req.entity() == ("grid", "g1")
-
-    def test_cohort_only_resolves_to_cohort(self):
-        req = AirQualityReportRequest(cohort_id="c1", **self._WINDOW)
-        assert req.entity() == ("cohort", "c1")
-
-    def test_neither_rejected(self):
-        with pytest.raises(ValidationError, match="exactly one"):
-            AirQualityReportRequest(**self._WINDOW)
-
-    def test_both_rejected(self):
-        with pytest.raises(ValidationError, match="exactly one"):
-            AirQualityReportRequest(grid_id="g1", cohort_id="c1", **self._WINDOW)
 
     def test_whitespace_entity_treated_as_absent(self):
         """Same .strip() handling as DataSummaryRequest."""

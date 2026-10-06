@@ -3,8 +3,10 @@ FastAPI Router for API v3 (Public)
 
 Public-facing API.  Every route carries the per-route limit
 (route_rate_limit): 5 requests per minute per IP on raw-data and 10 on every
-other route.  The global RateLimiterMiddleware applies 100 requests per
-minute per IP on top, the same pair of limits the v2 routes carry.
+other route.  On the routes that page, that limit counts the request that
+starts an export, and a request that carries a cursor passes it.  The global
+RateLimiterMiddleware applies 100 requests per minute per IP to every
+request, the same pair of limits the v2 routes carry.
 """
 
 from fastapi import APIRouter, Depends
@@ -36,8 +38,9 @@ async def export_data(
     """
     Export air quality data (Public API v3).
 
-    Rate-limited to 10 requests per minute per IP, on top of the global
-    100 requests per minute middleware.
+    The route allows 10 exports per minute for each client IP.  The per-route
+    limit counts the request that starts an export, and the requests for later
+    pages count only against the global limit of 100 requests per minute.
     """
     return await service.export_data(request)
 
@@ -54,7 +57,9 @@ async def raw_data_export(
     """
     Export raw air quality data (Public API v3).
 
-    The route allows 5 requests per minute for each client IP.
+    The route allows 5 exports per minute for each client IP.  The per-route
+    limit counts the request that starts an export, and the requests for later
+    pages count only against the global limit of 100 requests per minute.
     """
     return await service.export_raw_data(request)
 
@@ -71,7 +76,9 @@ async def forecast_data_export(
     Export satellite forecast data filtered by country or city (Public API v3).
 
     Requires at least one of `country` or `city` along with the date range.
-    Rate-limited to 10 requests per minute per IP.
+    The route allows 10 exports per minute for each client IP.  The per-route
+    limit counts the request that starts an export, and the requests for later
+    pages count only against the global limit of 100 requests per minute.
     """
     return await service.export_forecast_data(request)
 
@@ -93,9 +100,8 @@ async def air_quality_report(
     including ones belonging to the caller.  See _screen_private_members in
     api/models/base/data_processing.py for what closing that gap needs.
 
-    Rate-limited to 10 requests per minute per IP.  That ceiling does more
-    work here than on the export routes, because a report is a single
-    unpaginated scan rather than one page of many.
+    The route allows 10 requests per minute for each client IP, and each
+    request runs one BigQuery scan.
     """
     return await service.get_report(request, screen_private=True)
 

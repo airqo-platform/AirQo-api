@@ -308,6 +308,18 @@ class DataExportRequest(BaseFilterRequest):
             and self.frequency != Frequency.RAW
         ):
             raise ValueError("Mobile devices only support frequency='raw'")
+        # AQCSV states the duration of each value as a fixed number of
+        # minutes, so a CSV in that format covers raw, hourly and daily data.
+        if (
+            self.download_type == "csv"
+            and self.output_format == "aqcsv"
+            and self.frequency
+            in (Frequency.WEEKLY, Frequency.MONTHLY, Frequency.YEARLY)
+        ):
+            raise ValueError(
+                "outputFormat 'aqcsv' supports the raw, hourly and daily "
+                "frequencies only."
+            )
 
     def offers_coarser_frequency(self) -> bool:
         """
@@ -701,19 +713,3 @@ class ScheduledExportRequest(BaseFilterRequest):
                 "grid_ids and cohort_ids are not yet supported for scheduled exports"
             )
         return self
-
-
-# ---------------------------------------------------------------------------
-# Monitoring sites
-# ---------------------------------------------------------------------------
-
-
-class MonitoringSiteRequest(BaseRequest):
-    """Request model for monitoring site information."""
-
-    network: Optional[Network] = Field(None, description="Network filter")
-    site_ids: Optional[List[str]] = Field(
-        None, alias="siteIds", description="Specific site IDs"
-    )
-    include_device_info: bool = Field(True, alias="includeDeviceInfo")
-    include_location: bool = Field(True, alias="includeLocation")

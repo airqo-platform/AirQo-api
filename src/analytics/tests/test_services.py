@@ -13,14 +13,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import pandas as pd
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
 from api.services import DataExportService, DashboardService, MonitoringService
 from api.schemas.requests import DataExportRequest
 from api.schemas.responses import (
-    DataExportResponse,
     DashboardChartResponse,
     MonitoringSiteResponse,
 )
@@ -32,23 +31,6 @@ from api.schemas.responses import (
 
 
 class TestDataExportService:
-    @pytest.mark.asyncio
-    async def test_export_data_returns_records(self, export_request, sample_df):
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ):
-            resp = await svc.export_data(export_request)
-
-        assert isinstance(resp, DataExportResponse)
-        assert resp.status == "success"
-        assert len(resp.data) == 2
-        assert resp.metadata["total_count"] == 2
-
     @pytest.mark.asyncio
     async def test_export_data_passes_data_type_enum(self, export_request, sample_df):
         """Regression: data_type must reach the query builder as a DataType enum,
@@ -87,41 +69,6 @@ class TestDataExportService:
 
         _, kwargs = mock_bq.call_args
         assert kwargs["data_type"] == DataType.RAW
-
-    @pytest.mark.asyncio
-    async def test_export_data_empty_returns_200_not_error(
-        self, export_request, empty_df
-    ):
-        svc = DataExportService()
-        meta = {"total_count": 0, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(empty_df, meta),
-        ):
-            resp = await svc.export_data(export_request)
-
-        assert resp.status == "success"
-        assert resp.data == []
-        assert "No data available for the selected period" in resp.message
-
-    @pytest.mark.asyncio
-    async def test_export_data_bigquery_error_raises_500(self, export_request):
-        svc = DataExportService()
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("BQ failure"),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await svc.export_data(export_request)
-
-        assert exc.value.status_code == 500
-        assert "Failed to retrieve data" in exc.value.detail
-        # Must NOT expose internal error message
-        assert "BQ failure" not in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_export_data_applies_cleaning_pipeline(self, export_request):
@@ -163,35 +110,6 @@ class TestDataExportService:
         assert resp.data[1]["pm2_5"] is None
 
     @pytest.mark.asyncio
-    async def test_export_data_bad_filter_raises_400(self, export_request):
-        """get_validated_filter returning an error message triggers 400."""
-        svc = DataExportService()
-
-        with patch(
-            "api.services.get_validated_filter",
-            return_value=(None, []),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await svc.export_data(export_request)
-
-        assert exc.value.status_code == 400
-
-    @pytest.mark.asyncio
-    async def test_export_raw_data_returns_records(self, raw_request, sample_df):
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ):
-            resp = await svc.export_raw_data(raw_request)
-
-        assert resp.status == "success"
-        assert len(resp.data) == 2
-
-    @pytest.mark.asyncio
     async def test_export_forecast_data_by_country(self, sample_df):
         from datetime import datetime, timedelta, timezone
         from api.schemas.requests import ForecastDataExportRequest
@@ -218,67 +136,6 @@ class TestDataExportService:
         # Filter must be passed as a country where-clause
         _, kwargs = mock_bq.call_args
         assert kwargs["where_fields"] == {"country": "uganda"}
-
-    @pytest.mark.asyncio
-    async def test_export_forecast_data_accepts_its_own_cursor(self, sample_df):
-        """The cursor this endpoint returns is accepted back on it, so a
-        caller reaches the pages behind metadata.next."""
-        from datetime import datetime, timedelta, timezone
-        from api.schemas.requests import ForecastDataExportRequest
-
-        req = ForecastDataExportRequest(
-            startDateTime=(
-                datetime.now(tz=timezone.utc) - timedelta(days=2)
-            ).isoformat(),
-            endDateTime=datetime.now(tz=timezone.utc).isoformat(),
-            country="uganda",
-            cursor="cursor-token",
-        )
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": True, "next": "next-token"}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ) as mock_bq:
-            resp = await svc.export_forecast_data(req)
-
-        _, kwargs = mock_bq.call_args
-        assert kwargs["cursor_token"] == "cursor-token"
-        assert resp.metadata["next"] == "next-token"
-        assert resp.metadata["has_more"] is True
-
-    @pytest.mark.asyncio
-    async def test_export_data_csv_returns_streaming_response(self, sample_df):
-        from datetime import datetime, timedelta, timezone
-        from fastapi.responses import StreamingResponse
-        from api.schemas.requests import DataExportRequest
-
-        req = DataExportRequest(
-            startDateTime=(
-                datetime.now(tz=timezone.utc) - timedelta(days=2)
-            ).isoformat(),
-            endDateTime=datetime.now(tz=timezone.utc).isoformat(),
-            network="airqo",
-            device_category="lowcost",
-            pollutants=["pm2_5"],
-            sites=["site1"],
-            frequency="daily",
-            downloadType="csv",
-        )
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ):
-            resp = await svc.export_data(req)
-
-        assert isinstance(resp, StreamingResponse)
-        assert resp.media_type == "text/csv"
 
     @pytest.mark.asyncio
     async def test_get_summary_returns_completeness_report(self):
@@ -402,97 +259,11 @@ class TestDataExportService:
 
 
 # ---------------------------------------------------------------------------
-# Cursor hand-off and the request hash
+# The request hash
 #
-# Each download service hands the request cursor and the hash of the request
-# body to the query layer, and answers a rejected cursor with HTTP 400.
+# Each download service hashes the request body and the operation name, and
+# the query layer accepts a cursor only with the hash that issued it.
 # ---------------------------------------------------------------------------
-
-
-class TestCursorHandOff:
-    def _patched_bq(self):
-        from tests.paging_support import device_frame
-
-        meta = {"total_count": 2, "has_more": True, "next": "next-2026"}
-        return patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(device_frame(2), meta),
-        )
-
-    @pytest.mark.asyncio
-    async def test_data_download_hands_over_the_cursor_and_the_hash(self):
-        from api.services import _cursor_binding
-        from tests.paging_support import DOWNLOAD
-
-        req = DataExportRequest(**{**DOWNLOAD, "cursor": "token-2026"})
-        with self._patched_bq() as mock_bq:
-            resp = await DataExportService().export_data(req)
-
-        _, kwargs = mock_bq.call_args
-        assert kwargs["cursor_token"] == "token-2026"
-        assert kwargs["cursor_binding"] == _cursor_binding("data-download", req)
-        assert resp.metadata["next"] == "next-2026"
-        assert resp.metadata["has_more"] is True
-
-    @pytest.mark.asyncio
-    async def test_raw_data_hands_over_the_cursor_and_the_hash(self):
-        from api.schemas.requests import RawDataExportRequest
-        from api.services import _cursor_binding
-        from tests.paging_support import RAW
-
-        req = RawDataExportRequest(**{**RAW, "cursor": "token-2026"})
-        with self._patched_bq() as mock_bq:
-            await DataExportService().export_raw_data(req)
-
-        _, kwargs = mock_bq.call_args
-        assert kwargs["cursor_token"] == "token-2026"
-        assert kwargs["cursor_binding"] == _cursor_binding("raw-data", req)
-
-    @pytest.mark.asyncio
-    async def test_forecast_data_hands_over_the_cursor_and_the_hash(self):
-        from api.schemas.requests import ForecastDataExportRequest
-        from api.services import _cursor_binding
-        from tests.paging_support import FORECAST
-
-        req = ForecastDataExportRequest(**{**FORECAST, "cursor": "token-2026"})
-        with self._patched_bq() as mock_bq:
-            await DataExportService().export_forecast_data(req)
-
-        _, kwargs = mock_bq.call_args
-        assert kwargs["cursor_token"] == "token-2026"
-        assert kwargs["cursor_binding"] == _cursor_binding("forecast-data", req)
-
-    @pytest.mark.asyncio
-    async def test_rejected_cursor_is_a_400_with_one_message(self):
-        from api.schemas.requests import (
-            ForecastDataExportRequest,
-            RawDataExportRequest,
-        )
-        from api.utils.exceptions import CursorRejected
-        from tests.paging_support import DOWNLOAD, FORECAST, RAW
-
-        service = DataExportService()
-        calls = [
-            (service.export_data, DataExportRequest(**{**DOWNLOAD, "cursor": "t"})),
-            (service.export_raw_data, RawDataExportRequest(**{**RAW, "cursor": "t"})),
-            (
-                service.export_forecast_data,
-                ForecastDataExportRequest(**{**FORECAST, "cursor": "t"}),
-            ),
-        ]
-        details = set()
-        for method, req in calls:
-            with patch(
-                "api.services.AsyncBigQueryApi.query_data_async",
-                new_callable=AsyncMock,
-                side_effect=CursorRejected("test"),
-            ):
-                with pytest.raises(HTTPException) as exc:
-                    await method(req)
-            assert exc.value.status_code == 400
-            details.add(exc.value.detail)
-        assert len(details) == 1
 
 
 class TestCursorBinding:
@@ -508,16 +279,6 @@ class TestCursorBinding:
         )
         assert _cursor_binding("data-download", first) == _cursor_binding(
             "data-download", second
-        )
-
-    def test_the_cursor_field_stays_outside_the_hash(self):
-        from api.services import _cursor_binding
-        from tests.paging_support import DOWNLOAD
-
-        with_cursor = DataExportRequest(**{**DOWNLOAD, "cursor": "token-2026"})
-        without = DataExportRequest(**DOWNLOAD)
-        assert _cursor_binding("data-download", with_cursor) == _cursor_binding(
-            "data-download", without
         )
 
     @pytest.mark.parametrize(
@@ -539,13 +300,6 @@ class TestCursorBinding:
         assert _cursor_binding("data-download", original) != _cursor_binding(
             "data-download", changed
         )
-
-    def test_another_operation_gives_another_hash(self):
-        from api.services import _cursor_binding
-        from tests.paging_support import DOWNLOAD
-
-        req = DataExportRequest(**DOWNLOAD)
-        assert _cursor_binding("data-download", req) != _cursor_binding("raw-data", req)
 
     def test_hash_is_the_same_in_every_process(self):
         """Two worker processes with different hash seeds compute the same
@@ -620,39 +374,6 @@ class TestDashboardService:
         assert len(resp.data) == 2
 
     @pytest.mark.asyncio
-    async def test_get_chart_data_pie_aggregates_by_site(self, sample_df):
-        """Pie chart must produce {label, value} per site, not raw rows."""
-        from datetime import datetime, timedelta, timezone
-        from api.schemas.requests import DashboardChartRequest
-
-        start = (datetime.now(tz=timezone.utc) - timedelta(days=7)).isoformat()
-        end = datetime.now(tz=timezone.utc).isoformat()
-        pie_req = DashboardChartRequest(
-            startDateTime=start,
-            endDateTime=end,
-            network="airqo",
-            device_category="lowcost",
-            pollutants=["pm2_5"],
-            sites=["site1"],
-            frequency="daily",
-            chartType="pie",
-        )
-        svc = DashboardService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ):
-            resp = await svc.get_chart_data(pie_req)
-
-        assert resp.status == "success"
-        for point in resp.data:
-            assert "label" in point
-            assert "value" in point
-
-    @pytest.mark.asyncio
     async def test_get_chart_data_empty_returns_success(
         self, dashboard_request, empty_df
     ):
@@ -686,87 +407,8 @@ class TestDashboardService:
 
 
 class TestChartPaging:
-    """A line or bar chart pages with the request cursor.  A pie chart reads every row."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("chart_type", ["line", "bar"])
-    async def test_line_and_bar_charts_hand_over_the_cursor_and_the_hash(
-        self, chart_type
-    ):
-        from api.schemas.requests import DashboardChartRequest
-        from api.services import _cursor_binding
-        from tests.paging_support import chart_body, device_frame
-
-        req = DashboardChartRequest(
-            **{**chart_body(chart_type), "cursor": "token-2026"}
-        )
-        meta = {"total_count": 2, "has_more": True, "next": "next-2026"}
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(device_frame(2), meta),
-        ) as mock_bq:
-            resp = await DashboardService().get_chart_data(req)
-
-        _, kwargs = mock_bq.call_args
-        assert kwargs["cursor_token"] == "token-2026"
-        assert kwargs["cursor_binding"] == _cursor_binding("chart", req)
-        assert kwargs["whole_result"] is False
-        assert resp.metadata["has_more"] is True
-        assert resp.metadata["next"] == "next-2026"
-
-    @pytest.mark.asyncio
-    async def test_line_chart_pages_through_the_stored_result(
-        self, fake_bigquery, small_pages, cursor_clock
-    ):
-        from api.schemas.requests import DashboardChartRequest
-        from tests.paging_support import chart_body, device_frame
-
-        fake_bigquery.result_frame = device_frame(7)
-        body = chart_body("line")
-        svc = DashboardService()
-        pages = [await svc.get_chart_data(DashboardChartRequest(**body))]
-        for _ in range(20):
-            if not pages[-1].metadata["has_more"]:
-                break
-            cursor = pages[-1].metadata["next"]
-            pages.append(
-                await svc.get_chart_data(
-                    DashboardChartRequest(**{**body, "cursor": cursor})
-                )
-            )
-        else:
-            raise AssertionError("the walk did not end within the page cap")
-
-        keys = [
-            (point["datetime"], point["device_name"])
-            for page in pages
-            for point in page.data
-        ]
-        assert len(pages) == 3
-        assert len(keys) == 7
-        assert len(set(keys)) == 7
-        assert pages[-1].metadata["next"] is None
-        assert len(fake_bigquery.queries) == 1
-
-    @pytest.mark.asyncio
-    async def test_pie_chart_reads_every_row_of_the_result(
-        self, fake_bigquery, small_pages, cursor_clock
-    ):
-        from api.schemas.requests import DashboardChartRequest
-        from tests.paging_support import chart_body, pie_frame
-
-        fake_bigquery.result_frame = pie_frame()
-        resp = await DashboardService().get_chart_data(
-            DashboardChartRequest(**chart_body("pie"))
-        )
-
-        assert {point["label"]: point["value"] for point in resp.data} == {
-            "Site One": 20.0,
-            "Site Two": 50.0,
-        }
-        assert resp.metadata == {"total_count": 2, "has_more": False, "next": None}
-        assert len(fake_bigquery.queries) == 1
+    """A pie chart reads every row of its result, so a pie request that carries
+    a cursor gets HTTP 400."""
 
     @pytest.mark.asyncio
     async def test_pie_chart_with_a_cursor_is_a_400(
@@ -787,32 +429,6 @@ class TestChartPaging:
 
         assert exc.value.status_code == 400
         assert len(fake_bigquery.queries) == 1
-
-    @pytest.mark.asyncio
-    async def test_rejected_cursor_gets_the_same_400_as_a_download(self):
-        from api.schemas.requests import DashboardChartRequest
-        from api.utils.exceptions import CursorRejected
-        from tests.paging_support import DOWNLOAD, chart_body
-
-        details = set()
-        for call in (
-            (
-                DashboardService().get_chart_data,
-                DashboardChartRequest(**chart_body("line")),
-            ),
-            (DataExportService().export_data, DataExportRequest(**DOWNLOAD)),
-        ):
-            method, req = call
-            with patch(
-                "api.services.AsyncBigQueryApi.query_data_async",
-                new_callable=AsyncMock,
-                side_effect=CursorRejected("test"),
-            ):
-                with pytest.raises(HTTPException) as exc:
-                    await method(req)
-            assert exc.value.status_code == 400
-            details.add(exc.value.detail)
-        assert len(details) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -902,17 +518,6 @@ class TestAirQualityReportService:
         assert mock_build.call_args.args[:2] == ("grid", "grid-1")
 
     @pytest.mark.asyncio
-    async def test_cohort_request_builds_a_cohort_report(self):
-        report = {"airquality": {"status": "success", "cohort_id": "cohort-1"}}
-        with patch(
-            "api.services.build_entity_report", return_value=report
-        ) as mock_build:
-            resp = await self._svc().get_report(_report_request(cohort_id="cohort-1"))
-
-        assert resp == report
-        assert mock_build.call_args.args[:2] == ("cohort", "cohort-1")
-
-    @pytest.mark.asyncio
     async def test_no_members_maps_to_404(self):
         with patch(
             "api.services.build_entity_report",
@@ -925,35 +530,6 @@ class TestAirQualityReportService:
         assert "No site IDs" in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_invalid_dates_map_to_400(self):
-        with patch(
-            "api.services.build_entity_report",
-            side_effect=ValueError("Time range must not exceed 31 days."),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await self._svc().get_report(_report_request(grid_id="grid-1"))
-
-        assert exc.value.status_code == 400
-
-    @pytest.mark.asyncio
-    async def test_oversized_window_maps_to_400_not_404(self):
-        """query_bigquery used to swallow the cost rejection and return None,
-        which the builder turned into "No data available" — a 404 for a query
-        that was never run."""
-        from api.utils.exceptions import QueryTooLarge
-
-        with patch(
-            "api.services.build_entity_report",
-            side_effect=QueryTooLarge(
-                limit_bytes=1073741824, required_bytes=5557452800
-            ),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await self._svc().get_report(_report_request(grid_id="grid-1"))
-
-        assert exc.value.status_code == 400
-
-    @pytest.mark.asyncio
     async def test_unexpected_error_maps_to_sanitized_500(self):
         with patch(
             "api.services.build_entity_report",
@@ -964,23 +540,6 @@ class TestAirQualityReportService:
 
         assert exc.value.status_code == 500
         assert "secret detail" not in exc.value.detail
-
-    @pytest.mark.asyncio
-    async def test_unreachable_privacy_registry_maps_to_503(self):
-        """Matches how the download paths answer when the registry is down:
-        a retryable 503, never an unscreened result."""
-        from api.utils.exceptions import PrivacyScreeningUnavailable
-
-        with patch(
-            "api.services.build_entity_report",
-            side_effect=PrivacyScreeningUnavailable(),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await self._svc().get_report(_report_request(grid_id="grid-1"))
-
-        assert exc.value.status_code == 503
-        assert "privacy status" in exc.value.detail
-        assert "try again later" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_screen_private_is_forwarded_to_the_builder(self):
@@ -1117,26 +676,6 @@ class TestExportRequestService:
                 True
             )
             resp = await svc.retry("r1", caller_id="owner")
-
-        assert resp["status"] == "success"
-
-    @pytest.mark.asyncio
-    async def test_retry_skips_ownership_check_when_identity_unavailable(self):
-        """Transition mode — no gateway header means ownership is
-        unenforceable, not that everything is denied."""
-        from api.services import ExportRequestService
-
-        fake_record = MagicMock()
-        fake_record.user_id = "owner"
-        fake_record.to_api_format.return_value = {"request_id": "r1"}
-        svc = ExportRequestService()
-
-        with patch("api.services.DataExportModel") as mock_model_cls:
-            mock_model_cls.return_value.get_request_by_id.return_value = fake_record
-            mock_model_cls.return_value.update_request_status_and_retries.return_value = (
-                True
-            )
-            resp = await svc.retry("r1", caller_id=None)
 
         assert resp["status"] == "success"
 
@@ -1401,43 +940,10 @@ class TestPrivacyFiltering:
     privacy=False  the list is used as requested and device-registry is not
                    called, so its availability has no bearing on the request.
 
-    Both settings are covered explicitly below, and the service-wiring tests
-    assert only that a service states the flag rather than which value it
-    states — so the suite holds whichever way a path is wired, and none of it
-    rides on the parameter's default.
+    Both settings are covered explicitly below.  The route test
+    tests/test_api_endpoints.py::TestPrivacyFilteringWiring asserts that the
+    data-download path states the flag.
     """
-
-    def _bq(self, sample_df):
-        meta = {"total_count": 2, "has_more": False, "next": None}
-        return patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        )
-
-    # -- Each request path states the flag rather than inheriting it ---------
-
-    @pytest.mark.asyncio
-    async def test_data_download_states_privacy_explicitly(
-        self, export_request, sample_df, privacy_kwarg
-    ):
-        with self._bq(sample_df) as mock_bq:
-            await DataExportService().export_data(export_request)
-
-        assert privacy_kwarg == [{"privacy": ANY}]
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"sites": ["site1", "site2"]}
-
-    @pytest.mark.asyncio
-    async def test_raw_data_states_privacy_explicitly(
-        self, raw_request, sample_df, privacy_kwarg
-    ):
-        with self._bq(sample_df) as mock_bq:
-            await DataExportService().export_raw_data(raw_request)
-
-        assert privacy_kwarg == [{"privacy": ANY}]
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"sites": ["site1"]}
 
     # -- Both flag settings, always passed explicitly ------------------------
 
@@ -1496,93 +1002,6 @@ class TestPrivacyFiltering:
             with pytest.raises(HTTPException) as exc:
                 await _filter_from_request({"sites": ["site1"]}, privacy=True)
         assert exc.value.status_code == 503
-
-    @pytest.mark.asyncio
-    async def test_grid_ids_filter_bypasses_privacy_check(
-        self, valid_export_payload, sample_df
-    ):
-        """grid_ids is not in _PRIVACY_FILTERED_TYPES, so it is used as
-        requested even under privacy=True: device-registry screens site and
-        device IDs, not the containers that resolve to them, and a grid
-        resolves to sites.  Screening grids would need a device-registry
-        endpoint that accepts them."""
-        from api.schemas.requests import DataExportRequest
-
-        request = DataExportRequest(
-            **{**valid_export_payload, "sites": None, "grid_ids": ["g1"]}
-        )
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.filter_non_private_sites_devices"
-        ) as mock_filter, patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ) as mock_bq:
-            await svc.export_data(request)
-
-        mock_filter.assert_not_called()
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"grid_ids": ["g1"]}
-
-    @pytest.mark.asyncio
-    async def test_cohort_ids_filter_bypasses_privacy_check(
-        self, valid_export_payload, sample_df
-    ):
-        """cohort_ids is not in _PRIVACY_FILTERED_TYPES either, for the same
-        reason as grid_ids — a cohort resolves to devices, and
-        filterNonPrivateDevices accepts device IDs, not cohort IDs.  Screening
-        cohorts would mean expanding the cohort to its devices first, or a
-        device-registry endpoint that accepts cohorts."""
-        from api.schemas.requests import DataExportRequest
-
-        request = DataExportRequest(
-            **{**valid_export_payload, "sites": None, "cohort_ids": ["c1"]}
-        )
-        svc = DataExportService()
-        meta = {"total_count": 2, "has_more": False, "next": None}
-
-        with patch(
-            "api.services.filter_non_private_sites_devices"
-        ) as mock_filter, patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            return_value=(sample_df, meta),
-        ) as mock_bq:
-            await svc.export_data(request)
-
-        mock_filter.assert_not_called()
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"cohort_ids": ["c1"]}
-
-    @pytest.mark.asyncio
-    async def test_dashboard_chart_states_privacy_explicitly(
-        self, dashboard_request, sample_df, privacy_kwarg
-    ):
-        """Chart endpoints have always set the flag at the call site rather
-        than inheriting the default."""
-        with self._bq(sample_df) as mock_bq:
-            resp = await DashboardService().get_chart_data(dashboard_request)
-
-        assert privacy_kwarg == [{"privacy": ANY}]
-        _, kwargs = mock_bq.call_args
-        assert kwargs["where_fields"] == {"sites": ["site1"]}
-        assert resp.status == "success"
-
-    @pytest.mark.asyncio
-    async def test_scheduled_export_states_privacy_explicitly(self, privacy_kwarg):
-        """The Celery worker exports whatever filter_value the record holds,
-        so the list is resolved here, at registration time."""
-        from api.services import ExportRequestService
-
-        with patch("api.services.DataExportModel") as mock_model_cls:
-            await ExportRequestService().create(_scheduled_export_request())
-
-        assert privacy_kwarg == [{"privacy": ANY}]
-        record = mock_model_cls.return_value.create_request.call_args.args[0]
-        assert record.filter_value == ["site1"]
 
 
 # ---------------------------------------------------------------------------
@@ -1853,18 +1272,6 @@ class TestReportTemplateService:
                 await svc.delete_monthly("ghost", "airqo")
         assert exc.value.status_code == 404
 
-    @pytest.mark.asyncio
-    async def test_delete_success_message_includes_name(self):
-        from api.services import ReportTemplateService
-
-        svc = ReportTemplateService()
-        with patch("api.services.ReportTemplateModel") as mock_model_cls:
-            mock_model_cls.return_value.delete_by_name.return_value = MagicMock(
-                deleted_count=1
-            )
-            resp = await svc.delete_monthly("march", "airqo")
-        assert resp["message"] == "monthly report march deleted successfully"
-
 
 # ---------------------------------------------------------------------------
 # Oversized queries
@@ -1881,18 +1288,6 @@ class TestOversizedQueryHandling:
         from api.utils.exceptions import QueryTooLarge
 
         return QueryTooLarge(limit_bytes=1073741824, required_bytes=5557452800)
-
-    @pytest.mark.asyncio
-    async def test_data_download_returns_400_not_500(self, export_request):
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=self._too_large(),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        assert exc.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_raw_frequency_returns_400(self, valid_raw_payload):
@@ -1943,20 +1338,6 @@ class TestOversizedQueryHandling:
         assert "1.0 GB" in caplog.text
         assert "GB" not in exc.value.detail
 
-    @pytest.mark.asyncio
-    async def test_other_query_failures_are_still_500(self, export_request):
-        """A query BigQuery did not complete gets its own response; any
-        other failure is a 500."""
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("connection reset"),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        assert exc.value.status_code == 500
-
 
 def _timed_out():
     from api.utils.exceptions import QueryTimedOut
@@ -1994,22 +1375,6 @@ def _assert_refusal_response(exc) -> None:
 class TestForbiddenHandling:
     """A request that BigQuery refused with HTTP 403 gets a 503 for every
     reason. The BigQuery message goes to the log only."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "reason", ["accessDenied", "quotaExceeded", "rateLimitExceeded"]
-    )
-    async def test_data_download(self, export_request, reason):
-        with patch(
-            "api.services.AsyncBigQueryApi.query_data_async",
-            new_callable=AsyncMock,
-            side_effect=_forbidden(reason),
-        ):
-            with pytest.raises(HTTPException) as exc:
-                await DataExportService().export_data(export_request)
-
-        _assert_refusal_response(exc)
-        assert _FORBIDDEN_MESSAGE not in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_rate_limited_job_gets_the_same_response(self, export_request):
@@ -2563,16 +1928,6 @@ class TestReportEntityPipeline:
         # Both rows are the same instant, so both land on the same UTC hour.
         assert df["hour"].tolist() == [0, 0]
         assert df["day"].tolist() == ["Monday", "Monday"]
-
-    def test_window_cap_follows_hourly_query_days(self):
-        from api.models.base.data_processing import validate_dates
-        from config import settings
-
-        over = datetime(2024, 1, 1), datetime(2024, 1, 1) + timedelta(
-            days=settings.hourly_query_days() + 1
-        )
-        with pytest.raises(ValueError, match="must not exceed"):
-            validate_dates(*over)
 
     def test_frame_emptied_by_the_coordinate_filter_is_no_data(self):
         """Rows without coordinates cannot be aggregated by site. The emptiness

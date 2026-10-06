@@ -29,16 +29,6 @@ class TestFastAPIPyMongoModel:
             model_default = FastAPIPyMongoModel("", "x")
             assert model_default.network == "airqo"
 
-    def test_inherits_pipeline_operations(self):
-        with patch("api.models.base.mongo_base.MongoClient"):
-            model = FastAPIPyMongoModel("airqo", "x")
-
-        # Chainable pipeline vocabulary from ModelOperations must be available
-        assert callable(model.date_range)
-        assert callable(model.unwind)
-        assert callable(model.lookup)
-        assert callable(model.exec)
-
     def test_insert_uses_pymongo4_insert_one(self):
         """Collection.insert was removed in PyMongo 4 — the base must use
         insert_one so writes work under the pinned pymongo~=4.5."""

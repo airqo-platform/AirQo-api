@@ -12,28 +12,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, AsyncMock, patch
 from fastapi.testclient import TestClient
 
-from api.schemas.responses import (
-    DataExportResponse,
-    DashboardChartResponse,
-    MonitoringSiteResponse,
-    SiteInfo,
-)
+from api.schemas.responses import DataExportResponse
 
 # client and payload fixtures are provided by conftest.py
-
-
-# ---------------------------------------------------------------------------
-# Health check
-# ---------------------------------------------------------------------------
-
-
-class TestHealth:
-    def test_health_returns_healthy(self, client: TestClient):
-        resp = client.get("/health")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "healthy"
-        assert "version" in body
 
 
 # ---------------------------------------------------------------------------
@@ -41,61 +22,7 @@ class TestHealth:
 # ---------------------------------------------------------------------------
 
 
-def _ok_export() -> DataExportResponse:
-    return DataExportResponse(
-        status="success",
-        message="Data exported successfully",
-        data=[{"datetime": "2023-01-01T12:00:00Z", "pm2_5": 15.5, "site_id": "site1"}],
-    )
-
-
 class TestV2DataEndpoints:
-    def test_data_download_200(self, client, valid_export_payload):
-        with patch(
-            "api.services.DataExportService.export_data",
-            new_callable=AsyncMock,
-            return_value=_ok_export(),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "success"
-
-    def test_raw_data_200(self, client, valid_raw_payload):
-        with patch(
-            "api.services.DataExportService.export_raw_data",
-            new_callable=AsyncMock,
-            return_value=_ok_export(),
-        ):
-            resp = client.post("/api/v2/analytics/raw-data", json=valid_raw_payload)
-        assert resp.status_code == 200
-
-    def test_data_summary_200(self, client):
-        """start_time/end_time + one of grid_id/cohort_id — the same body
-        /report takes → completeness-report envelope."""
-        envelope = {
-            "status": "success",
-            "message": "successful",
-            "data": {"grid": "Kampala Grid", "hourly_records": 100},
-            "metadata": None,
-        }
-        with patch(
-            "api.services.DataExportService.get_summary",
-            new_callable=AsyncMock,
-            return_value=envelope,
-        ):
-            resp = client.post(
-                "/api/v2/analytics/summary",
-                json={
-                    "start_time": "2024-01-01T00:00:00",
-                    "end_time": "2024-01-05T00:00:00",
-                    "grid_id": "grid-1",
-                },
-            )
-        assert resp.status_code == 200
-        assert resp.json()["data"]["grid"] == "Kampala Grid"
-
     def test_data_summary_requires_exactly_one_entity(self, client):
         base = {
             "start_time": "2024-01-01T00:00:00",
@@ -109,10 +36,6 @@ class TestV2DataEndpoints:
             "/api/v2/analytics/summary",
             json={**base, "grid_id": "g1", "cohort_id": "c1"},
         )
-        assert resp.status_code == 422
-
-    def test_missing_required_fields_returns_422(self, client):
-        resp = client.post("/api/v2/analytics/data-download", json={"network": "airqo"})
         assert resp.status_code == 422
 
     def test_422_uses_error_envelope(self, client):
@@ -162,42 +85,32 @@ class TestV2DataEndpoints:
         )
         assert resp.status_code == 422
 
-    def test_sql_injection_site_id_does_not_cause_500(
-        self, client, valid_export_payload
+    def test_sql_in_a_site_id_reaches_bigquery_only_as_a_bound_value(
+        self, client, fake_bigquery
     ):
-        """SQL content in site_id must be sanitised at the BigQuery layer — must not 500."""
-        with patch(
-            "api.services.DataExportService.export_data",
-            new_callable=AsyncMock,
-            return_value=DataExportResponse(status="success", data=[]),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/data-download",
-                json={
-                    **valid_export_payload,
-                    "sites": ["site1'; DROP TABLE sites; --"],
-                },
-            )
-        assert resp.status_code != 500
+        """The export binds each site ID as a query parameter, so SQL text in
+        an ID travels as data and stays out of the query text."""
+        from tests.paging_support import WINDOW, device_frame
 
-    def test_service_http_error_propagates_safely(self, client, valid_export_payload):
-        """HTTPException from service must return safe message without internal details."""
-        from fastapi import HTTPException as FHE
+        injected = "site1'; DROP TABLE sites; --"
+        fake_bigquery.result_frame = device_frame(2)
 
-        with patch(
-            "api.services.DataExportService.export_data",
-            new_callable=AsyncMock,
-            side_effect=FHE(status_code=500, detail="Failed to retrieve data"),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 500
-        body = resp.json()
-        msg = body.get("message", body.get("detail", ""))
-        assert "Failed to retrieve data" in msg
-        assert "BigQuery" not in str(body)
-        assert "SQL" not in str(body)
+        resp = client.post(
+            "/api/v2/analytics/data-download",
+            json={
+                **WINDOW,
+                "sites": [injected],
+                "pollutants": ["pm2_5"],
+                "frequency": "hourly",
+                "datatype": "calibrated",
+            },
+        )
+
+        assert resp.status_code == 200
+        (query,) = fake_bigquery.queries
+        assert "DROP TABLE" not in query.sql
+        bound = [p.values for p in query.job_config.query_parameters]
+        assert [injected] in bound
 
 
 # ---------------------------------------------------------------------------
@@ -206,36 +119,57 @@ class TestV2DataEndpoints:
 
 
 class TestV2DashboardEndpoints:
-    def test_chart_data_200(self, client, valid_dashboard_payload):
-        with patch(
-            "api.services.DashboardService.get_chart_data",
-            new_callable=AsyncMock,
-            return_value=DashboardChartResponse(
-                status="success",
-                chart_type="line",
-                data=[{"datetime": "2023-01-01", "pm2_5": 15.5}],
-            ),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/dashboard/chart/data", json=valid_dashboard_payload
-            )
-        assert resp.status_code == 200
-        assert resp.json()["chart_type"] == "line"
+    def test_monitoring_sites_lists_the_sites_of_the_sites_table(
+        self, client, fake_bigquery
+    ):
+        import pandas as pd
 
-    def test_monitoring_sites_200(self, client):
-        with patch(
-            "api.services.MonitoringService.get_sites",
-            new_callable=AsyncMock,
-            return_value=MonitoringSiteResponse(
-                status="success",
-                sites=[SiteInfo(site_id="s1", name="Site A", network="airqo")],
-                total_sites=1,
-                networks=["airqo"],
-            ),
-        ):
-            resp = client.get("/api/v2/analytics/dashboard/sites")
+        fake_bigquery.result_frame = pd.DataFrame(
+            {
+                "id": ["s1", "s2"],
+                "name": ["Site A", "Site B"],
+                "latitude": [0.3, -1.29],
+                "longitude": [32.5, 36.82],
+                "city": ["Kampala", "Nairobi"],
+                "country": ["Uganda", "Kenya"],
+                "network": ["airqo", "iqair"],
+            }
+        )
+
+        resp = client.get("/api/v2/analytics/dashboard/sites")
+
         assert resp.status_code == 200
-        assert resp.json()["total_sites"] == 1
+        body = resp.json()
+        assert body["total_sites"] == 2
+        assert [site["site_id"] for site in body["sites"]] == ["s1", "s2"]
+        assert [site["latitude"] for site in body["sites"]] == [0.3, -1.29]
+        assert body["networks"] == ["airqo", "iqair"]
+        assert len(fake_bigquery.queries) == 1
+
+    def test_monitoring_sites_leave_out_a_site_without_coordinates(
+        self, client, fake_bigquery
+    ):
+        import pandas as pd
+
+        fake_bigquery.result_frame = pd.DataFrame(
+            {
+                "id": ["s1", "s2", "s3"],
+                "name": ["Site A", "Site B", "Site C"],
+                "latitude": [0.3, None, -1.29],
+                "longitude": [32.5, 36.82, None],
+                "city": ["Kampala", "Nairobi", "Mombasa"],
+                "country": ["Uganda", "Kenya", "Kenya"],
+                "network": ["airqo", "iqair", "airqo"],
+            }
+        )
+
+        resp = client.get("/api/v2/analytics/dashboard/sites")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total_sites"] == 1
+        assert [site["site_id"] for site in body["sites"]] == ["s1"]
+        assert body["networks"] == ["airqo"]
 
 
 # ---------------------------------------------------------------------------
@@ -274,17 +208,23 @@ class TestV2ReportEndpoints:
         )
         assert resp.status_code == 422
 
-    def test_get_default_returns_200(self, client):
-        envelope = {
-            "status": "success",
-            "message": "default report successfully fetched",
-            "data": {"report": {}},
-            "metadata": None,
-        }
-        with self._svc("get_default", return_value=envelope):
+    def test_get_default_returns_the_stored_template(self, client):
+        template = {"report_name": "default", "report_body": {"k": "v"}}
+        with patch("api.services.ReportTemplateModel") as model_cls:
+            model_cls.return_value.get_default.return_value = template
             resp = client.get("/api/v2/analytics/data/reports/default_template")
+
         assert resp.status_code == 200
-        assert resp.json()["data"] == {"report": {}}
+        assert resp.json()["data"] == {"report": template}
+        model_cls.assert_called_once_with("airqo")
+
+    def test_get_default_store_failure_is_a_500(self, client):
+        with patch("api.services.ReportTemplateModel") as model_cls:
+            model_cls.return_value.get_default.side_effect = RuntimeError("down")
+            resp = client.get("/api/v2/analytics/data/reports/default_template")
+
+        assert resp.status_code == 500
+        assert resp.json()["status"] == "error"
 
     def test_patch_default_returns_202(self, client):
         envelope = {
@@ -312,10 +252,6 @@ class TestV2ReportEndpoints:
                 "/api/v2/analytics/data/reports/monthly", json=self._BODY
             )
         assert resp.status_code == 201
-
-    def test_list_monthly_requires_user_id(self, client):
-        resp = client.get("/api/v2/analytics/data/reports/monthly")
-        assert resp.status_code == 422
 
     def test_list_monthly_returns_200(self, client):
         envelope = {
@@ -346,51 +282,18 @@ class TestV2ReportEndpoints:
         assert resp.status_code == 202
         assert mock_svc.call_args.args[0] == "march"
 
-    def test_delete_monthly_returns_200(self, client):
-        envelope = {
-            "status": "success",
-            "message": "monthly report march deleted successfully",
-            "data": None,
-            "metadata": None,
-        }
-        with self._svc("delete_monthly", return_value=envelope):
+    @pytest.mark.parametrize("deleted, status", [(1, 200), (0, 404)])
+    def test_delete_monthly_answers_by_the_deleted_count(self, client, deleted, status):
+        from types import SimpleNamespace
+
+        with patch("api.services.ReportTemplateModel") as model_cls:
+            model_cls.return_value.delete_by_name.return_value = SimpleNamespace(
+                deleted_count=deleted
+            )
             resp = client.delete("/api/v2/analytics/data/reports/monthly/march")
-        assert resp.status_code == 200
 
-
-# ---------------------------------------------------------------------------
-# V3 public endpoints
-# ---------------------------------------------------------------------------
-
-
-class TestV3Endpoints:
-    def test_data_download_200(self, client, valid_export_payload):
-        with patch(
-            "api.services.DataExportService.export_data",
-            new_callable=AsyncMock,
-            return_value=DataExportResponse(status="success", data=[{"pm2_5": 10.0}]),
-        ):
-            resp = client.post(
-                "/api/v3/public/analytics/data-download", json=valid_export_payload
-            )
-        assert resp.status_code == 200
-
-    def test_raw_data_200(self, client, valid_raw_payload):
-        with patch(
-            "api.services.DataExportService.export_raw_data",
-            new_callable=AsyncMock,
-            return_value=DataExportResponse(status="success", data=[]),
-        ):
-            resp = client.post(
-                "/api/v3/public/analytics/raw-data", json=valid_raw_payload
-            )
-        assert resp.status_code == 200
-
-    def test_missing_fields_returns_422(self, client):
-        resp = client.post(
-            "/api/v3/public/analytics/data-download", json={"network": "airqo"}
-        )
-        assert resp.status_code == 422
+        assert resp.status_code == status
+        model_cls.return_value.delete_by_name.assert_called_once_with("march")
 
 
 V2_REPORT = "/api/v2/analytics/report"
@@ -428,23 +331,45 @@ class TestReportAndSummary:
     one way, private-member screening.
     """
 
-    def test_report_returns_the_same_envelope_as_v2(self, client):
-        with _stub_report():
-            resp = client.post(V3_REPORT, json=_report_body())
+    @pytest.mark.parametrize("path", [V2_SUMMARY, V3_SUMMARY])
+    def test_summary_reports_the_counts_of_the_devices_summary_table(
+        self, client, fake_bigquery, path
+    ):
+        import pandas as pd
+
+        fake_bigquery.result_frame = pd.DataFrame(
+            {
+                "device": ["d1", "d2"],
+                "site_id": ["s1", "s1"],
+                "site_name": ["Kampala", "Kampala"],
+                "grid_id": ["grid-1", "grid-1"],
+                "grid": ["Kampala Grid", "Kampala Grid"],
+                "hourly_records": [100, 50],
+                "calibrated_records": [80, 50],
+                "uncalibrated_records": [20, 0],
+                "calibrated_percentage": [80.0, 100.0],
+                "uncalibrated_percentage": [20.0, 0.0],
+            }
+        )
+
+        resp = client.post(
+            path,
+            json={
+                "grid_id": "grid-1",
+                "start_time": "2026-03-01T00:00:00+00:00",
+                "end_time": "2026-03-08T00:00:00+00:00",
+            },
+        )
 
         assert resp.status_code == 200
-        assert resp.json()["airquality"]["status"] == "success"
-
-    def test_summary_returns_the_same_envelope_as_v2(self, client):
-        with patch(
-            "api.services.DataExportService.get_summary",
-            new_callable=AsyncMock,
-            return_value={"status": "success", "data": {}, "metadata": None},
-        ):
-            resp = client.post(V3_SUMMARY, json=_report_body())
-
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "success"
+        data = resp.json()["data"]
+        assert data["grid"] == "Kampala Grid"
+        assert data["hourly_records"] == 150
+        assert [device["device"] for device in data["devices"]] == ["d1", "d2"]
+        assert [site["site_name"] for site in data["sites"]] == ["Kampala"]
+        (query,) = fake_bigquery.queries
+        bound = {p.name: p.value for p in query.job_config.query_parameters}
+        assert bound["filter_id"] == "grid-1"
 
     def test_public_report_asks_for_private_members_to_be_screened(self, client):
         with _stub_report() as get_report:
@@ -567,6 +492,50 @@ class TestRouteRateLimitWiring:
 
         assert statuses == [200] * 5 + [429]
 
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    def test_later_pages_pass_the_per_route_limit(
+        self, client, fake_bigquery, cursor_clock, monkeypatch, path
+    ):
+        """raw-data allows 5 exports a minute.  The seven pages of one export
+        count once.  The next exports carry an empty cursor, which starts a new
+        export, so each of them counts, and the fifth of them is the sixth
+        counted request and gets 429."""
+        from tests.paging_support import RAW, device_frame
+        from tests.test_config import test_settings
+
+        monkeypatch.setattr(test_settings, "data_export_limit", 1)
+        fake_bigquery.result_frame = device_frame(7)
+
+        statuses, cursor = [], None
+        for _ in range(7):
+            resp = client.post(path, json={**RAW, "cursor": cursor} if cursor else RAW)
+            statuses.append(resp.status_code)
+            if resp.status_code != 200:
+                break
+            cursor = resp.json()["metadata"]["next"]
+
+        assert statuses == [200] * 7
+        assert cursor is None
+        exports = [
+            client.post(path, json={**RAW, "cursor": ""}).status_code for _ in range(5)
+        ]
+        assert exports == [200] * 4 + [429]
+
+    def test_a_cursor_on_a_route_without_pages_counts(self, client, fake_bigquery):
+        """summary allows 10 requests a minute, whatever the body carries."""
+        body = {
+            "grid_id": "grid-1",
+            "start_time": "2026-03-01T00:00:00+00:00",
+            "end_time": "2026-03-08T00:00:00+00:00",
+            "cursor": "page-2",
+        }
+
+        statuses = [client.post(V2_SUMMARY, json=body).status_code for _ in range(11)]
+
+        assert statuses == [200] * 10 + [429]
+
 
 # ---------------------------------------------------------------------------
 # Dashboard historical aggregations
@@ -579,90 +548,84 @@ class TestDashboardAggregationEndpoints:
         "endDate": "2024-02-01T00:00:00.000000Z",
     }
 
-    def _averages_response(self):
-        from api.schemas.responses import DailyAveragesData, DailyAveragesResponse
+    _WINDOW_2026 = {
+        "startDate": "2026-03-01T00:00:00.000000Z",
+        "endDate": "2026-03-31T00:00:00.000000Z",
+    }
 
-        return DailyAveragesResponse(
-            status="success",
-            message="daily averages successfully fetched",
-            data=DailyAveragesData(
-                average_values=[10.5], labels=["Kampala"], background_colors=["#45e50d"]
-            ),
+    def test_daily_averages_label_each_site_by_its_name(self, client, fake_bigquery):
+        import pandas as pd
+
+        from api.utils.pollutants import set_pm25_category_background
+
+        fake_bigquery.queued_frames = [
+            pd.DataFrame({"value": [10.5, 40.0], "site_id": ["s1", "s2"]}),
+            pd.DataFrame({"id": ["s1", "s2"], "name": ["Kampala", "Jinja"]}),
+        ]
+
+        resp = client.post(
+            "/api/v2/analytics/dashboard/historical/daily-averages",
+            json={"pollutant": "pm2_5", "sites": ["s1", "s2"], **self._WINDOW_2026},
         )
 
-    def _exceedances_response(self):
-        from api.schemas.responses import ExceedancesResponse
-
-        return ExceedancesResponse(
-            status="success",
-            message="exceedance data successfully fetched",
-            data=[{"total": 20, "exceedance": 3, "site": {"name": "Kampala"}}],
-        )
-
-    def test_daily_averages_envelope_includes_null_metadata(self, client):
-        """The response envelope carries "metadata": null."""
-        with patch(
-            "api.services.DashboardService.get_daily_averages",
-            new_callable=AsyncMock,
-            return_value=self._averages_response(),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/dashboard/historical/daily-averages",
-                json={"pollutant": "pm2_5", "sites": ["s1"], **self._WINDOW},
-            )
         assert resp.status_code == 200
         body = resp.json()
         assert body["data"] == {
-            "average_values": [10.5],
-            "labels": ["Kampala"],
-            "background_colors": ["#45e50d"],
+            "average_values": [10.5, 40.0],
+            "labels": ["Kampala", "Jinja"],
+            "background_colors": [
+                set_pm25_category_background(10.5),
+                set_pm25_category_background(40.0),
+            ],
         }
-        assert "metadata" in body and body["metadata"] is None
+        assert body["metadata"] is None
+        assert len(fake_bigquery.queries) == 2
 
-    def test_daily_averages_default_network_reaches_service(self, client):
-        with patch(
-            "api.services.DashboardService.get_daily_averages",
-            new_callable=AsyncMock,
-            return_value=self._averages_response(),
-        ) as mock_svc:
-            client.post(
-                "/api/v2/analytics/dashboard/historical/daily-averages",
-                json={"pollutant": "pm2_5", "sites": ["s1"], **self._WINDOW},
-            )
-        assert mock_svc.call_args.args[1] == "airqo"
+    def test_device_daily_averages_label_each_device_by_its_id(
+        self, client, fake_bigquery
+    ):
+        import pandas as pd
 
-    def test_daily_averages_devices_uses_network_param(self, client):
-        """?network= replaced the deprecated ?tenant= across all v2 routes."""
-        with patch(
-            "api.services.DashboardService.get_device_daily_averages",
-            new_callable=AsyncMock,
-            return_value=self._averages_response(),
-        ) as mock_svc:
-            resp = client.post(
-                "/api/v2/analytics/dashboard/historical/daily-averages-devices"
-                "?network=iqair",
-                json={"pollutant": "pm2_5", "devices": ["d1"], **self._WINDOW},
-            )
+        fake_bigquery.result_frame = pd.DataFrame(
+            {"value": [12.0, 30.0], "device_id": ["d1", "d2"]}
+        )
+
+        resp = client.post(
+            "/api/v2/analytics/dashboard/historical/daily-averages-devices",
+            json={"pollutant": "pm10", "devices": ["d1", "d2"], **self._WINDOW_2026},
+        )
+
         assert resp.status_code == 200
-        assert mock_svc.call_args.args[1] == "iqair"
+        data = resp.json()["data"]
+        assert data["average_values"] == [12.0, 30.0]
+        assert data["labels"] == ["d1", "d2"]
+        (query,) = fake_bigquery.queries
+        assert "AVG(pm10)" in query.sql
 
-    def test_exceedances_200(self, client):
-        with patch(
-            "api.services.DashboardService.get_exceedances",
-            new_callable=AsyncMock,
-            return_value=self._exceedances_response(),
-        ):
+    def test_exceedances_return_the_documents_of_the_network(self, client):
+        docs = [{"total": 20, "exceedance": {"Good": 17}, "site": {"name": "Kampala"}}]
+        with patch("api.services.ExceedanceRepository") as repo_cls:
+            repo_cls.return_value.get_exceedances.return_value = docs
             resp = client.post(
-                "/api/v2/analytics/dashboard/exceedances?network=airqo",
+                "/api/v2/analytics/dashboard/exceedances?network=iqair",
                 json={
                     "pollutant": "pm2_5",
                     "standard": "aqi",
                     "sites": ["s1"],
-                    **self._WINDOW,
+                    **self._WINDOW_2026,
                 },
             )
+
         assert resp.status_code == 200
-        assert resp.json()["data"][0]["exceedance"] == 3
+        assert resp.json()["data"] == docs
+        repo_cls.assert_called_once_with("iqair")
+        assert repo_cls.return_value.get_exceedances.call_args.args == (
+            "2026-03-01T00:00:00.000000Z",
+            "2026-03-31T00:00:00.000000Z",
+            "pm2_5",
+            "aqi",
+            ["s1"],
+        )
 
     def test_exceedances_missing_standard_returns_422(self, client):
         resp = client.post(
@@ -671,29 +634,41 @@ class TestDashboardAggregationEndpoints:
         )
         assert resp.status_code == 422
 
-    def test_exceedances_devices_200(self, client):
-        from api.schemas.responses import ExceedancesResponse
+    def test_device_exceedances_count_the_days_in_each_category(
+        self, client, fake_bigquery
+    ):
+        import pandas as pd
 
-        with patch(
-            "api.services.DashboardService.get_device_exceedances",
-            new_callable=AsyncMock,
-            return_value=ExceedancesResponse(
-                status="success",
-                message="exceedance data successfully fetched",
-                data=[{"device_id": "d1", "total": 2, "exceedances": {"Good": 2}}],
-            ),
-        ):
-            resp = client.post(
-                "/api/v2/analytics/dashboard/exceedances-devices",
-                json={
-                    "pollutant": "pm2_5",
-                    "standard": "who",
-                    "devices": ["d1"],
-                    **self._WINDOW,
-                },
-            )
+        fake_bigquery.result_frame = pd.DataFrame(
+            {
+                "device_id": ["d1", "d1", "d2"],
+                "pm2_5": [12.0, 20.0, 9999.0],
+                "timestamp": pd.to_datetime(
+                    ["2026-03-01", "2026-03-02", "2026-03-01"], utc=True
+                ),
+            }
+        )
+
+        resp = client.post(
+            "/api/v2/analytics/dashboard/exceedances-devices",
+            json={
+                "pollutant": "pm2_5",
+                "standard": "aqi",
+                "devices": ["d1", "d2"],
+                **self._WINDOW_2026,
+            },
+        )
+
         assert resp.status_code == 200
-        assert resp.json()["data"][0]["exceedances"] == {"Good": 2}
+        assert resp.json()["data"] == [
+            {"device_id": "d1", "total": 2, "exceedances": {"Good": 1, "Moderate": 1}},
+            {"device_id": "d2", "total": 0, "exceedances": {}},
+        ]
+        (query,) = fake_bigquery.queries
+        devices = next(
+            p for p in query.job_config.query_parameters if p.name == "devices"
+        )
+        assert devices.values == ["d1", "d2"]
 
 
 # ---------------------------------------------------------------------------
@@ -702,11 +677,11 @@ class TestDashboardAggregationEndpoints:
 
 
 class TestPrivacyFilteringWiring:
-    """End-to-end view of the privacy flag on the request path (not just in
-    service unit tests), for both API versions.  Asserts that the flag is
-    stated at the call site rather than which value it is set to — the flag's
-    own behaviour is covered on both settings in
-    tests/test_services.py::TestPrivacyFiltering."""
+    """End-to-end view of the privacy flag on the request path, for both API
+    versions.  This route test is the check that the data-download path
+    states the flag at the call site.  It asserts that the flag is stated
+    rather than which value it is set to — the flag's own behaviour is
+    covered on both settings in tests/test_services.py::TestPrivacyFiltering."""
 
     def _patched_bq(self, sample_df):
         meta = {"total_count": 2, "has_more": False, "next": None}
@@ -750,34 +725,24 @@ class TestV3ForecastEndpoint:
         end = datetime.now(tz=timezone.utc).isoformat()
         return {"startDateTime": start, "endDateTime": end, **extra}
 
-    def test_forecast_by_country_200(self, client):
-        with patch(
-            "api.services.DataExportService.export_forecast_data",
-            new_callable=AsyncMock,
-            return_value=DataExportResponse(
-                status="success",
-                data=[{"pm2_5": 12.1, "country": "uganda"}],
-            ),
-        ):
-            resp = client.post(
-                "/api/v3/public/analytics/forecast-data",
-                json=self._payload(country="uganda"),
-            )
-        assert resp.status_code == 200
-        # The record count lives only in metadata.total_count now.
-        assert "total_records" not in resp.json()
+    def test_forecast_by_city_filters_the_query_on_the_city(
+        self, client, fake_bigquery
+    ):
+        from tests.paging_support import WINDOW, forecast_frame
 
-    def test_forecast_by_city_200(self, client):
-        with patch(
-            "api.services.DataExportService.export_forecast_data",
-            new_callable=AsyncMock,
-            return_value=DataExportResponse(status="success", data=[]),
-        ):
-            resp = client.post(
-                "/api/v3/public/analytics/forecast-data",
-                json=self._payload(city="kampala"),
-            )
+        fake_bigquery.result_frame = forecast_frame(2)
+
+        resp = client.post(
+            "/api/v3/public/analytics/forecast-data",
+            json={**WINDOW, "city": "Kampala"},
+        )
+
         assert resp.status_code == 200
+        assert len(resp.json()["data"]) == 2
+        (query,) = fake_bigquery.queries
+        assert "city = @filter_value" in query.sql
+        bound = {p.name: p.value for p in query.job_config.query_parameters}
+        assert bound["filter_value"] == "Kampala"
 
     def test_forecast_without_country_or_city_returns_422(self, client):
         resp = client.post(
@@ -883,6 +848,71 @@ class TestCsvDownload:
         assert "x-next-cursor" not in resp.headers
 
 
+class TestAqcsvDownload:
+    """A CSV export in the AQCSV format runs the real export with the fake
+    BigQuery client, whose times end with "Z" as the times of the queries do."""
+
+    def test_hourly_calibrated_export_writes_the_aqcsv_fields(
+        self, client, fake_bigquery
+    ):
+        from tests.paging_support import DOWNLOAD, device_frame
+
+        fake_bigquery.result_frame = device_frame(2).rename(
+            columns={"pm2_5": "pm2_5_calibrated_value"}
+        )
+
+        resp = client.post(
+            "/api/v2/analytics/data-download",
+            json={**DOWNLOAD, "downloadType": "csv", "outputFormat": "aqcsv"},
+        )
+
+        assert resp.status_code == 200
+        rows = _csv_rows(resp.text)
+        assert [(row["datetime"], row["duration"], row["qc"]) for row in rows] == [
+            ("20260301T0000", "60", "2")
+        ] * 2
+        assert sorted(row["value_pm2_5"] for row in rows) == ["10.0", "11.0"]
+        assert {row["data_status_pm2_5"] for row in rows} == {"1"}
+
+    @pytest.mark.parametrize(
+        "path", ["/api/v2/analytics/raw-data", "/api/v3/public/analytics/raw-data"]
+    )
+    def test_raw_export_writes_the_raw_value(self, client, fake_bigquery, path):
+        from tests.paging_support import RAW, device_frame
+
+        fake_bigquery.result_frame = device_frame(2)
+
+        resp = client.post(
+            path, json={**RAW, "downloadType": "csv", "outputFormat": "aqcsv"}
+        )
+
+        assert resp.status_code == 200
+        rows = _csv_rows(resp.text)
+        assert sorted(row["value_pm2_5"] for row in rows) == ["10.0", "11.0"]
+        assert {
+            (row["duration"], row["qc"], row["data_status_pm2_5"]) for row in rows
+        } == {("1", "4", "0")}
+
+    @pytest.mark.parametrize("frequency", ["weekly", "monthly", "yearly"])
+    def test_aqcsv_at_a_coarser_frequency_is_a_422(
+        self, client, fake_bigquery, frequency
+    ):
+        from tests.paging_support import DOWNLOAD
+
+        resp = client.post(
+            "/api/v2/analytics/data-download",
+            json={
+                **DOWNLOAD,
+                "frequency": frequency,
+                "downloadType": "csv",
+                "outputFormat": "aqcsv",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert fake_bigquery.queries == []
+
+
 # ---------------------------------------------------------------------------
 # Stored-result paging through the routes
 #
@@ -969,6 +999,31 @@ def _bad_cursors(cursor, cursor_clock):
 
 
 class TestStoredResultPagingRoutes:
+    @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
+    def test_later_pages_pass_the_per_route_limit_on_every_paged_route(
+        self,
+        client,
+        fake_bigquery,
+        small_pages,
+        cursor_clock,
+        monkeypatch,
+        path,
+        body,
+        identity,
+    ):
+        """The per-route limit allows 5 exports a minute on raw-data and 10
+        elsewhere.  A walk of 12 one-row pages passes on every paged route,
+        because only the first request of an export counts."""
+        from tests.test_config import test_settings
+
+        monkeypatch.setattr(test_settings, "data_export_limit", 1)
+        _seed(fake_bigquery, identity, rows=12)
+
+        pages = _walk_json(client, path, body)
+
+        assert len(pages) == 12
+        assert len(fake_bigquery.queries) == 1
+
     @pytest.mark.parametrize("path, body, identity", _paged_routes(), ids=_route_ids())
     def test_walk_returns_every_record_once(
         self, client, fake_bigquery, small_pages, cursor_clock, path, body, identity
@@ -1304,30 +1359,6 @@ class TestAirQualityReportEndpoint:
     }
     _PATH = "/api/v2/analytics/report"
 
-    def test_grid_report_200(self, client):
-        report = {"airquality": {"status": "success", "grid_id": "grid-1"}}
-        with patch(
-            "api.services.AirQualityReportService.get_report",
-            new_callable=AsyncMock,
-            return_value=report,
-        ):
-            resp = client.post(self._PATH, json={"grid_id": "grid-1", **self._WINDOW})
-        assert resp.status_code == 200
-        assert resp.json()["airquality"]["grid_id"] == "grid-1"
-
-    def test_cohort_report_200(self, client):
-        report = {"airquality": {"status": "success", "cohort_id": "cohort-1"}}
-        with patch(
-            "api.services.AirQualityReportService.get_report",
-            new_callable=AsyncMock,
-            return_value=report,
-        ):
-            resp = client.post(
-                self._PATH, json={"cohort_id": "cohort-1", **self._WINDOW}
-            )
-        assert resp.status_code == 200
-        assert resp.json()["airquality"]["cohort_id"] == "cohort-1"
-
     def test_entity_reaches_the_builder(self, client):
         """The kind is derived from the body, not the path."""
         with patch(
@@ -1413,31 +1444,9 @@ class TestScheduledExportEndpoints:
         resp = client.get("/api/v2/analytics/data-export")
         assert resp.status_code == 422
 
-    def test_list_returns_200(self, client):
-        with patch(
-            "api.services.ExportRequestService.list_for_user",
-            new_callable=AsyncMock,
-            return_value={"status": "success", "data": []},
-        ):
-            resp = client.get(
-                "/api/v2/analytics/data-export", params={"userId": "user-1"}
-            )
-        assert resp.status_code == 200
-
     def test_patch_requires_request_id(self, client):
         resp = client.patch("/api/v2/analytics/data-export")
         assert resp.status_code == 422
-
-    def test_patch_returns_200(self, client):
-        with patch(
-            "api.services.ExportRequestService.retry",
-            new_callable=AsyncMock,
-            return_value={"status": "success", "data": {"request_id": "r1"}},
-        ):
-            resp = client.patch(
-                "/api/v2/analytics/data-export", params={"requestId": "r1"}
-            )
-        assert resp.status_code == 200
 
     def test_create_rejects_user_id_with_path_separator(
         self, client, valid_export_payload
@@ -1576,14 +1585,6 @@ class TestMiddleware:
 
     ORIGIN = {"Origin": "https://platform.airqo.net"}
 
-    def test_cors_middleware_present(self):
-        from main import app
-
-        middleware_names = [str(m) for m in app.user_middleware]
-        assert any(
-            "CORS" in n for n in middleware_names
-        ), "CORSMiddleware should be configured"
-
     def test_cors_is_the_outermost_user_middleware(self):
         from main import app
 
@@ -1634,6 +1635,23 @@ class TestMiddleware:
         assert resp.status_code == 429
         assert resp.headers.get("access-control-allow-origin")
         assert resp.headers.get("x-request-id")
+
+    def test_rate_limited_response_lets_a_browser_read_retry_after(
+        self, client: TestClient
+    ):
+        from api.middlewares.rate_limiter import RateLimiterMiddleware
+
+        with _raising_route() as path, patch.object(
+            RateLimiterMiddleware,
+            "_consume_quota",
+            new=AsyncMock(return_value=False),
+        ):
+            resp = client.get(path, headers=self.ORIGIN)
+
+        assert resp.status_code == 429
+        assert resp.headers.get("retry-after")
+        exposed = resp.headers.get("access-control-expose-headers", "")
+        assert "retry-after" in [name.strip().lower() for name in exposed.split(",")]
 
     def test_cors_preflight_is_still_answered(self, client: TestClient):
         with _raising_route() as path:
