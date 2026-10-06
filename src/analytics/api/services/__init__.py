@@ -49,7 +49,6 @@ from api.schemas.requests import (
     DeviceExceedancesRequest,
     ExceedancesRequest,
     ForecastDataExportRequest,
-    MonitoringSiteRequest,
     RawDataExportRequest,
     ReportRequest,
     ReportUpdateRequest,
@@ -1255,14 +1254,16 @@ class DashboardService(BaseService):
 class MonitoringService(BaseService):
     """Handles monitoring site information queries."""
 
-    async def get_sites(
-        self, request: Optional[MonitoringSiteRequest] = None
-    ) -> MonitoringSiteResponse:
-        """Retrieve site metadata from BigQuery."""
+    async def get_sites(self) -> MonitoringSiteResponse:
+        """
+        Retrieve the metadata of every site from BigQuery.
+
+        The list holds the sites that have both coordinates.  BigQuery delivers
+        a missing coordinate as NaN, and the list leaves that site out.
+        """
         bq = AsyncBigQueryApi()
         try:
-            site_ids = request.site_ids if request else None
-            df = await bq.get_sites_async(site_ids=site_ids)
+            df = await bq.get_sites_async()
         except QueryNotCompleted as exc:
             raise _query_error(exc, QueryLevers()) from exc
         except RuntimeError as exc:
@@ -1270,6 +1271,9 @@ class MonitoringService(BaseService):
             raise HTTPException(
                 status_code=500, detail="Failed to retrieve site data"
             ) from exc
+
+        if {"latitude", "longitude"} <= set(df.columns):
+            df = df.dropna(subset=["latitude", "longitude"])
 
         if df.empty:
             return MonitoringSiteResponse(

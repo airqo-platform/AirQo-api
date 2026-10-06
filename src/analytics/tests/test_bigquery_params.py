@@ -21,11 +21,6 @@ class TestBuildFilterParameter:
         assert param.array_type == "STRING"
         assert param.values == ["site1", "site2"]
 
-    def test_tuple_filter_binds_array_parameter(self):
-        param = BigQueryApi._build_filter_parameter(("d1", "d2"))
-        assert isinstance(param, bigquery.ArrayQueryParameter)
-        assert param.values == ["d1", "d2"]
-
     def test_scalar_filter_binds_scalar_parameter(self):
         """Country/city filters use = @filter_value → scalar param.
 

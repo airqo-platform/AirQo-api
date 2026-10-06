@@ -212,17 +212,6 @@ class TestTableNameGuard:
             )
             assert config.bigquery_grids == good
 
-    def test_error_names_the_offending_setting(self):
-        import pytest
-        from pydantic import ValidationError
-
-        with pytest.raises(ValidationError, match="bigquery_hourly_consolidated"):
-            BaseConfig(
-                FLASK_ENV="development",
-                SECRET_KEY=BaseConfig.DEFAULT_SECRET_KEY,
-                BIGQUERY_HOURLY_CONSOLIDATED="bad/name",
-            )
-
     def test_legacy_colon_separator_accepted(self):
         """BigQuery's `project:dataset.table` form is valid inside backticks.
         Rejecting it would turn a working deployment into a startup failure

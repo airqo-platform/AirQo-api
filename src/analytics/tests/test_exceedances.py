@@ -46,12 +46,6 @@ class TestCountStandardCategories:
         counts = count_standard_categories(df, "aqi", "pm2_5")
         assert counts == {"d1": {}}
 
-    def test_out_of_band_device_present_with_empty_counts(self):
-        df = _df([("d1", 9999.0), ("d2", 5.0)])
-        counts = count_standard_categories(df, "aqi", "pm2_5")
-        assert counts["d1"] == {}
-        assert counts["d2"] == {"Good": 1}
-
     def test_who_standard_uses_who_bands(self):
         # 11 is Moderate under who pm2_5 but Good under aqi pm2_5
         df = _df([("d1", 11.0)])

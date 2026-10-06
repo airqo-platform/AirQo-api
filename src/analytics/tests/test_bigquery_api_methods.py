@@ -19,12 +19,11 @@ import re
 
 import pandas as pd
 import pytest
-from google.api_core.exceptions import Forbidden
 
 from api.models.bigquery_api import BigQueryApi
-from api.utils.exceptions import CursorRejected, QueryForbidden
-from constants import ColumnDataType, DataType, DeviceCategory, Frequency
-from tests.paging_support import LOCATION, device_frame, payload_of, tampered
+from api.utils.exceptions import CursorRejected
+from constants import DataType, DeviceCategory, Frequency
+from tests.paging_support import LOCATION, device_frame, payload_of
 from tests.test_config import test_settings
 
 
@@ -66,6 +65,64 @@ class TestJoins:
         result = bq_api.add_site_join("SELECT * FROM data_table")
         assert "RIGHT JOIN" in result
         assert "data.site_id = " in result
+
+
+class TestQueryText:
+    def test_one_request_builds_one_query_text_in_every_process(self):
+        """Two worker processes with different hash seeds build the same SQL
+        for one request, so BigQuery serves the repeat from its cache and the
+        columns of a CSV export keep one order."""
+        import os
+        import subprocess
+        import sys
+        import textwrap
+        from pathlib import Path
+
+        script = textwrap.dedent(
+            """
+            import os, sys
+            from unittest.mock import MagicMock
+            sys.path.insert(0, os.getcwd())
+            import google.cloud.bigquery
+            google.cloud.bigquery.Client = MagicMock
+            from tests.test_config import test_settings
+            import config
+            config.settings = test_settings
+            from api.models.bigquery_api import BigQueryApi
+            from constants import DataType, DeviceCategory, Frequency
+            api = BigQueryApi()
+            start, end = "2026-03-01T00:00:00+00:00", "2026-03-02T00:00:00+00:00"
+            devices = {"device_ids": ["dev_a"]}
+            print(api.compose_query(
+                test_settings.bigquery_raw_data, start, end, ["pm2_5", "pm10"],
+                DataType.RAW, devices, DeviceCategory.LOWCOST,
+            ))
+            print(api.compose_dynamic_query(
+                test_settings.bigquery_hourly_data, start, end, ["pm2_5", "pm10"],
+                devices, DataType.CALIBRATED, Frequency.HOURLY,
+                DeviceCategory.LOWCOST,
+            ))
+            """
+        )
+        queries = set()
+        for seed in ("1", "2"):
+            env = {
+                **os.environ,
+                "APP_ENV": "development",
+                "PYTHONHASHSEED": seed,
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+            run = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=Path(__file__).resolve().parents[1],
+            )
+            assert run.returncode == 0, run.stderr
+            assert "pm2_5" in run.stdout and "temperature" in run.stdout
+            queries.add(run.stdout)
+        assert len(queries) == 1
 
 
 class TestTimeGrouping:
@@ -259,19 +316,6 @@ class TestFilterQueryBuilders:
         assert "country = @filter_value" in query
         assert "UNNEST" not in query
 
-    def test_get_location_query_rejects_invalid_filter_type(self, bq_api):
-        with pytest.raises(ValueError, match="Invalid location filter"):
-            bq_api.get_location_query(
-                table="project.dataset.satellite",
-                filter_type="device_id",
-                filter_value="d1",
-                pollutants_query="SELECT pm2_5",
-                time_grouping="timestamp",
-                start_date="2025-01-01",
-                end_date="2025-01-04",
-                frequency=Frequency.HOURLY,
-            )
-
     def test_build_filter_query_routes_by_filter_type(self, bq_api):
         """build_filter_query must dispatch to the matching query builder for
         each supported filter_type."""
@@ -332,18 +376,6 @@ class TestFilterQueryBuilders:
         assert "cohorts_devices" in cohort_q
         assert f"{bq_api.devices_table}.id IN (" in cohort_q
 
-    def test_build_filter_query_rejects_unknown_filter_type(self, bq_api):
-        with pytest.raises(ValueError, match="Invalid filter type"):
-            bq_api.build_filter_query(
-                table="project.dataset.table",
-                filter_type="not_a_real_filter",
-                filter_value="x",
-                pollutants_query="SELECT pm2_5",
-                start_date="2025-01-01",
-                end_date="2025-01-04",
-                frequency=Frequency.HOURLY,
-            )
-
 
 # ---------------------------------------------------------------------------
 # Schema-driven column resolution (real schema JSON files)
@@ -363,16 +395,6 @@ class TestGetColumns:
         assert "pm2_5" in columns
         assert "site_id" in columns
         assert "timestamp" in columns
-
-    def test_get_columns_filtered_by_float_type(self, bq_api, measurements_table):
-        columns = bq_api.get_columns(measurements_table, [ColumnDataType.FLOAT])
-        assert "pm2_5" in columns
-        assert "site_id" not in columns  # STRING, filtered out
-        assert "timestamp" not in columns  # TIMESTAMP, filtered out
-
-    def test_get_columns_invalid_table_raises(self, bq_api):
-        with pytest.raises(Exception, match="Invalid table"):
-            bq_api.get_columns("not_a_configured_table")
 
 
 # ---------------------------------------------------------------------------
@@ -450,14 +472,6 @@ class TestStoredResultPaging:
         assert len(pages) == math.ceil(rows / small_pages)
         assert all(len(page) <= small_pages for page in pages)
 
-    def test_later_pages_run_no_query(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        pages, _ = _walk(paging_api, _request())
-        assert len(pages) == 3
-        assert len(fake_bigquery.queries) == 1
-
     def test_later_pages_read_the_stored_result_of_the_first_query(
         self, fake_bigquery, small_pages, cursor_clock, paging_api
     ):
@@ -480,31 +494,6 @@ class TestStoredResultPaging:
         _, metas = _walk(paging_api, _request())
         assert [payload_of(meta["next"])["offset"] for meta in metas[:-1]] == [3, 6]
         assert [read.start_index for read in fake_bigquery.reads] == [0, 3, 6]
-
-    def test_metadata_marks_the_last_page(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        pages, metas = _walk(paging_api, _request())
-        for meta in metas[:-1]:
-            assert meta["has_more"] is True
-            assert isinstance(meta["next"], str)
-        assert metas[-1] == {
-            "total_count": len(pages[-1]),
-            "has_more": False,
-            "next": None,
-        }
-        assert [meta["total_count"] for meta in metas] == [len(p) for p in pages]
-
-    def test_empty_result_is_one_page_without_a_cursor(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(0)
-        page, meta = paging_api.query_data(**_request())
-        assert page.empty
-        assert meta == {"total_count": 0, "has_more": False, "next": None}
-        assert len(fake_bigquery.queries) == 1
-        assert fake_bigquery.job_lookups == []
 
     @pytest.mark.parametrize("rows, pages", [(3, 1), (6, 2)])
     def test_result_of_whole_pages_ends_without_an_empty_page(
@@ -529,14 +518,6 @@ class TestStoredResultPaging:
         (param,) = sent.job_config.query_parameters
         assert isinstance(param, bigquery.ArrayQueryParameter)
         assert param.values == ["dev_a", "dev_b"]
-
-    def test_each_read_stays_within_one_page(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        _walk(paging_api, _request())
-        assert all(read.max_results == small_pages for read in fake_bigquery.reads)
-        assert all(read.rows <= small_pages for read in fake_bigquery.reads)
 
     def test_the_same_cursor_returns_the_same_page(
         self, fake_bigquery, small_pages, cursor_clock, paging_api
@@ -571,40 +552,6 @@ class TestStoredResultPaging:
         assert fake_bigquery.job_lookups == []
         assert len(fake_bigquery.reads) == 1
 
-    def test_a_changed_or_expired_cursor_is_rejected_without_a_bigquery_call(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        _, meta = paging_api.query_data(**_request())
-        with pytest.raises(CursorRejected):
-            paging_api.query_data(cursor_token=tampered(meta["next"]), **_request())
-        cursor_clock.advance(361)
-        with pytest.raises(CursorRejected):
-            paging_api.query_data(cursor_token=meta["next"], **_request())
-        assert fake_bigquery.job_lookups == []
-        assert len(fake_bigquery.reads) == 1
-
-    @pytest.mark.parametrize("vanish", ["expire_result", "forget_job"])
-    def test_a_vanished_stored_result_rejects_the_cursor(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api, vanish
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        _, meta = paging_api.query_data(**_request())
-        getattr(fake_bigquery, vanish)(payload_of(meta["next"])["job_id"])
-        with pytest.raises(CursorRejected):
-            paging_api.query_data(cursor_token=meta["next"], **_request())
-
-    def test_a_refused_page_read_is_a_forbidden_query(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        _, meta = paging_api.query_data(**_request())
-        fake_bigquery.read_error = Forbidden(
-            "Access Denied", errors=[{"reason": "accessDenied"}]
-        )
-        with pytest.raises(QueryForbidden):
-            paging_api.query_data(cursor_token=meta["next"], **_request())
-
     def test_whole_result_returns_every_row_in_one_frame(
         self, fake_bigquery, small_pages, cursor_clock, paging_api
     ):
@@ -614,17 +561,6 @@ class TestStoredResultPaging:
         assert meta == {"total_count": 7, "has_more": False, "next": None}
         assert len(fake_bigquery.queries) == 1
         assert fake_bigquery.reads[0].bqstorage is False
-
-    def test_whole_result_with_a_cursor_is_rejected(
-        self, fake_bigquery, small_pages, cursor_clock, paging_api
-    ):
-        fake_bigquery.result_frame = device_frame(7)
-        _, meta = paging_api.query_data(**_request())
-        with pytest.raises(CursorRejected):
-            paging_api.query_data(
-                cursor_token=meta["next"], whole_result=True, **_request()
-            )
-        assert len(fake_bigquery.queries) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,3 @@
-import hashlib
-import base64
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from constants import (
     QueryType,
@@ -321,7 +319,9 @@ class BigQueryApi:
             device_category,
             table_name=table_name,
         )
-        selected_columns = set(pollutant_columns)
+        # dict.fromkeys removes duplicates and keeps the order of the columns,
+        # so one request gives one query text in every process.
+        selected_columns = list(dict.fromkeys(pollutant_columns))
 
         pollutants_query = (
             "SELECT "
@@ -859,7 +859,9 @@ class BigQueryApi:
             table_name=table_name,
         )
 
-        selected_columns = set(pollutant_columns)
+        # dict.fromkeys removes duplicates and keeps the order of the columns,
+        # so one request gives one query text in every process.
+        selected_columns = list(dict.fromkeys(pollutant_columns))
 
         pollutants_query = (
             "SELECT "
@@ -964,8 +966,10 @@ class BigQueryApi:
         extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category).copy()
         extra_columns.discard("site_id")
         if pollutant_columns:
+            # The optional fields are a set, so sorting them gives one column
+            # order in every process.
             pollutant_columns.extend(
-                [f"{table_name}.{field}" for field in extra_columns]
+                [f"{table_name}.{field}" for field in sorted(extra_columns)]
             )
 
         return pollutant_columns

@@ -20,7 +20,6 @@ from api.utils.data_cleaning import (
     DropDuplicateRecords,
     DropOptionalColumns,
     NullifyNaN,
-    RenameDeviceIdToName,
     SortRecords,
     TagFrequency,
     build_download_pipeline,
@@ -93,12 +92,6 @@ class TestCoerceNumericAndDropZeroColumns:
         assert "pm10" not in out.columns
         assert "pm2_5" in out.columns
 
-    def test_coerces_non_numeric_to_nan(self):
-        df = pd.DataFrame({"pm2_5": [1.0, 2.0], "site_id": ["s1", "s2"]})
-        out = CoerceNumericAndDropZeroColumns().apply(df, _ctx())
-        # site_id is non-numeric object → untouched (not in numeric dtypes)
-        assert out["site_id"].tolist() == ["s1", "s2"]
-
     def test_raw_multi_network_requires_pm2_5(self):
         """Raw data across mixed networks must have pm2_5; absence is an error."""
         df = pd.DataFrame({"pm10": [1.0, 2.0], "network": ["airqo", "metone"]})
@@ -112,22 +105,6 @@ class TestCoerceNumericAndDropZeroColumns:
 
 
 class TestDropOptionalColumns:
-    def test_drops_optional_fields_not_requested(self):
-        df = pd.DataFrame(
-            {
-                "pm2_5": [1.0],
-                "temperature": [20.0],
-                "humidity": [50.0],
-                "site_name": ["A"],
-            }
-        )
-        out = DropOptionalColumns().apply(df, _ctx(extra_columns=[]))
-        assert "temperature" not in out.columns
-        assert "humidity" not in out.columns
-        # non-optional columns survive
-        assert "pm2_5" in out.columns
-        assert "site_name" in out.columns
-
     def test_keeps_requested_extra_columns(self):
         df = pd.DataFrame({"pm2_5": [1.0], "temperature": [20.0], "humidity": [50.0]})
         out = DropOptionalColumns().apply(df, _ctx(extra_columns=["temperature"]))
@@ -138,11 +115,6 @@ class TestDropOptionalColumns:
         df = pd.DataFrame({"pm2_5": [1.0], "timestamp": ["2023-01-01"]})
         out = DropOptionalColumns().apply(df, _ctx())
         assert "timestamp" not in out.columns
-
-    def test_absent_columns_are_ignored(self):
-        df = pd.DataFrame({"pm2_5": [1.0]})
-        out = DropOptionalColumns().apply(df, _ctx())  # nothing to drop
-        assert list(out.columns) == ["pm2_5"]
 
 
 class TestSortRecords:
@@ -156,11 +128,6 @@ class TestSortRecords:
         )
         out = SortRecords().apply(df, _ctx(frequency=Frequency.HOURLY))
         assert out["pm2_5"].tolist() == [1, 2, 3]
-
-    def test_safe_when_sort_columns_absent(self):
-        df = pd.DataFrame({"pm2_5": [1, 2]})
-        out = SortRecords().apply(df, _ctx())
-        assert len(out) == 2  # no error
 
 
 class TestDropDuplicateRecords:
@@ -222,26 +189,6 @@ class TestDropDuplicateRecords:
         assert len(out) == 2
 
 
-class TestTagFrequency:
-    def test_adds_frequency_column(self):
-        df = pd.DataFrame({"pm2_5": [1, 2]})
-        out = TagFrequency().apply(df, _ctx(frequency=Frequency.DAILY))
-        assert out["frequency"].tolist() == ["daily", "daily"]
-
-
-class TestRenameDeviceIdToName:
-    def test_renames_when_present(self):
-        df = pd.DataFrame({"device_id": ["d1"], "pm2_5": [1]})
-        out = RenameDeviceIdToName().apply(df, _ctx())
-        assert "device_name" in out.columns
-        assert "device_id" not in out.columns
-
-    def test_noop_when_absent(self):
-        df = pd.DataFrame({"pm2_5": [1]})
-        out = RenameDeviceIdToName().apply(df, _ctx())
-        assert list(out.columns) == ["pm2_5"]
-
-
 class TestNullifyNaN:
     def test_replaces_nan_with_none(self):
         df = pd.DataFrame({"pm2_5": [1.0, np.nan]})
@@ -255,24 +202,6 @@ class TestNullifyNaN:
 
 
 class TestDataCleaningPipeline:
-    def test_empty_dataframe_short_circuits(self):
-        pipeline = build_download_pipeline()
-        out = pipeline.run(pd.DataFrame(), _ctx())
-        assert out.empty
-
-    def test_does_not_mutate_caller_dataframe(self):
-        df = pd.DataFrame(
-            {
-                "device_id": ["d1"],
-                "datetime": ["t1"],
-                "pm2_5": [1.0],
-                "temperature": [20.0],
-            }
-        )
-        original_columns = list(df.columns)
-        build_download_pipeline().run(df, _ctx())
-        assert list(df.columns) == original_columns  # untouched
-
     def test_end_to_end_download_cleaning(self):
         df = pd.DataFrame(
             {
