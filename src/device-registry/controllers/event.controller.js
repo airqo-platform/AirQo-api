@@ -505,10 +505,26 @@ const createEvent = {
         ...req,
         query: { ...req.query, grid_id: req.params.grid_id },
       };
-      const result = await createEventUtil.getRepresentativeAirQuality(
+      const response = await createEventUtil.getRepresentativeAirQualityForGrid(
         request,
         next,
       );
+      // A server-side cache hit reports its remaining lifetime, so a
+      // downstream cache never stretches staleness past the TTL.
+      let result = response;
+      let maxAge = constants.REPRESENTATIVE_AQ_CACHE_TTL_SECONDS;
+      if (response && response.cacheMaxAgeSeconds !== undefined) {
+        ({ cacheMaxAgeSeconds: maxAge, ...result } = response);
+      }
+      // Only a real reading is cacheable; an empty result should be re-asked.
+      if (
+        result &&
+        result.success === true &&
+        !isEmpty(result.data) &&
+        maxAge > 0
+      ) {
+        res.set("Cache-Control", `public, max-age=${maxAge}`);
+      }
       handleResponse({ res, result, key: "data" });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

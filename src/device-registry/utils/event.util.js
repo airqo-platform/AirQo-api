@@ -6,6 +6,8 @@ const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
 const AirQualitySummaryModel = require("@models/AirQualitySummary");
+const ComputedCacheModel = require("@models/ComputedCache");
+const LRUCache = require("lru-cache");
 const crypto = require("crypto");
 const { intelligentFetch } = require("@utils/readings/fetch.util");
 const aqiUtil = require("@utils/aqi.util");
@@ -71,6 +73,77 @@ const logRedisWarning = (operation) => {
   if (now - lastRedisWarning > REDIS_WARNING_THROTTLE) {
     logger.warn(`Redis connection not available, skipping cache ${operation}`);
     lastRedisWarning = now;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Two-level cache for a grid's representative reading (same L1/L2 pattern as
+// the private-site-IDs cache in grid.util.js):
+//   L1 (in-memory): pod-local, no DB call on a hit.
+//   L2 (MongoDB ComputedCache): shared across replicas, survives restarts.
+// Deliberately not Redis-backed. Every cache failure falls through to the
+// live computation, so the cache can never fail a request.
+// ---------------------------------------------------------------------------
+const REPRESENTATIVE_AQ_CACHE_TTL_MS =
+  (constants.REPRESENTATIVE_AQ_CACHE_TTL_SECONDS || 300) * 1000;
+const REPRESENTATIVE_AQ_CACHE_KEY_PREFIX = "representative_aq_grid_";
+const REPRESENTATIVE_AQ_SUCCESS_MESSAGE =
+  "Successfully retrieved representative air quality value.";
+const _representativeAQCache = new LRUCache({
+  max: 1000,
+  maxAge: REPRESENTATIVE_AQ_CACHE_TTL_MS,
+});
+const _representativeAQInflight = new Map(); // per-grid in-flight computations
+
+const readRepresentativeAQCache = async (tenant, key) => {
+  const l1Key = `${tenant}:${key}`;
+  const l1 = _representativeAQCache.get(l1Key);
+  if (l1 !== undefined && Date.now() < l1.expiresAt) {
+    return l1;
+  }
+
+  try {
+    const l2 = await ComputedCacheModel(tenant)
+      .findOne({ key, tenant })
+      .lean();
+    if (l2 && l2.expiresAt > new Date()) {
+      // Align L1's lifetime to L2's absolute expiry rather than resetting it.
+      const entry = { data: l2.data, expiresAt: l2.expiresAt.getTime() };
+      _representativeAQCache.set(l1Key, entry, entry.expiresAt - Date.now());
+      return entry;
+    }
+  } catch (error) {
+    logger.warn(`ComputedCache L2 read failed for ${key}: ${error.message}`);
+  }
+  return undefined;
+};
+
+const writeRepresentativeAQCache = (tenant, key, data) => {
+  const now = Date.now();
+  const expiresAt = new Date(now + REPRESENTATIVE_AQ_CACHE_TTL_MS);
+  _representativeAQCache.set(`${tenant}:${key}`, {
+    data,
+    expiresAt: expiresAt.getTime(),
+  });
+
+  // Fire-and-forget so a cache write failure never blocks the API response.
+  try {
+    ComputedCacheModel(tenant)
+      .findOneAndUpdate(
+        { key, tenant },
+        {
+          $set: { data, computedAt: new Date(now), expiresAt },
+          $setOnInsert: { key, tenant },
+        },
+        { upsert: true, new: false },
+      )
+      .catch((error) =>
+        logger.warn(
+          `ComputedCache L2 write failed for ${key}: ${error.message}`,
+        ),
+      );
+  } catch (error) {
+    logger.warn(`ComputedCache L2 write failed for ${key}: ${error.message}`);
   }
 };
 
@@ -1741,7 +1814,7 @@ const createEvent = {
 
       return {
         success: true,
-        message: "Successfully retrieved representative air quality value.",
+        message: REPRESENTATIVE_AQ_SUCCESS_MESSAGE,
         data: representativeReading,
         status: httpStatus.OK,
       };
@@ -1757,6 +1830,82 @@ const createEvent = {
         ),
       );
     }
+  },
+
+  // Cached front for the grid variant of getRepresentativeAirQuality. Returns
+  // what the uncached function returns; only a successful, non-empty reading
+  // is ever stored. A cache hit also carries cacheMaxAgeSeconds (the entry's
+  // remaining lifetime), which the controller strips before responding.
+  getRepresentativeAirQualityForGrid: async (request, next) => {
+    const { grid_id, site_id, cohort_id } = request.query;
+
+    // A caller-supplied site_id can change the result when the grid resolves
+    // to no sites, and cohort_id alongside grid_id is a 400 — both keep the
+    // uncached behaviour so a warm cache never masks them.
+    if (isEmpty(grid_id) || !isEmpty(site_id) || !isEmpty(cohort_id)) {
+      return createEvent.getRepresentativeAirQuality(request, next);
+    }
+
+    const tenant =
+      (request.query.tenant &&
+        request.query.tenant
+          .toString()
+          .trim()
+          .toLowerCase()) ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
+    const key = `${REPRESENTATIVE_AQ_CACHE_KEY_PREFIX}${grid_id
+      .toString()
+      .toLowerCase()}`;
+    const inflightKey = `${tenant}:${key}`;
+
+    const cached = await readRepresentativeAQCache(tenant, key);
+    if (cached !== undefined) {
+      return {
+        success: true,
+        message: REPRESENTATIVE_AQ_SUCCESS_MESSAGE,
+        data: cached.data,
+        status: httpStatus.OK,
+        cacheMaxAgeSeconds: Math.max(
+          0,
+          Math.floor((cached.expiresAt - Date.now()) / 1000),
+        ),
+      };
+    }
+
+    // Concurrent misses on this pod share one computation. The computation
+    // reports failures through next(), so capture that error and replay it
+    // to every waiting request's own next() rather than only the leader's.
+    let inflight = _representativeAQInflight.get(inflightKey);
+    if (!inflight) {
+      inflight = (async () => {
+        let error;
+        try {
+          const result = await createEvent.getRepresentativeAirQuality(
+            request,
+            (err) => {
+              if (error === undefined) error = err;
+            },
+          );
+          if (result && result.success === true && !isEmpty(result.data)) {
+            writeRepresentativeAQCache(tenant, key, result.data);
+          }
+          return { result, error };
+        } catch (err) {
+          return { error: err };
+        } finally {
+          _representativeAQInflight.delete(inflightKey);
+        }
+      })();
+      _representativeAQInflight.set(inflightKey, inflight);
+    }
+
+    const { result, error } = await inflight;
+    if (error !== undefined) {
+      next(error);
+      return;
+    }
+    return result;
   },
 
   // African city/country AQI rankings — groups the latest reading per site
