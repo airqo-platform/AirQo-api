@@ -25,6 +25,9 @@ const appConstants = {
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
   CACHE_TIMEOUT_PERIOD: 10000,
+  // Readings are refreshed hourly (store-readings-job), so a grid's
+  // representative reading is safe to reuse for a few minutes.
+  REPRESENTATIVE_AQ_CACHE_TTL_SECONDS: 300,
   MAX_EVENT_AGE_HOURS: 6,
   MAX_REJECTED_LOGS: 10,
   JOB_LOOKBACK_WINDOW_MS: 5 * 60 * 60 * 1000,

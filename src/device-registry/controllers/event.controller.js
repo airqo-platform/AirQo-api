@@ -505,10 +505,17 @@ const createEvent = {
         ...req,
         query: { ...req.query, grid_id: req.params.grid_id },
       };
-      const result = await createEventUtil.getRepresentativeAirQuality(
+      const result = await createEventUtil.getRepresentativeAirQualityForGrid(
         request,
         next,
       );
+      // Only a real reading is cacheable; an empty result should be re-asked.
+      if (result && result.success === true && !isEmpty(result.data)) {
+        res.set(
+          "Cache-Control",
+          `public, max-age=${constants.REPRESENTATIVE_AQ_CACHE_TTL_SECONDS}`,
+        );
+      }
       handleResponse({ res, result, key: "data" });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
