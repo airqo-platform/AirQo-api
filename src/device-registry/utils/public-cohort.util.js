@@ -40,6 +40,9 @@ const CONFIG_KEY = "public_cohort_config";
 // does not bump the admin-facing config's version/updated_by.
 const STATE_KEY = "public_cohort_state";
 const PUBLIC_COHORT_NAME = "airqo_public_cohort";
+// Stable identifier consumers use in place of the cohort id, which differs
+// per environment.
+const PUBLIC_COHORT_SLUG = "airqo-public";
 const DEFAULT_DEVICES_PER_GRID = 5;
 const DEFAULT_MAX_OFFLINE_HOURS = 24;
 const MAX_DEVICES_PER_GRID = 100;
@@ -165,6 +168,7 @@ const publicCohort = {
   CONFIG_KEY,
   STATE_KEY,
   PUBLIC_COHORT_NAME,
+  PUBLIC_COHORT_SLUG,
   DEFAULT_DEVICES_PER_GRID,
   DEFAULT_MAX_OFFLINE_HOURS,
   MAX_DEVICES_PER_GRID,
@@ -206,6 +210,7 @@ const publicCohort = {
       data: {
         config,
         cohort_id: state.cohort_id || null,
+        cohort_slug: PUBLIC_COHORT_SLUG,
         last_refresh: state.last_refresh || null,
       },
     };
@@ -290,25 +295,40 @@ const publicCohort = {
   // Resolved by the stored id first so a later rename of the cohort does not
   // orphan it and spawn a second one.
   resolveCohort: async (tenant, storedCohortId) => {
+    let cohort = null;
     if (storedCohortId) {
-      const byId = await CohortModel(tenant)
+      cohort = await CohortModel(tenant)
         .findById(storedCohortId)
         .lean();
-      if (byId) return byId;
     }
-    const byName = await CohortModel(tenant)
-      .findOne({ name: PUBLIC_COHORT_NAME })
-      .lean();
-    if (byName) return byName;
-    const created = await CohortModel(tenant).create({
-      name: PUBLIC_COHORT_NAME,
-      network: constants.DEFAULT_NETWORK || "airqo",
-      visibility: true,
-      description:
-        "Automatically maintained sample of public devices from every lowest-level Grid",
-      cohort_tags: ["public-cohort"],
-    });
-    return created.toObject();
+    if (!cohort) {
+      cohort = await CohortModel(tenant)
+        .findOne({ name: PUBLIC_COHORT_NAME })
+        .lean();
+    }
+    if (!cohort) {
+      const created = await CohortModel(tenant).create({
+        name: PUBLIC_COHORT_NAME,
+        cohort_slug: PUBLIC_COHORT_SLUG,
+        network: constants.DEFAULT_NETWORK || "airqo",
+        visibility: true,
+        description:
+          "Automatically maintained sample of public devices from every lowest-level Grid",
+        cohort_tags: ["public-cohort"],
+      });
+      return created.toObject();
+    }
+    // A cohort created before the slug existed gets it on the next refresh.
+    if (!cohort.cohort_slug) {
+      await CohortModel(tenant).updateOne(
+        { _id: cohort._id, cohort_slug: { $exists: false } },
+        {
+          $set: { cohort_slug: PUBLIC_COHORT_SLUG },
+          $addToSet: { cohort_codes: PUBLIC_COHORT_SLUG },
+        },
+      );
+    }
+    return cohort;
   },
 
   refresh: async (tenant) => {
@@ -427,6 +447,7 @@ const publicCohort = {
       status: httpStatus.OK,
       data: {
         cohort_id: cohortId,
+        cohort_slug: PUBLIC_COHORT_SLUG,
         ...lastRefresh,
         grids: gridSummaries,
       },
