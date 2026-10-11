@@ -24,6 +24,25 @@ router.use(verifyAndBindResources);
 // is enabled.
 router.use(attachIdentityContext);
 
+// Public cohort — static routes, registered ahead of every /:cohort_id route.
+router.get(
+  "/public/config",
+  cohortValidations.getPublicCohortConfig,
+  createCohortController.getPublicCohortConfig,
+);
+
+router.put(
+  "/public/config",
+  cohortValidations.updatePublicCohortConfig,
+  createCohortController.updatePublicCohortConfig,
+);
+
+router.post(
+  "/public/refresh",
+  cohortValidations.refreshPublicCohort,
+  createCohortController.refreshPublicCohort,
+);
+
 router.delete(
   "/:cohort_id",
   cohortValidations.deleteCohort,

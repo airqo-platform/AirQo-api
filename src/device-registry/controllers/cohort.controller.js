@@ -7,6 +7,10 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const createCohortUtil = require("@utils/cohort.util");
+const publicCohortUtil = require("@utils/public-cohort.util");
+const {
+  runPublicCohortRefreshJob,
+} = require("@bin/jobs/public-cohort-refresh-job");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -417,6 +421,50 @@ const createCohort = {
 
       const result = await createCohortUtil.promoteCohorts(request, next);
       handleResponse({ res, result, key: "promotion" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  getPublicCohortConfig: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await publicCohortUtil.describe(request.query.tenant);
+      handleResponse({ res, result, key: "public_cohort" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  updatePublicCohortConfig: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const { tenant } = request.query;
+      const result = await publicCohortUtil.updateConfig(tenant, request.body);
+      // Fire-and-forget — the new settings are applied to the cohort now
+      // rather than at the next weekly run, without holding the request open.
+      runPublicCohortRefreshJob(tenant).catch((error) => {
+        logger.error(`🐛🐛 public cohort refresh trigger failed: ${error.message}`);
+      });
+      handleResponse({ res, result, key: "public_cohort" });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  refreshPublicCohort: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = (await runPublicCohortRefreshJob(request.query.tenant)) || {
+        success: false,
+        message: "A public cohort refresh is already in progress",
+        status: httpStatus.CONFLICT,
+        errors: { message: "A public cohort refresh is already in progress" },
+      };
+      handleResponse({ res, result, key: "public_cohort" });
     } catch (error) {
       handleError(error, next);
     }
