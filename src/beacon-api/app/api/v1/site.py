@@ -35,8 +35,11 @@ def _validate_frequency(frequency: Optional[str]) -> str:
 
 
 def _resolve_group_device_ids(db: Session, group: Optional[str]):
-    """Return the group's device IDs, or ``None`` when unscoped (no group or a supergroup)."""
-    if not group:
+    """Return the group's device IDs, or ``None`` when unscoped (no group or a supergroup).
+
+    An empty ``group=`` is passed on so the resolver rejects it with 400.
+    """
+    if group is None:
         return None
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
     return resolve_group_device_ids(db, resolve_group_cohort_ids(db, group))

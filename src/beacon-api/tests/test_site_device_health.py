@@ -178,6 +178,10 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
         response = self.client.get("/api/v1/sites/?group=nope")
         self.assertEqual(response.status_code, 404)
 
+    def test_empty_group_is_400(self):
+        self.assertEqual(self.client.get("/api/v1/sites/?group=").status_code, 400)
+        self.assertEqual(self.client.get("/api/v1/sites/site_1?group=").status_code, 400)
+
     def test_invalid_frequency_is_400(self):
         response = self.client.get("/api/v1/sites/?frequency=weekly")
         self.assertEqual(response.status_code, 400)

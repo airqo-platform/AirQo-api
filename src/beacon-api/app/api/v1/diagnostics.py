@@ -490,7 +490,7 @@ def get_fleet_daily_summary(
     db: Session = Depends(get_db),
 ) -> Any:
     """Fleet health for a day: lifecycle state counts, most common issues, new/resolved issues and worst devices."""
-    device_scope = group_device_id_select(db, group) if group else None
+    device_scope = group_device_id_select(db, group) if group is not None else None
     return build_fleet_daily_summary(db, diagnosis_date=diagnosis_date, top_n=top_n, device_scope=device_scope)
 
 
@@ -513,7 +513,7 @@ def list_fleet_issues(
     db: Session = Depends(get_db),
 ) -> Any:
     """Search detected issues across all devices, e.g. every device with a persistent power fault."""
-    device_scope = group_device_id_select(db, group) if group else None
+    device_scope = group_device_id_select(db, group) if group is not None else None
     if not (diagnosis_date or start_date or end_date):
         diagnosis_date = crud_diagnostics.get_latest_diagnosis_date(db, device_scope=device_scope)
         if diagnosis_date is None:

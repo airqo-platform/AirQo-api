@@ -371,6 +371,10 @@ class TestDiagnosticsSummaries(unittest.TestCase):
         response = self.client.get("/api/v1/diagnostics/fleet/issues?group=nope")
         self.assertEqual(response.status_code, 404)
 
+    def test_fleet_empty_group_is_400(self):
+        self.assertEqual(self.client.get("/api/v1/diagnostics/fleet/daily-summary?group=").status_code, 400)
+        self.assertEqual(self.client.get("/api/v1/diagnostics/fleet/issues?group=").status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

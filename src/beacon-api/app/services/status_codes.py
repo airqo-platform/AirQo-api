@@ -25,6 +25,8 @@ BITMASK = "bitmask"
 EXACT = "exact"
 # A decoded value takes the most serious kind among its parts; an undefined part ranks below a fault.
 _STATUS_RANK = {"ok": 0, "info": 1, "unknown": 2, "fault": 3}
+# Values are read as floats, which only hold whole numbers exactly below 2**53.
+_MAX_VALUE = 2 ** 53
 
 
 class StatusCodeSetError(ValueError):
@@ -77,14 +79,14 @@ def _code_dict(c: Any) -> Dict[str, Any]:
 def decode_value(decode_rule: str, codes: Iterable[Any], value: Any) -> Dict[str, Any]:
     """
     Translate one reported value into its codes. The value must be a non-negative whole number
-    (``17``, ``17.0`` or ``"17"``), otherwise the result is ``invalid``. Parts of the value with
-    no defined code are listed in ``unknown_codes``.
+    below 2**53 (``17``, ``17.0`` or ``"17"``), otherwise the result is ``invalid``. Parts of the
+    value with no defined code are listed in ``unknown_codes``.
     """
     number = _as_number(value)
-    if number is None or number < 0 or abs(number - round(number)) > 1e-6:
+    if number is None or number < 0 or number >= _MAX_VALUE or abs(number - round(number)) > 1e-6:
         return {"value": number, "status": "invalid", "codes": [], "unknown_codes": []}
 
-    whole = int(round(number))
+    whole = round(number)
     by_code = {c.code: c for c in codes}
     if decode_rule == BITMASK and whole == 0:
         parts, unknown = ([by_code[0]] if 0 in by_code else []), []

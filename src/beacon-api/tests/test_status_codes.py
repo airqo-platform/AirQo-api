@@ -60,6 +60,15 @@ class TestDecodeValue(unittest.TestCase):
         for value in (None, "abc", 3.5, -1, float("nan"), float("inf"), True):
             self.assertEqual(_decode(value)[0], "invalid", value)
 
+    def test_values_beyond_exact_float_range_are_invalid(self):
+        # Above 2**53 a float can't hold every whole number: "9007199254740993" would read as ...992.
+        for value in (2 ** 53, "9007199254740993", "18446744073709551615", 1e308):
+            self.assertEqual(_decode(value)[0], "invalid", value)
+        status, codes, unknown = _decode(2 ** 53 - 1)
+        self.assertEqual(status, "fault")
+        self.assertEqual(codes, [1, 2, 4, 8, 16, 32, 64, 128, 256, 512])
+        self.assertEqual(len(unknown), 43)
+
     def test_exact_rule_matches_one_code(self):
         codes = [
             SimpleNamespace(code=0, label="OK", description=None, kind="ok"),

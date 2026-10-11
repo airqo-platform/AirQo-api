@@ -88,7 +88,7 @@ def decode_status_values(
     Translate reported status values into their codes, e.g. BAM-1020 ``17`` → Tape Break (1) +
     Flow Failure (16). Each result's ``status`` is the most serious kind among its codes
     (``fault`` > ``unknown`` > ``info`` > ``ok``), or ``invalid`` for a value that is not a
-    non-negative whole number.
+    non-negative whole number below 2**53.
     """
     if len(value) > MAX_DECODE_VALUES:
         raise HTTPException(

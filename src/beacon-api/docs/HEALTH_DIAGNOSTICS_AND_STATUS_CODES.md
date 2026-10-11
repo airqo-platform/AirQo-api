@@ -33,7 +33,7 @@ Grids and cohorts already supported `includePerformance`. Sites and devices now 
 
 ### Behaviour
 
-- **`group` on sites** (optional, comma-separated group titles): only sites containing at least one of the group's devices are returned, and each site lists only those devices. Without `group`, all sites are returned as before. `airqo` sees everything; an unknown group returns `404`.
+- **`group` on sites** (optional, comma-separated group titles): only sites containing at least one of the group's devices are returned, and each site lists only those devices. Without `group`, all sites are returned as before. `airqo` sees everything; an unknown group returns `404` and an empty `group=` returns `400`.
 - **Non-airqo devices are left out when performance is on**, as for grids, because only airqo devices have locally synced data. This is applied in the query, before paging, so `meta.total` stays correct.
 - **Single site `404`s**: the site doesn't exist; it has none of the group's devices; or performance is on and it has no airqo devices.
 - **`/devices/synced` paging**: `meta.nextPage` keeps the performance parameters.
@@ -160,7 +160,7 @@ GET /sites/?group=<title>&includeDiagnostics=true
 
 - Limits results to the group's devices.
 - When no date is given, uses **the group's own latest diagnosed day**, which can differ from the fleet's.
-- `airqo` sees the whole fleet; an unknown group returns `404`.
+- `airqo` sees the whole fleet; an unknown group returns `404` and an empty `group=` returns `400`.
 - The group's devices are filtered inside the database (a subquery), not passed as a long list, so large groups stay fast.
 
 ```
@@ -201,7 +201,7 @@ Each code has a `kind`:
 | `fault` | Something is wrong |
 | `info` | Worth knowing but not a fault, e.g. Maintenance |
 
-A decoded value's `status` is its most serious part: **`fault` > `unknown` > `info` > `ok`**. Values that aren't non-negative whole numbers (`"abc"`, `3.5`, `-1`) are `invalid`. `17`, `17.0` and `"17"` are all accepted.
+A decoded value's `status` is its most serious part: **`fault` > `unknown` > `info` > `ok`**. Values that aren't non-negative whole numbers below 2^53 (`"abc"`, `3.5`, `-1`, `9007199254740993`) are `invalid`, since larger values can't be read exactly. `17`, `17.0` and `"17"` are all accepted.
 
 ### Endpoints
 
@@ -328,7 +328,8 @@ const RANK = { ok: 0, info: 1, unknown: 2, fault: 3 } as const
 
 export function decodeStatus(set: StatusCodeSet, value: unknown): StatusDecodeResult {
   const n = Number(value)
-  if (value === null || value === '' || typeof value === 'boolean' || !Number.isInteger(n) || n < 0) {
+  // Above 2^53 a JS number can't hold every whole number, so those values are rejected as by the API.
+  if (value === null || value === '' || typeof value === 'boolean' || !Number.isInteger(n) || n < 0 || n >= 2 ** 53) {
     return { value: null, status: 'invalid', codes: [], unknown_codes: [] }
   }
   const byCode = new Map(set.codes.map((c) => [c.code, c]))
@@ -439,9 +440,9 @@ No other schema changes are needed. Everything else reads existing tables, and e
 
 | File | Covers | Tests |
 | :--- | :--- | :--- |
-| `tests/test_site_device_health.py` | Site group scoping, site and device performance, paging | 13 |
-| `tests/test_diagnostics_summaries.py` | Latest-diagnosis loading, roll-ups, `includeDiagnostics` on every list endpoint, fleet group filters | 24 |
-| `tests/test_status_codes.py` | Decoding, validation, the status code set endpoints, seeding and profile linking | 24 |
+| `tests/test_site_device_health.py` | Site group scoping, site and device performance, paging | 14 |
+| `tests/test_diagnostics_summaries.py` | Latest-diagnosis loading, roll-ups, `includeDiagnostics` on every list endpoint, fleet group filters | 25 |
+| `tests/test_status_codes.py` | Decoding, validation, the status code set endpoints, seeding and profile linking | 25 |
 
 Run one with `venv/bin/python -m unittest tests.test_status_codes`.
 
