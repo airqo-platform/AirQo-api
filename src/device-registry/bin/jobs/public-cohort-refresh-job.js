@@ -108,6 +108,41 @@ async function runPublicCohortRefreshJob(tenant = TENANT) {
   }
 }
 
+const QUEUE_RETRY_DELAY_MS = 30 * 1000;
+const QUEUE_MAX_ATTEMPTS = 10;
+const tenantsAwaitingRetry = new Set();
+
+/**
+ * Fire-and-forget refresh for callers whose request must not be dropped (a
+ * config change): when another refresh is in progress — here or on another
+ * pod — it may already have read the old settings, so this one is retried
+ * until it gets to run after it.
+ */
+function queuePublicCohortRefresh(tenant = TENANT, attempt = 1) {
+  // A pending retry will pick up the latest settings when it runs.
+  if (attempt === 1 && tenantsAwaitingRetry.has(tenant)) return;
+  tenantsAwaitingRetry.delete(tenant);
+
+  runPublicCohortRefreshJob(tenant)
+    .then((result) => {
+      if (result !== null) return;
+      if (attempt >= QUEUE_MAX_ATTEMPTS) {
+        logger.warn(
+          `${JOB_NAME} -- queued refresh gave up after ${attempt} attempt(s), the cohort will be refreshed at the next scheduled run`,
+        );
+        return;
+      }
+      tenantsAwaitingRetry.add(tenant);
+      setTimeout(
+        () => queuePublicCohortRefresh(tenant, attempt + 1),
+        QUEUE_RETRY_DELAY_MS,
+      ).unref();
+    })
+    .catch((error) => {
+      logger.error(`🐛🐛 ${JOB_NAME} -- queued refresh failed: ${error.message}`);
+    });
+}
+
 cron.schedule(JOB_SCHEDULE, () => {
   runPublicCohortRefreshJob().catch((error) => {
     logger.error(`🐛🐛 ${JOB_NAME} -- run failed: ${error.message}`);
@@ -116,4 +151,4 @@ cron.schedule(JOB_SCHEDULE, () => {
 
 logText(`${JOB_NAME} -- scheduled (${JOB_SCHEDULE})`);
 
-module.exports = { runPublicCohortRefreshJob };
+module.exports = { runPublicCohortRefreshJob, queuePublicCohortRefresh };

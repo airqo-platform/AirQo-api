@@ -203,26 +203,25 @@ const publicCohort = {
     tenant,
     { devices_per_grid, max_offline_hours, updated_by },
   ) => {
-    const current = await publicCohort.getConfig(tenant);
-    const value = {
-      devices_per_grid:
-        devices_per_grid !== undefined
-          ? devices_per_grid
-          : current.devices_per_grid,
-      max_offline_hours:
-        max_offline_hours !== undefined
-          ? max_offline_hours
-          : current.max_offline_hours,
-    };
-    await SystemConfigModel(tenant).upsert(
-      CONFIG_KEY,
-      value,
-      updated_by || null,
+    // Field-level $set rather than read-then-replace, so two requests
+    // changing different settings cannot overwrite each other.
+    const fields = { updated_by: updated_by || null };
+    if (devices_per_grid !== undefined) {
+      fields["value.devices_per_grid"] = devices_per_grid;
+    }
+    if (max_offline_hours !== undefined) {
+      fields["value.max_offline_hours"] = max_offline_hours;
+    }
+    await SystemConfigModel(tenant).findOneAndUpdate(
+      { key: CONFIG_KEY },
+      { $set: fields, $inc: { version: 1 } },
+      { upsert: true, setDefaultsOnInsert: true },
     );
     const result = await publicCohort.describe(tenant);
     return {
       ...result,
-      message: "Successfully updated the public cohort configuration",
+      message:
+        "Successfully updated the public cohort configuration, the cohort will be refreshed in the background",
     };
   },
 

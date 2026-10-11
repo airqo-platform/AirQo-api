@@ -10,6 +10,7 @@ const createCohortUtil = require("@utils/cohort.util");
 const publicCohortUtil = require("@utils/public-cohort.util");
 const {
   runPublicCohortRefreshJob,
+  queuePublicCohortRefresh,
 } = require("@bin/jobs/public-cohort-refresh-job");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -443,11 +444,10 @@ const createCohort = {
 
       const { tenant } = request.query;
       const result = await publicCohortUtil.updateConfig(tenant, request.body);
-      // Fire-and-forget — the new settings are applied to the cohort now
-      // rather than at the next weekly run, without holding the request open.
-      runPublicCohortRefreshJob(tenant).catch((error) => {
-        logger.error(`🐛🐛 public cohort refresh trigger failed: ${error.message}`);
-      });
+      // Fire-and-forget — the new settings are applied to the cohort in the
+      // background rather than at the next weekly run, without holding the
+      // request open.
+      queuePublicCohortRefresh(tenant);
       handleResponse({ res, result, key: "public_cohort" });
     } catch (error) {
       handleError(error, next);
