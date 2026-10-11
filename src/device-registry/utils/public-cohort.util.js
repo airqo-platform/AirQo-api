@@ -18,8 +18,8 @@
 //   never selected twice and overlapping Grids are not over-represented.
 //
 // REPLACEMENT:
-//   A device is eligible only while it is public, active, deployed at a site
-//   and has been seen within max_offline_hours. Existing members that are
+//   A device is eligible only while it is public, in no private cohort,
+//   active, deployed at a site and has been seen within max_offline_hours. Existing members that are
 //   still eligible are retained; the rest are dropped and replaced at random
 //   from the Grid's other eligible devices. When a Grid has too few eligible
 //   devices it is simply left under-represented.
@@ -263,6 +263,15 @@ const publicCohort = {
     const cutoff = new Date(
       startedAt.getTime() - config.max_offline_hours * 60 * 60 * 1000,
     );
+    // Same definition of a private device as filterOutPrivateDevices in
+    // cohort.util.js: membership of any cohort with visibility: false.
+    const privateCohorts = await CohortModel(tenant)
+      .find({ visibility: false })
+      .select("_id")
+      .lean()
+      .maxTimeMS(QUERY_MAX_TIME_MS);
+    const privateCohortIds = privateCohorts.map((c) => c._id);
+
     const [sites, eligibleDevices, currentMembers] = await Promise.all([
       SiteModel(tenant)
         .find({ "grids.0": { $exists: true } })
@@ -272,6 +281,7 @@ const publicCohort = {
       DeviceModel(tenant)
         .find({
           visibility: true,
+          cohorts: { $nin: privateCohortIds },
           isActive: true,
           site_id: { $ne: null },
           lastActive: { $gte: cutoff },
