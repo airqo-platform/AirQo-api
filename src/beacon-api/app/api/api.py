@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import devices, stock, category, firmware, cohort, maintenance, collocation, site, data_sync, grid, group, operations, diagnostics, vendor
+from app.api.v1 import devices, stock, category, firmware, cohort, maintenance, collocation, site, data_sync, grid, group, operations, diagnostics, vendor, status_codes
 from app.api.v1.webrtc import webrtc_router
 
 api_router = APIRouter()
@@ -16,6 +16,7 @@ api_router.include_router(collocation.router, prefix="/collocation", tags=["coll
 api_router.include_router(site.router, prefix="/sites", tags=["sites"])
 api_router.include_router(data_sync.router, prefix="/data-sync", tags=["data-sync"])
 api_router.include_router(diagnostics.router, prefix="/diagnostics", tags=["diagnostics"])
+api_router.include_router(status_codes.router, prefix="/status-code-sets", tags=["status-codes"])
 api_router.include_router(operations.router, tags=["operations"])
 api_router.include_router(webrtc_router, prefix="/webrtc", tags=["webrtc"])
 
