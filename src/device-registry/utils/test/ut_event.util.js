@@ -4075,6 +4075,12 @@ describe("create Event utils", function() {
     const makeRequest = (query = {}) => ({
       query: { tenant: "airqo", grid_id: gridId, ...query },
     });
+    // A cache hit is the uncached result plus the entry's remaining lifetime.
+    const expectHit = (result, minSeconds, maxSeconds) => {
+      const { cacheMaxAgeSeconds, ...rest } = result;
+      expect(rest).to.deep.equal(computed);
+      expect(cacheMaxAgeSeconds).to.be.within(minSeconds, maxSeconds);
+    };
 
     beforeEach(() => {
       findOneStub = sinon.stub();
@@ -4131,7 +4137,7 @@ describe("create Event utils", function() {
         next,
       );
 
-      expect(result).to.deep.equal(computed);
+      expectHit(result, 298, 300);
       expect(computeStub.calledOnce).to.equal(true);
       expect(findOneStub.calledOnce).to.equal(true);
     });
@@ -4153,8 +4159,9 @@ describe("create Event utils", function() {
         next,
       );
 
-      expect(first).to.deep.equal(computed);
-      expect(second).to.deep.equal(computed);
+      // max-age is the MongoDB entry's remaining 60s, not a fresh 5 minutes.
+      expectHit(first, 58, 60);
+      expectHit(second, 58, 60);
       expect(computeStub.called).to.equal(false);
       expect(findOneStub.calledOnce).to.equal(true);
       expect(findOneAndUpdateStub.called).to.equal(false);
@@ -4170,7 +4177,8 @@ describe("create Event utils", function() {
         next,
       );
 
-      expect(JSON.stringify(hit)).to.equal(JSON.stringify(miss));
+      const { cacheMaxAgeSeconds, ...hitBody } = hit;
+      expect(JSON.stringify(hitBody)).to.equal(JSON.stringify(miss));
     });
 
     it("ignores an expired MongoDB entry", async () => {
@@ -4269,6 +4277,32 @@ describe("create Event utils", function() {
 
       results.forEach((result) => expect(result).to.deep.equal(computed));
       expect(computeStub.calledOnce).to.equal(true);
+    });
+
+    it("replays a computation failure to every concurrent caller's own next", async () => {
+      const failure = new Error("aggregation failed");
+      // The real util forwards the error via next() and resolves undefined.
+      computeStub.callsFake(async (request, forward) => {
+        forward(failure);
+      });
+      const nexts = [sinon.stub(), sinon.stub(), sinon.stub()];
+
+      const results = await Promise.all(
+        nexts.map((callerNext) =>
+          proxiedEventUtil.getRepresentativeAirQualityForGrid(
+            makeRequest(),
+            callerNext,
+          ),
+        ),
+      );
+
+      expect(computeStub.calledOnce).to.equal(true);
+      results.forEach((result) => expect(result).to.equal(undefined));
+      nexts.forEach((callerNext) => {
+        expect(callerNext.calledOnce).to.equal(true);
+        expect(callerNext.firstCall.args[0]).to.equal(failure);
+      });
+      expect(findOneAndUpdateStub.called).to.equal(false);
     });
 
     it("keeps separate entries per grid", async () => {

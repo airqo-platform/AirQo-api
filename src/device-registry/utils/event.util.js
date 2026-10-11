@@ -98,7 +98,7 @@ const _representativeAQInflight = new Map(); // per-grid in-flight computations
 const readRepresentativeAQCache = async (tenant, key) => {
   const l1Key = `${tenant}:${key}`;
   const l1 = _representativeAQCache.get(l1Key);
-  if (l1 !== undefined) {
+  if (l1 !== undefined && Date.now() < l1.expiresAt) {
     return l1;
   }
 
@@ -108,12 +108,9 @@ const readRepresentativeAQCache = async (tenant, key) => {
       .lean();
     if (l2 && l2.expiresAt > new Date()) {
       // Align L1's lifetime to L2's absolute expiry rather than resetting it.
-      _representativeAQCache.set(
-        l1Key,
-        l2.data,
-        l2.expiresAt.getTime() - Date.now(),
-      );
-      return l2.data;
+      const entry = { data: l2.data, expiresAt: l2.expiresAt.getTime() };
+      _representativeAQCache.set(l1Key, entry, entry.expiresAt - Date.now());
+      return entry;
     }
   } catch (error) {
     logger.warn(`ComputedCache L2 read failed for ${key}: ${error.message}`);
@@ -124,7 +121,10 @@ const readRepresentativeAQCache = async (tenant, key) => {
 const writeRepresentativeAQCache = (tenant, key, data) => {
   const now = Date.now();
   const expiresAt = new Date(now + REPRESENTATIVE_AQ_CACHE_TTL_MS);
-  _representativeAQCache.set(`${tenant}:${key}`, data);
+  _representativeAQCache.set(`${tenant}:${key}`, {
+    data,
+    expiresAt: expiresAt.getTime(),
+  });
 
   // Fire-and-forget so a cache write failure never blocks the API response.
   try {
@@ -1833,8 +1833,9 @@ const createEvent = {
   },
 
   // Cached front for the grid variant of getRepresentativeAirQuality. Returns
-  // exactly what the uncached function returns; only a successful, non-empty
-  // reading is ever stored.
+  // what the uncached function returns; only a successful, non-empty reading
+  // is ever stored. A cache hit also carries cacheMaxAgeSeconds (the entry's
+  // remaining lifetime), which the controller strips before responding.
   getRepresentativeAirQualityForGrid: async (request, next) => {
     const { grid_id, site_id } = request.query;
 
@@ -1862,34 +1863,48 @@ const createEvent = {
       return {
         success: true,
         message: REPRESENTATIVE_AQ_SUCCESS_MESSAGE,
-        data: cached,
+        data: cached.data,
         status: httpStatus.OK,
+        cacheMaxAgeSeconds: Math.max(
+          0,
+          Math.floor((cached.expiresAt - Date.now()) / 1000),
+        ),
       };
     }
 
-    // Concurrent misses on this pod share one computation.
-    const inflight = _representativeAQInflight.get(inflightKey);
-    if (inflight) {
-      return inflight;
+    // Concurrent misses on this pod share one computation. The computation
+    // reports failures through next(), so capture that error and replay it
+    // to every waiting request's own next() rather than only the leader's.
+    let inflight = _representativeAQInflight.get(inflightKey);
+    if (!inflight) {
+      inflight = (async () => {
+        let error;
+        try {
+          const result = await createEvent.getRepresentativeAirQuality(
+            request,
+            (err) => {
+              if (error === undefined) error = err;
+            },
+          );
+          if (result && result.success === true && !isEmpty(result.data)) {
+            writeRepresentativeAQCache(tenant, key, result.data);
+          }
+          return { result, error };
+        } catch (err) {
+          return { error: err };
+        } finally {
+          _representativeAQInflight.delete(inflightKey);
+        }
+      })();
+      _representativeAQInflight.set(inflightKey, inflight);
     }
 
-    const promise = (async () => {
-      try {
-        const result = await createEvent.getRepresentativeAirQuality(
-          request,
-          next,
-        );
-        if (result && result.success === true && !isEmpty(result.data)) {
-          writeRepresentativeAQCache(tenant, key, result.data);
-        }
-        return result;
-      } finally {
-        _representativeAQInflight.delete(inflightKey);
-      }
-    })();
-
-    _representativeAQInflight.set(inflightKey, promise);
-    return promise;
+    const { result, error } = await inflight;
+    if (error !== undefined) {
+      next(error);
+      return;
+    }
+    return result;
   },
 
   // African city/country AQI rankings — groups the latest reading per site

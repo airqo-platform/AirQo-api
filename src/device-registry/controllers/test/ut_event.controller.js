@@ -525,6 +525,44 @@ describe("Create Event Controller", () => {
       });
     });
 
+    it("uses a cache hit's remaining lifetime as max-age and keeps it out of the body", async () => {
+      const reading = { site_id: "site_1", pm2_5: { value: 31.2 } };
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        status: httpStatus.OK,
+        cacheMaxAgeSeconds: 42,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set).to.have.been.calledWith(
+        "Cache-Control",
+        "public, max-age=42"
+      );
+      expect(res.json).to.have.been.calledWith({
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        errors: null,
+      });
+    });
+
+    it("does not set Cache-Control when a cache hit has no lifetime left", async () => {
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: { site_id: "site_1" },
+        status: httpStatus.OK,
+        cacheMaxAgeSeconds: 0,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set.called).to.equal(false);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
     it("does not set Cache-Control when the grid has no reading", async () => {
       sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
         success: true,
