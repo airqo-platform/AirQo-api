@@ -4259,6 +4259,32 @@ describe("create Event utils", function() {
       expect(findOneAndUpdateStub.called).to.equal(false);
     });
 
+    it("keeps the 400 conflict when cohort_id is supplied, even with a warm cache", async () => {
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const conflict = {
+        success: false,
+        message: "Bad Request",
+        errors: {
+          message: "Provide either grid_id or cohort_id, but not both.",
+        },
+        status: httpStatus.BAD_REQUEST,
+      };
+      computeStub.resolves(conflict);
+      findOneStub.resetHistory();
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest({ cohort_id: "64b7f325d7249f0029fed7c1" }),
+        next,
+      );
+
+      expect(result).to.deep.equal(conflict);
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.called).to.equal(false);
+    });
+
     it("computes once for concurrent misses on the same grid", async () => {
       const results = await Promise.all([
         proxiedEventUtil.getRepresentativeAirQualityForGrid(

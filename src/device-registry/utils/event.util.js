@@ -1837,11 +1837,12 @@ const createEvent = {
   // is ever stored. A cache hit also carries cacheMaxAgeSeconds (the entry's
   // remaining lifetime), which the controller strips before responding.
   getRepresentativeAirQualityForGrid: async (request, next) => {
-    const { grid_id, site_id } = request.query;
+    const { grid_id, site_id, cohort_id } = request.query;
 
     // A caller-supplied site_id can change the result when the grid resolves
-    // to no sites, so those requests keep the uncached behaviour.
-    if (isEmpty(grid_id) || !isEmpty(site_id)) {
+    // to no sites, and cohort_id alongside grid_id is a 400 — both keep the
+    // uncached behaviour so a warm cache never masks them.
+    if (isEmpty(grid_id) || !isEmpty(site_id) || !isEmpty(cohort_id)) {
       return createEvent.getRepresentativeAirQuality(request, next);
     }
 
