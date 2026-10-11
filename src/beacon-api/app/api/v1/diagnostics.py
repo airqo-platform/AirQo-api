@@ -46,6 +46,7 @@ from app.services.diagnostics.evaluator import DiagnosticEvaluator
 from app.services.diagnostics.profile_model import ProfileNotDiagnosableError, build_model
 from app.services.diagnostics.seeds import seed_default_templates
 from app.models.sync import SyncDevice
+from app.services.group_filter import group_device_id_select
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
 
 router = APIRouter()
@@ -485,10 +486,12 @@ def get_device_trends(
 def get_fleet_daily_summary(
     diagnosis_date: Optional[date] = Query(default=None, description="Day to summarise; defaults to the latest diagnosed day"),
     top_n: int = Query(default=10, ge=1, le=50, description="Number of top issues and worst devices to return"),
+    group: Optional[str] = Query(default=None, description="Comma-separated group title(s); limits the summary to the group's devices"),
     db: Session = Depends(get_db),
 ) -> Any:
     """Fleet health for a day: lifecycle state counts, most common issues, new/resolved issues and worst devices."""
-    return build_fleet_daily_summary(db, diagnosis_date=diagnosis_date, top_n=top_n)
+    device_scope = group_device_id_select(db, group) if group else None
+    return build_fleet_daily_summary(db, diagnosis_date=diagnosis_date, top_n=top_n, device_scope=device_scope)
 
 
 @router.get("/fleet/issues", response_model=List[FleetIssueResponse])
@@ -504,13 +507,15 @@ def list_fleet_issues(
     check_type: Optional[str] = Query(default=None, description="METRIC_BELOW_MIN, METRIC_ABOVE_MAX, METRIC_RATE_EXCEEDED, METRIC_STUCK, METRIC_MISSING, SENSOR_DISAGREEMENT or DATA_GAPS"),
     min_streak_days: Optional[int] = Query(default=None, ge=1, description="Only issues persisting at least this many days"),
     only_new: bool = Query(default=False, description="Only issues that first appeared on that day"),
+    group: Optional[str] = Query(default=None, description="Comma-separated group title(s); limits the search to the group's devices"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db),
 ) -> Any:
     """Search detected issues across all devices, e.g. every device with a persistent power fault."""
+    device_scope = group_device_id_select(db, group) if group else None
     if not (diagnosis_date or start_date or end_date):
-        diagnosis_date = crud_diagnostics.get_latest_diagnosis_date(db)
+        diagnosis_date = crud_diagnostics.get_latest_diagnosis_date(db, device_scope=device_scope)
         if diagnosis_date is None:
             return []
     return crud_diagnostics.list_daily_issues(
@@ -526,6 +531,7 @@ def list_fleet_issues(
         check_type=check_type,
         min_streak_days=min_streak_days,
         only_new=only_new,
+        device_scope=device_scope,
         skip=skip,
         limit=limit,
     )

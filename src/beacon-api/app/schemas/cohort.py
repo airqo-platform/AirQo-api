@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any, Dict
 from app.schemas.device import MetaData
+from app.schemas.diagnostics import DeviceDiagnostics, DiagnosticsSummary
 
 class CohortDevice(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -112,6 +113,7 @@ class SyncedCohortDevice(BaseModel):
     data_completeness: Optional[float] = None
     averages: Optional[Dict[str, Any]] = None
     data: List[Dict[str, Any]] = []
+    diagnostics: Optional[DeviceDiagnostics] = None
 
 
 class SyncedCohort(BaseModel):
@@ -127,6 +129,7 @@ class SyncedCohort(BaseModel):
     data_completeness: Optional[float] = None
     averages: Optional[Dict[str, Any]] = None
     data: List[Dict[str, Any]] = []
+    diagnostics_summary: Optional[DiagnosticsSummary] = None
 
 
 class SyncedCohortResponse(BaseModel):
