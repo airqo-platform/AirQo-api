@@ -5,6 +5,7 @@ const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
+const publicCohortUtil = require("@utils/public-cohort.util");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -310,6 +311,8 @@ const createCohort = {
           },
           next,
         );
+        // A cohort switched to private takes its devices out of the public one
+        publicCohortUtil.evictPrivateDevicesInBackground(tenant);
         return responseFromModifyCohort;
       }
     } catch (error) {
@@ -1050,6 +1053,7 @@ const createCohort = {
         { _id: { $in: toAssign } },
         { $addToSet: { cohorts: resolvedCohortId } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       // Re-query after the update to confirm which devices were actually assigned,
       // guarding against concurrent requests that may have already written the same cohort_id.
@@ -1316,6 +1320,7 @@ const createCohort = {
         { $addToSet: { cohorts: resolvedCohortId } },
         { new: true },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       return {
         success: true,
@@ -1719,6 +1724,7 @@ const createCohort = {
         { _id: { $in: devicesToUpdate } },
         { $addToSet: { cohorts: newCohort._id } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       logObject(
         "updateResult from assigning devices to new cohort",

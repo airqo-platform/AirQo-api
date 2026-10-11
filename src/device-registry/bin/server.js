@@ -315,6 +315,18 @@ try {
   // Continue - server stays up
 }
 
+// Public cohort refresh — weekly (Mondays 02:20). Rebuilds the sample of
+// public devices drawn from every lowest-level Grid, replacing members that
+// have gone offline.
+try {
+  require("@bin/jobs/public-cohort-refresh-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ public-cohort-refresh-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
 // Air quality rollup — daily. Folds each day's readings into permanent
 // country/city PM2.5 running totals before the source Reading documents are
 // purged by their 14-day TTL, so GET .../readings/rankings/history can serve
