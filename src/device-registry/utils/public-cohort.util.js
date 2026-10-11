@@ -149,6 +149,18 @@ function selectDevices({
   return { selected, grids };
 }
 
+// Same definition of a private device as filterOutPrivateDevices in
+// cohort.util.js: membership of any cohort with visibility: false. The public
+// cohort itself is left out so that hiding it cannot disqualify its members.
+async function findPrivateCohortIds(tenant, publicCohortId) {
+  const privateCohorts = await CohortModel(tenant)
+    .find({ visibility: false, _id: { $ne: publicCohortId } })
+    .select("_id")
+    .lean()
+    .maxTimeMS(QUERY_MAX_TIME_MS);
+  return privateCohorts.map((c) => c._id);
+}
+
 const publicCohort = {
   CONFIG_KEY,
   STATE_KEY,
@@ -225,6 +237,56 @@ const publicCohort = {
     };
   },
 
+  // Drops public cohort members that are no longer public — moved into a
+  // private cohort, or had their own visibility switched off — without
+  // waiting for the next refresh. Only the public cohort's own members are
+  // examined, so the cost does not grow with the size of the device fleet.
+  // The vacated slots are refilled by the next refresh.
+  evictPrivateDevices: async (tenant) => {
+    const stateDoc = await SystemConfigModel(tenant)
+      .findOne({ key: STATE_KEY })
+      .lean();
+    const cohortId = stateDoc && stateDoc.value && stateDoc.value.cohort_id;
+    if (!cohortId) return 0;
+
+    const privateCohortIds = await findPrivateCohortIds(tenant, cohortId);
+    const result = await DeviceModel(tenant).updateMany(
+      {
+        $and: [
+          { cohorts: cohortId },
+          {
+            $or: [
+              { cohorts: { $in: privateCohortIds } },
+              { visibility: { $ne: true } },
+            ],
+          },
+        ],
+      },
+      { $pull: { cohorts: cohortId } },
+    );
+    return result.nModified || 0;
+  },
+
+  // For request handlers that have just changed a device's cohorts or
+  // visibility, or a cohort's visibility: never delays or fails the request,
+  // the weekly refresh being the backstop if this does not go through.
+  evictPrivateDevicesInBackground: (tenant) => {
+    publicCohort
+      .evictPrivateDevices(tenant)
+      .then((evicted) => {
+        if (evicted > 0) {
+          logger.info(
+            `removed ${evicted} device(s) that are no longer public from the public cohort`,
+          );
+        }
+      })
+      .catch((error) => {
+        logger.error(
+          `🐛🐛 public cohort eviction failed: ${error.message}`,
+        );
+      });
+  },
+
   // Resolved by the stored id first so a later rename of the cohort does not
   // orphan it and spawn a second one.
   resolveCohort: async (tenant, storedCohortId) => {
@@ -262,14 +324,7 @@ const publicCohort = {
     const cutoff = new Date(
       startedAt.getTime() - config.max_offline_hours * 60 * 60 * 1000,
     );
-    // Same definition of a private device as filterOutPrivateDevices in
-    // cohort.util.js: membership of any cohort with visibility: false.
-    const privateCohorts = await CohortModel(tenant)
-      .find({ visibility: false })
-      .select("_id")
-      .lean()
-      .maxTimeMS(QUERY_MAX_TIME_MS);
-    const privateCohortIds = privateCohorts.map((c) => c._id);
+    const privateCohortIds = await findPrivateCohortIds(tenant, cohortId);
 
     const [sites, eligibleDevices, currentMembers] = await Promise.all([
       SiteModel(tenant)
