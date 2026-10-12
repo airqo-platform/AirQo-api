@@ -37,3 +37,11 @@ class NetworkSyncResponse(BaseModel):
     message: str
     updates_count: Optional[int] = None
     new_count: Optional[int] = None
+
+
+class NetworkProfileSeedResponse(BaseModel):
+    success: bool
+    message: str
+    created: List[str] = []
+    existing: List[str] = []
+    devices_assigned: int = 0

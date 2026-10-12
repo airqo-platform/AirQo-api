@@ -36,6 +36,7 @@ from app.services.diagnostics.policy import DEFAULT_POLICY, merge_policy
 from app.services.diagnostics.profile_model import DiagnosticModel, build_model
 from app.services.diagnostics.trends import DayRow, compute_trends, trend_issues
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
+from app.utils.networks import AIRQO_NETWORK, normalize_network
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +215,10 @@ def _resolve_device_profile(db: Session, device: SyncDevice) -> Optional[Any]:
     try:
         if device.profile_id:
             return crud_diagnostics.get_profile(db, device.profile_id)
-        if device.category:
+        # The plain category profiles (lowcost, bam ...) describe AirQo hardware
+        # on ThingSpeak; devices from other manufacturers are only diagnosed
+        # once they carry their own profile.
+        if device.category and normalize_network(device.network_id) in (None, AIRQO_NETWORK):
             return crud_diagnostics.get_profile(db, device.category)
     except Exception:
         logger.warning("[Daily Diagnostics] Could not resolve profile for device %s", device.device_id, exc_info=True)

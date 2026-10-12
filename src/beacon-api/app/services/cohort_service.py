@@ -10,7 +10,13 @@ from sqlalchemy import or_
 from app.core.config import settings
 from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice, SyncSite
 from app.utils.performance import PerformanceAnalysis
-from app.utils.field_mappings import map_record, get_category_mapping
+from app.utils.field_mappings import (
+    ensure_dict,
+    extract_label,
+    get_category_mapping,
+    map_record,
+    map_record_from_profile,
+)
 from app.utils.networks import (
     AIRQO_NETWORK,
     is_enabled_network_device,
@@ -18,6 +24,8 @@ from app.utils.networks import (
     normalize_network,
 )
 from app.crud.crud_sync_device_data import get_device_data_for_devices
+from app.models.device_schema import DeviceProfile
+from app.services.manufacturer_profiles import external_mapping_profile
 
 logger = logging.getLogger(__name__)
 
@@ -946,17 +954,55 @@ def _mean(values: List[float]) -> Optional[float]:
     return round(sum(vals) / len(vals), 4)
 
 
+def _load_profiles(db: Session, info_by_name: Dict[str, Dict[str, Any]]) -> Dict[Any, DeviceProfile]:
+    """Profiles referenced by ``info_by_name`` (only external devices need them)."""
+    ids = {
+        info.get("profile_id")
+        for info in info_by_name.values()
+        if info.get("profile_id") and normalize_network(info.get("network")) not in (None, AIRQO_NETWORK)
+    }
+    if not ids:
+        return {}
+    return {p.id: p for p in db.query(DeviceProfile).filter(DeviceProfile.id.in_(list(ids))).all()}
+
+
+def _mapping_for_device(
+    info: Dict[str, Any], profiles: Optional[Dict[Any, DeviceProfile]] = None,
+):
+    """
+    (record mapper, label list) for one device.
+
+    airqo devices keep the static per-category ThingSpeak layout. Devices from
+    other manufacturers are labelled through their ``<network>_<category>``
+    profile, or the default external layout when none is assigned.
+    """
+    category = info.get("category") or "lowcost"
+    if normalize_network(info.get("network")) in (None, AIRQO_NETWORK):
+        return (lambda r: map_record(r, category)), None
+    profile = (profiles or {}).get(info.get("profile_id"))
+    if profile is None or not ensure_dict(getattr(profile, "telemetry_mappings", None)):
+        profile = external_mapping_profile(category)
+    labels = [
+        label for label in (extract_label(v) for v in ensure_dict(profile.telemetry_mappings).values()) if label
+    ]
+    return (lambda r: map_record_from_profile(r, profile)), labels
+
+
 def _compute_device_averages(
-    mapped_records: List[Dict[str, Any]], category: str
+    mapped_records: List[Dict[str, Any]], category: str, labels: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Mean of every mapped numeric label present in ``mapped_records``.
 
+    ``labels`` overrides the static per-category label list (used for
+    devices from other manufacturers, whose labels come from their profile).
+
     For ``lowcost`` we additionally surface a derived ``pm2.5`` value: the
     mean of the two per-sensor averages (``pm2.5 sensor1`` / ``pm2.5 sensor2``).
     """
-    mapping = get_category_mapping(category)
-    labels = list(mapping.values())
+    if labels is None:
+        mapping = get_category_mapping(category)
+        labels = list(mapping.values())
 
     averages: Dict[str, Any] = {}
     for label in labels:
@@ -965,7 +1011,7 @@ def _compute_device_averages(
         if avg is not None:
             averages[label] = avg
 
-    if category == "lowcost":
+    if category == "lowcost" and "pm2.5 sensor1" in labels:
         s1 = averages.get("pm2.5 sensor1")
         s2 = averages.get("pm2.5 sensor2")
         components = [v for v in (s1, s2) if v is not None]
@@ -1010,15 +1056,17 @@ def compute_device_performance(
     records_by_device, info_by_name = get_device_data_for_devices(
         db, names, start_date_time, end_date_time, frequency=frequency,
     )
+    profiles = _load_profiles(db, info_by_name)
 
     out: Dict[str, Dict[str, Any]] = {}
     for name in names:
         info = info_by_name.get(name) or {}
         category = info.get("category") or "lowcost"
         raw_records = records_by_device.get(name, [])
-        mapped = [map_record(r, category) for r in raw_records]
+        mapper, labels = _mapping_for_device(info, profiles)
+        mapped = [mapper(r) for r in raw_records]
         uptime = _compute_uptime(raw_records, start_date_time, end_date_time, frequency)
-        averages = _compute_device_averages(mapped, category)
+        averages = _compute_device_averages(mapped, category, labels)
         out[name] = {
             "category": category,
             "uptime": uptime,
@@ -1066,6 +1114,7 @@ def _build_per_device_metrics(
     start_date_time: str,
     end_date_time: str,
     frequency: str,
+    profiles: Optional[Dict[Any, DeviceProfile]] = None,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
     """Compute per-device mapped records + metrics dicts."""
     per_device_metrics: Dict[str, Dict[str, Any]] = {}
@@ -1075,11 +1124,12 @@ def _build_per_device_metrics(
         info = info_by_name.get(name) or {}
         category = info.get("category") or "lowcost"
         raw_records = records_by_device.get(name, [])
-        mapped = [map_record(r, category) for r in raw_records]
+        mapper, labels = _mapping_for_device(info, profiles)
+        mapped = [mapper(r) for r in raw_records]
         mapped_by_device[name] = mapped
 
         uptime = _compute_uptime(raw_records, start_date_time, end_date_time, frequency)
-        averages = _compute_device_averages(mapped, category)
+        averages = _compute_device_averages(mapped, category, labels)
         per_device_metrics[name] = {
             "uptime": uptime,
             "data_completeness": uptime,
@@ -1216,6 +1266,7 @@ def apply_local_performance(
     per_device_metrics, mapped_by_device = _build_per_device_metrics(
         all_device_names, records_by_device, info_by_name,
         start_date_time, end_date_time, frequency,
+        profiles=_load_profiles(db, info_by_name),
     )
 
     for cohort in cohorts:

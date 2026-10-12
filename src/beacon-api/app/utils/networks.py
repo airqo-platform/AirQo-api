@@ -79,3 +79,25 @@ def device_data_source(
     if serial_number or api_code:
         return DATA_SOURCE_EXTERNAL_API
     return DATA_SOURCE_NONE
+
+
+def device_source_key(network: Any, device_id: Any = None, device_number: Any = None) -> Optional[str]:
+    """
+    The ``channel_id`` under which a device's readings are stored in the
+    ``sync_*_device_data`` tables.
+
+    - airqo devices: the ThingSpeak channel number (``device_number``).
+    - every other manufacturer: the registry device id, which is unique and
+      stable, so vendor serial numbers can never collide with channel numbers.
+    """
+    name = normalize_network(network)
+    if name is None or name == AIRQO_NETWORK:
+        if device_number in (None, "", 0):
+            return None
+        return str(device_number)
+    return str(device_id) if device_id else None
+
+
+def source_key_for_platform_device(dev: Dict[str, Any]) -> Optional[str]:
+    """``device_source_key`` for a platform-shaped device dict (``_id``, ``network``, ``device_number``)."""
+    return device_source_key(dev.get("network"), dev.get("_id"), dev.get("device_number"))

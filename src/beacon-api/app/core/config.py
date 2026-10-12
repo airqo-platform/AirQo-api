@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True
     SYNC_INTERVAL_MINUTES: int = 30
     DAILY_DIAGNOSTICS_ENABLED: bool = True  # Diagnose each completed device-day after the scheduled ThingSpeak sync
+    # Backfill readings of devices from other manufacturers (airgradient, iqair,
+    # metone ...) from the platform's analytics raw-data endpoint after the
+    # nightly ThingSpeak sync.
+    EXTERNAL_SYNC_ENABLED: bool = True
 
     # Tokens
     ORG_TOKEN: str = ""

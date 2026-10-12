@@ -19,6 +19,16 @@ Beacon no longer drops platform devices whose network is not `airqo`. Devices fr
 - **Cohort performance (analytics raw-data)** groups by (network, category) and skips networks the analytics API does not accept.
 - Migration: `f1a2b3c4d5e6_add_sync_network_and_external_device_fields`.
 
+### Feature: Readings for devices from other manufacturers
+
+External devices are backfilled into the same `sync_*_device_data` tables airqo devices use, from the platform's analytics raw-data endpoint, so latest readings, online status, performance and diagnostics work for every manufacturer.
+
+- **`app/services/external_sync_service.py`** — nightly (after the ThingSpeak sync, `EXTERNAL_SYNC_ENABLED`) and on demand via `POST /api/v1/data-sync/sync-external`: finds days without a complete daily record, fetches them from `POST /analytics/raw-data` per (network, category) with cursor pagination and rate-limit backoff, upserts raw rows and recomputes hourly/daily aggregates.
+- **`app/services/manufacturer_profiles.py`** — `<network>_<category>` profiles (airgradient_lowcost, iqair_lowcost, metone_bam, ...) whose telemetry mappings place named readings into `field1..field20`; `POST /api/v1/networks/profiles/seed` seeds and assigns them. Reads label slots back through the same profile.
+- **Source keys** — `sync_*_device_data.channel_id` is the ThingSpeak channel for airqo devices and the registry device id for others (`device_source_key`); `_resolve_devices`, the map view and stream last-active lookups resolve through it.
+- **Analytics** — the raw-data `Network` enum now accepts every registry network (airgradient, clarity, kcca, airbeam, airly, plumelabs, quant-aq, urbanbetter, nasa, purpleair).
+- Daily diagnostics only fall back to the plain category profile for airqo devices.
+
 
 ## Version 2.5.0
 **Released:** September 19, 2026

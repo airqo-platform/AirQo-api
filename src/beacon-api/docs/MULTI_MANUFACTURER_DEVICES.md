@@ -130,33 +130,67 @@ inlab and daily diagnostics still read the ThingSpeak-shaped local tables, so
 external devices show no readings and count as offline. That matches Vertex's
 behaviour today.
 
-## 4. Phase 2 (next): readings for external devices
+## 4. Phase 2 (this branch): readings for external devices
 
-The registry already knows how to fetch and normalise the latest reading of
-any device through its adapter layer, so Beacon should reuse it rather than
-re-implementing vendor clients.
+Goal: external devices get readings in the same local tables airqo devices
+use, so latest readings, online status, performance, collocation and daily
+diagnostics work for every manufacturer without special cases downstream.
 
-1. **Measurement source abstraction in the sync job.** Split
-   `thingspeak_sync_service` into a source interface with two
-   implementations: the existing ThingSpeak bulk fetch, and a "registry feed"
-   source that calls
-   `GET /devices/feeds/transform/recent?serial_number=<serial>` for every
-   `external_api` device on a schedule and upserts the result as one raw row.
-2. **Semantic-to-slot mapping.** External readings arrive as named fields
-   (`pm2_5`, `pm10`, `co2`, `temperature`, `humidity` ...). Store them into
-   `field1..field20` by reversing the device profile's `telemetry_mappings`
-   (key → slot), with a per-network default profile seeded for `airgradient`
-   and `iqair`. The `channel_id` column becomes a generic "source key":
-   `device_number` for ThingSpeak, `serial_number` for external devices, and
-   `_resolve_devices` in `crud_sync_device_data` resolves both.
-3. **Historical backfill.** For hourly history use
-   `GET /devices/measurements/devices/{id}/historical` (registry events, all
-   networks) or the analytics raw-data endpoint once its `Network` enum is
-   widened. Both key rows by device name, which `sync_device.device_name`
-   already holds.
-4. **Diagnostics.** `diagnostics/daily.py` currently falls back to the
-   category profile when a device has none; keep that fallback airqo-only so
-   external devices are only diagnosed once they have a manufacturer profile.
+**Data source: the analytics raw-data endpoint.** Beacon already fetches
+airqo readings from `POST /analytics/raw-data` in the cohort performance
+path. The ETL pipelines write every network's measurements to the same
+BigQuery raw table, tagged with the device's network, and the endpoint
+filters by device name, so it serves external devices as well. Its request
+model validated `network` against a short enum (`airqo`, `iqair`, `airnow`,
+`metone`); this branch widens that enum in the analytics service to every
+registry network, and beacon falls back to `network=airqo` on a 422 from an
+older deployment (the value is validated but not used in the query).
+
+**Source keys.** The local tables stay keyed by `channel_id`, but the key is
+now `device_source_key`: the ThingSpeak channel number for airqo devices and
+the registry device id for every other manufacturer (unique, stable, and
+immune to vendor serial numbers that look like channel numbers). Every read
+path that joined on `device_number` now resolves through that helper.
+
+**Manufacturer profiles.** Named fields (`pm2_5`, `pm10`, `temperature`,
+`co2` ...) are placed into `field1..field20` through the device's
+`<network>_<category>` profile. `manufacturer_profiles.py` seeds
+`airgradient_lowcost`, `iqair_lowcost`, `clarity_lowcost`, `kcca_lowcost`,
+`airbeam_lowcost` and `metone_bam`, each with a vendor row. The external
+low-cost layout keeps PM2.5, PM10, location, battery, temperature and
+humidity in the same slots as the AirQo lowcost profile and leaves the
+second-sensor slots empty; the external BAM layout follows the AirQo BAM
+concentration slots. Reads label slots back through the same profile, so an
+external device's averages come out as `PM2.5`, `PM10`, `Ambient Temperature`.
+
+**The job.** `external_sync_service.sync_external_device_data` runs after the
+nightly ThingSpeak sync (`EXTERNAL_SYNC_ENABLED`, default on) and on demand
+through `POST /api/v1/data-sync/sync-external`:
+
+1. seed/assign manufacturer profiles;
+2. select devices whose data source is `external_api`;
+3. per device, find the days in the window without a complete daily record;
+4. group by (network, category), chunk 50 device names and 7-day segments
+   per request, follow the cursor pagination, retry 429/5xx with backoff;
+5. upsert raw rows (`entry_id` = reading epoch second) and recompute the
+   hourly and daily aggregates.
+
+Retention cleanup stays with the ThingSpeak job, which runs first.
+
+**Known limits.**
+
+- External rows are as fine-grained as the pipeline's raw table (about every
+  10 minutes for adapter-ingested networks), so raw-frequency uptime for
+  them is lower than for 2-minute ThingSpeak feeds; hourly and daily
+  frequencies compare like for like.
+- Met One BAM rows from AirNow land in the general hourly table, not the BAM
+  raw table the analytics endpoint reads for `device_category=bam`, so they
+  only appear once the pipeline writes them there.
+- Networks with no ingestion path (airbeam, plumelabs, airly, quant-aq)
+  return no rows and stay offline.
+- `POST /api/v1/networks/profiles/seed` re-seeds profiles and assigns them
+  to devices without one; operator edits to a profile's slot layout are
+  never overwritten.
 
 ## 5. Phase 3: manufacturer-aware operations
 

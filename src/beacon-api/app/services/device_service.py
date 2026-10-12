@@ -1454,6 +1454,16 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
 
     decrypted_keys_map = await _decrypt_keys_for_devices(token, all_devices)
 
+    # Devices from other manufacturers resolve to ``<network>_<category>``
+    # profiles; seed them first so new devices are assigned on this pass.
+    try:
+        from app.services.manufacturer_profiles import ensure_manufacturer_profiles  # noqa: WPS433
+
+        ensure_manufacturer_profiles(db)
+    except Exception as e:
+        logger.warning(f"Could not seed manufacturer profiles before device sync: {e}")
+        db.rollback()
+
     updates_count = 0
     new_count = 0
     categories_synced: set = set()

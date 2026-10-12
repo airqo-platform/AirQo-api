@@ -96,6 +96,7 @@ Configure via environment variables or `.env` file:
 | `DEBUG` | Enable debug mode | `True` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `ENABLED_NETWORKS` | Comma-separated sensor manufacturers (networks) to mirror; empty = all | `` |
+| `EXTERNAL_SYNC_ENABLED` | Backfill non-AirQo device readings after the nightly ThingSpeak sync | `True` |
 
 ### Firmware & Storage Settings
 
@@ -139,6 +140,8 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 |--------|----------|-------------|
 | `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts |
 | `POST` | `/api/v1/networks/sync` | Mirror the platform's networks list into `sync_network` |
+| `POST` | `/api/v1/networks/profiles/seed` | Seed per-manufacturer device profiles and assign them to devices |
+| `POST` | `/api/v1/data-sync/sync-external` | Backfill readings for non-AirQo devices from the analytics raw-data endpoint |
 
 See [docs/MULTI_MANUFACTURER_DEVICES.md](docs/MULTI_MANUFACTURER_DEVICES.md) for how devices from other manufacturers are represented.
 

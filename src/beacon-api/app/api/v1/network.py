@@ -11,8 +11,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.network import NetworkListResponse, NetworkSyncResponse
+from app.schemas.network import NetworkListResponse, NetworkProfileSeedResponse, NetworkSyncResponse
 from app.services import network_sync_service
+from app.services.manufacturer_profiles import (
+    assign_profiles_to_external_devices,
+    ensure_manufacturer_profiles,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -61,3 +65,26 @@ def list_networks(
     except Exception as e:
         logger.exception(f"Unexpected error listing networks: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.post("/profiles/seed", response_model=NetworkProfileSeedResponse)
+def seed_manufacturer_profiles(db: Session = Depends(get_db)):
+    """
+    Create the per-manufacturer device profiles (airgradient_lowcost,
+    iqair_lowcost, metone_bam, ...) that define how named readings map onto
+    the field1..field20 slots, and assign them to mirrored devices that have
+    no profile yet.
+    """
+    try:
+        seeded = ensure_manufacturer_profiles(db)
+        assigned = assign_profiles_to_external_devices(db)
+    except Exception as e:
+        logger.exception(f"Unexpected error seeding manufacturer profiles: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return {
+        "success": True,
+        "message": f"{len(seeded['created'])} profiles created, {assigned} devices assigned",
+        "created": seeded["created"],
+        "existing": seeded["existing"],
+        "devices_assigned": assigned,
+    }

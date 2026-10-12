@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers import SchedulerAlreadyRunningError
 from app.services.thingspeak_sync_service import sync_device_data
+from app.services.external_sync_service import sync_external_device_data
 from app.services.diagnostics.daily import run_daily_diagnostics_async, cleanup_old_daily_diagnostics
 from app.core.config import settings
 
@@ -23,6 +24,16 @@ async def scheduled_thingspeak_sync():
         logger.info(f"Scheduled ThingSpeak data sync completed: {summary}")
     except Exception as exc:
         logger.exception(f"ThingSpeak sync failed: {exc}")
+
+    # Devices from other manufacturers have no ThingSpeak channel; their
+    # readings are backfilled from the platform's analytics raw-data endpoint.
+    if settings.EXTERNAL_SYNC_ENABLED:
+        logger.info("Starting scheduled external-manufacturer data sync...")
+        try:
+            summary = await sync_external_device_data()
+            logger.info(f"Scheduled external-manufacturer data sync completed: {summary}")
+        except Exception as exc:
+            logger.exception(f"External-manufacturer data sync failed: {exc}")
 
     # Diagnose the days the sync just completed. Runs even if the sync failed so
     # earlier days that are still undiagnosed get caught up.
