@@ -325,13 +325,16 @@ Local decoding, matching the API:
 
 ```ts
 const RANK = { ok: 0, info: 1, unknown: 2, fault: 3 } as const
+// Decimal text the API accepts, e.g. "17", " 17 ", "17.0", "1e1". Number() alone would also turn
+// "", "   ", "0x11", ["17"] and [] into numbers, which the API rejects.
+const DECIMAL = /^\s*[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?\s*$/i
 
 export function decodeStatus(set: StatusCodeSet, value: unknown): StatusDecodeResult {
+  const invalid: StatusDecodeResult = { value: null, status: 'invalid', codes: [], unknown_codes: [] }
+  if (typeof value !== 'number' && !(typeof value === 'string' && DECIMAL.test(value))) return invalid
   const n = Number(value)
   // Above 2^53 a JS number can't hold every whole number, so those values are rejected as by the API.
-  if (value === null || value === '' || typeof value === 'boolean' || !Number.isInteger(n) || n < 0 || n >= 2 ** 53) {
-    return { value: null, status: 'invalid', codes: [], unknown_codes: [] }
-  }
+  if (!Number.isInteger(n) || n < 0 || n >= 2 ** 53) return invalid
   const byCode = new Map(set.codes.map((c) => [c.code, c]))
   let wanted: number[]
   if (set.decode_rule === 'bitmask') {
