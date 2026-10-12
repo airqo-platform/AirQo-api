@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.diagnostics import DiagnosticTemplate, SymptomDefinition, CauseDefinition, DiagnosticHypothesisRule
 from app.models.device_schema import DeviceProfile, ComponentDefinition, MetricDefinition, ComponentRelationship
 from app.models.vendor import Vendor
+from app.models.status_codes import StatusCode, StatusCodeSet
+from app.utils.field_mappings import ensure_dict
 
 
 def get_default_candidate_causes() -> List[Dict[str, Any]]:
@@ -142,7 +144,7 @@ BAM_TELEMETRY_MAPPINGS = {
     "field3": {"key": "pm2_5", "label": "Hourly PM Conc (ConcHR)", "unit": "ug/m3"},
     "field4": {"key": "short_time_conc", "label": "Short-time PM Conc (ConcS)", "unit": "ug/m3"},
     "field5": {"key": "air_flow", "label": "Air Flow Rate", "unit": "LPM"},
-    "field6": {"key": "device_status", "label": "BAM Status Code"},
+    "field6": {"key": "device_status", "label": "BAM Status Code", "status_code_set": "bam-1020"},
     "field7": {"key": "battery_voltage", "label": "Logger Battery", "unit": "V"},
     "field8": {"key": "timestamp_ext", "label": "Diagnostic Timestamp", "source": "field8_csv_0"},
     "field9": {"key": "realtime_conc_diag", "label": "ConcRT Diagnostic", "unit": "ug/m3", "source": "field8_csv_1"},
@@ -159,10 +161,60 @@ BAM_TELEMETRY_MAPPINGS = {
     "field20": {"key": "device_status_ext", "label": "Extended Status Code", "source": "field8_csv_12"},
 }
 
+BAM_STATUS_CODE_SET = "bam-1020"
+
+# The reported status is the sum of every active code, e.g. 17 = 16 (Flow Failure) + 1 (Tape Break).
+BAM_STATUS_CODES = [
+    {"code": 0, "label": "Functional", "kind": "ok",
+     "description": "No status codes are set; the monitor is operating normally."},
+    {"code": 1, "label": "Tape Break", "kind": "fault",
+     "description": "No tape movement was detected during the tape move process."},
+    {"code": 2, "label": "Beta Detector", "kind": "fault",
+     "description": "The beta detector count rate is less than 500 Hz during the sampling cycle."},
+    {"code": 4, "label": "Sensor Range", "kind": "fault",
+     "description": "An analog sensor reading (AT, RH, BP, UPPER, LOWER, FT, FRH) is outside the designated limits."},
+    {"code": 8, "label": "Tape Advance", "kind": "fault",
+     "description": "The pressure drop across the tape exceeded the Tape Advance Pressure setting."},
+    {"code": 16, "label": "Flow Failure", "kind": "fault",
+     "description": "Sample flow is less than 1.0 SLPM for >1 minute, or +/-10% out of regulation for 1 minute, "
+                    "or +/-5% out of regulation for 5 minutes."},
+    {"code": 32, "label": "Nozzle Failure", "kind": "fault",
+     "description": "The nozzle failed to move/stop at the up or down position, or the foil device is still "
+                    "inserted at start of operation."},
+    {"code": 64, "label": "Digital Link Failure", "kind": "fault",
+     "description": "Communication with the 597A sensor has ceased for greater than 10 seconds."},
+    {"code": 128, "label": "Power Failure", "kind": "fault",
+     "description": "A power cycle or micro-processor reset occurred."},
+    {"code": 256, "label": "Short Sample", "kind": "info",
+     "description": "The first sample cycle is less than 1 hour."},
+    {"code": 512, "label": "Maintenance", "kind": "info",
+     "description": "The user stopped normal operation."},
+]
+
 BAM_METADATA_MAPPINGS = {
     "metadata1": {"key": "bam_serial_number", "label": "BAM Unit Serial Number"},
     "metadata2": {"key": "tape_lot_number", "label": "Filter Tape Lot Number"},
 }
+
+
+def seed_status_code_sets(db: Session) -> None:
+    """Seeds the default status code sets if not already present."""
+    if not db.query(StatusCodeSet).filter(StatusCodeSet.name == BAM_STATUS_CODE_SET).first():
+        db.add(StatusCodeSet(
+            name=BAM_STATUS_CODE_SET,
+            description="Met One BAM-1020 status codes. The reported status is the sum of all active codes.",
+            decode_rule="bitmask",
+            codes=[StatusCode(**code) for code in BAM_STATUS_CODES],
+        ))
+        db.flush()
+
+
+def _link_status_code_set(profile: DeviceProfile, slot: str, key: str, code_set: str) -> None:
+    """Point a profile's status field at a code set, unless it is mapped differently or already linked."""
+    mappings = ensure_dict(profile.telemetry_mappings) or {}
+    entry = mappings.get(slot)
+    if isinstance(entry, dict) and entry.get("key") == key and not entry.get("status_code_set"):
+        profile.telemetry_mappings = {**mappings, slot: {**entry, "status_code_set": code_set}}
 
 
 def seed_default_templates(db: Session) -> Dict[str, Any]:
@@ -251,6 +303,7 @@ def seed_default_templates(db: Session) -> Dict[str, Any]:
             gas_profile.vendor_id = airqo_vendor.id
 
     # ── 3. BAM Reference Monitor Profile (`bam`) ──────────────────────────
+    seed_status_code_sets(db)
     bam_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "bam").first()
     if not bam_profile:
         bam_profile = DeviceProfile(
@@ -267,6 +320,7 @@ def seed_default_templates(db: Session) -> Dict[str, Any]:
     else:
         if not bam_profile.vendor_id:
             bam_profile.vendor_id = met_one_vendor.id
+        _link_status_code_set(bam_profile, "field6", "device_status", BAM_STATUS_CODE_SET)
 
     # ── 4. Cold Chain Profile (`ColdChain-UltraLow-Monitor`) ───────────────
     cc_profile = db.query(DeviceProfile).filter(DeviceProfile.name == "ColdChain-UltraLow-Monitor").first()
