@@ -15,6 +15,7 @@ from app.models.sync import (
     SyncInlabBatchDevice,
     SyncGroup,
     SyncGroupCohort,
+    SyncNetwork,
 )
 from app.models.device_data import (
     SyncRawDeviceData,

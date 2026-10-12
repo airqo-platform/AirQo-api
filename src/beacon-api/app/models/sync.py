@@ -12,7 +12,8 @@ class SyncDevice(Base):
 
     device_id = Column(String(100), primary_key=True, nullable=False)
     device_name = Column(String(100), index=True)
-    network_id = Column(String(100))
+    # Platform "network" = sensor manufacturer / data provider (airqo, airgradient, iqair, metone ...)
+    network_id = Column(String(100), index=True)
     site_id = Column(String(100), index=True)
     category = Column(String(100))
     profile_id = Column(UUID(as_uuid=True), ForeignKey("device_profiles.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -25,6 +26,12 @@ class SyncDevice(Base):
     device_number = Column(Integer)
     writeKey = Column(String(100))
     readKey = Column(String(100))
+    # Identity of devices from other manufacturers (no ThingSpeak channel).
+    # The registry requires serial_number for every non-airqo device and stores
+    # the manufacturer API URL it fetches readings from in api_code.
+    serial_number = Column(String(100), index=True)
+    api_code = Column(Text)
+    auth_required = Column(Boolean)
 
     # Relationships
     profile = relationship("DeviceProfile", backref="devices")
@@ -113,6 +120,29 @@ class SyncItemsStockHistory(Base):
             name="chk_items_stock_history_unit_not_empty"
         ),
     )
+
+
+class SyncNetwork(Base):
+    """
+    Mirror of the platform's networks collection: the sensor manufacturers /
+    data providers whose devices the registry holds. ``name`` is the value
+    found in ``sync_device.network_id``.
+    """
+    __tablename__ = "sync_network"
+
+    network_id = Column(String(100), primary_key=True, nullable=False)  # platform _id
+    name = Column(String(100), unique=True, index=True, nullable=False)
+    acronym = Column(String(100))
+    status = Column(String(50))           # active | inactive
+    category = Column(String(100))        # platform net_category (business, others ...)
+    data_source = Column(String(100))     # platform net_data_source
+    website = Column(String(255))
+    email = Column(String(255))
+    description = Column(Text)
+    profile_picture = Column(String(500))
+    platform_updated_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class SyncCohort(Base):

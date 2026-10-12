@@ -95,6 +95,7 @@ Configure via environment variables or `.env` file:
 | `ENVIRONMENT` | Deployment environment | `development` |
 | `DEBUG` | Enable debug mode | `True` |
 | `LOG_LEVEL` | Logging level | `INFO` |
+| `ENABLED_NETWORKS` | Comma-separated sensor manufacturers (networks) to mirror; empty = all | `` |
 
 ### Firmware & Storage Settings
 
@@ -132,6 +133,14 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 | `GET` | `/api/v1/devices/stats` | Comprehensive device statistics |
 | `GET` | `/api/v1/devices/map-data` | Device locations with latest readings |
 | `GET` | `/api/v1/devices/{device_id}` | Get specific device details |
+
+#### Networks / Sensor Manufacturers (`/api/v1/networks`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts |
+| `POST` | `/api/v1/networks/sync` | Mirror the platform's networks list into `sync_network` |
+
+See [docs/MULTI_MANUFACTURER_DEVICES.md](docs/MULTI_MANUFACTURER_DEVICES.md) for how devices from other manufacturers are represented.
 
 #### AirQlouds (`/api/v1/airqlouds`)
 | Method | Endpoint | Description |

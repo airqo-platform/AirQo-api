@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.sync import SyncGrid, SyncGridSite, SyncSite, SyncDevice, SyncSiteDevice
 from app.services.site_service import upsert_site_to_sync
+from app.utils.networks import is_network_enabled
 
 logger = logging.getLogger(__name__)
-AIRQO_NETWORK = "airqo"
 
 
 # ---------------------------------------------------------------------------
@@ -532,13 +532,10 @@ def get_synced_grid(
 _PER_DEVICE_PERF_KEYS = ("uptime", "data_completeness", "averages")
 
 
-def _is_airqo_network_id(network_id: Optional[str]) -> bool:
-    return (network_id or "").strip().lower() == AIRQO_NETWORK
-
-
-def _prune_grid_to_airqo_devices(synced_grid: Dict[str, Any]) -> bool:
+def _prune_grid_to_enabled_networks(synced_grid: Dict[str, Any]) -> bool:
     """
-    Keep only devices whose ``network_id`` is airqo.
+    Keep only devices whose ``network_id`` passes the ENABLED_NETWORKS
+    allow-list (every network by default).
 
     Returns True if the grid still has at least one eligible device.
     """
@@ -549,7 +546,7 @@ def _prune_grid_to_airqo_devices(synced_grid: Dict[str, Any]) -> bool:
         filtered_devices = [
             dev
             for dev in (site.get("devices", []) or [])
-            if _is_airqo_network_id(dev.get("network_id"))
+            if is_network_enabled(dev.get("network_id"))
         ]
         if not filtered_devices:
             continue
@@ -637,7 +634,7 @@ def apply_local_performance_synced_grids(
     if not grids:
         return
 
-    eligible_grids = [g for g in grids if _prune_grid_to_airqo_devices(g)]
+    eligible_grids = [g for g in grids if _prune_grid_to_enabled_networks(g)]
     grids[:] = eligible_grids
     if not grids:
         return

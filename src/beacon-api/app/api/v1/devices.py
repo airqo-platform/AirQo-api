@@ -230,8 +230,12 @@ def get_synced_devices(
     limit: int = 30,
     skip: int = 0,
     search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Comma-separated sensor manufacturer(s) / network(s), e.g. airqo,airgradient",
+    ),
 ):
-    """List devices from the local sync_device table, filtered by group."""
+    """List devices from the local sync_device table, filtered by group (and optionally network)."""
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
 
     cohort_ids = resolve_group_cohort_ids(db, group)
@@ -244,7 +248,8 @@ def get_synced_devices(
             limit=limit,
             search=search,
             group_device_ids=group_device_ids,
-            query_params={"group": group, "search": search},
+            query_params={"group": group, "search": search, "network": network},
+            network=network,
         )
     except HTTPException:
         raise
@@ -290,7 +295,11 @@ async def get_devices(
     db: Session = Depends(get_db),
     limit: int = 30,
     skip: int = 0,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Sensor manufacturer / network to filter by (passed through to the platform)",
+    ),
 ):
     # The token should be in the format "JWT <token>"
     if not authorization.startswith("JWT "):
@@ -331,6 +340,8 @@ async def get_devices(
             params["device_id__in"] = ",".join(group_device_ids)
         if search:
             params["search"] = search
+        if network:
+            params["network"] = network
 
         result = await device_service.get_device_details(db, token, params)
         
@@ -350,6 +361,8 @@ async def get_devices(
             fallback_params = {}
             if search:
                 fallback_params["search"] = search
+            if network:
+                fallback_params["network"] = network
 
             fallback_result = await device_service.get_device_details(db, token, fallback_params)
             if not fallback_result.get("success", True):

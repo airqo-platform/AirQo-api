@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     PLATFORM_BASE_URL: str = "https://platform.airqo.net/api/v2"
     PLATFORM_API_TOKEN: str = ""
 
+    # Networks ("sensor manufacturers") beacon mirrors from the platform, as a
+    # comma-separated allow-list (e.g. "airqo,airgradient,iqair"). Empty means
+    # every network the platform returns.
+    ENABLED_NETWORKS: str = ""
+
     # Redis
     REDIS_HOST: str = "127.0.0.1"
     REDIS_PORT: int = 6379
