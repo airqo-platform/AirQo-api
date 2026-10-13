@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers import SchedulerAlreadyRunningError
 from app.services.thingspeak_sync_service import sync_device_data
-from app.services.external_sync_service import sync_external_device_data
+from app.services.external_sync_service import sync_external_device_data, poll_external_feeds
 from app.services.diagnostics.daily import run_daily_diagnostics_async, cleanup_old_daily_diagnostics
 from app.core.config import settings
 
@@ -51,6 +51,14 @@ async def scheduled_daily_diagnostics():
     except Exception as exc:
         logger.exception(f"Daily diagnostics failed: {exc}")
 
+async def scheduled_external_feed_poll():
+    """Latest reading for every external device, straight from the manufacturer via the registry feed."""
+    try:
+        summary = await poll_external_feeds()
+        logger.info(f"External feed poll completed: {summary.get('message')}")
+    except Exception as exc:
+        logger.exception(f"External feed poll failed: {exc}")
+
 async def expire_inactive_webrtc_sessions_job():
     logger.info("Running scheduled job to expire inactive WebRTC sessions...")
     from app.db.session import AsyncSessionLocal
@@ -85,6 +93,17 @@ def start_scheduler():
         replace_existing=True,
         timezone=SCHEDULER_TIMEZONE,
     )
+
+    # Poll the live feed of external-manufacturer devices (0 disables)
+    poll_minutes = int(getattr(settings, "EXTERNAL_FEED_POLL_MINUTES", 0) or 0)
+    if getattr(settings, "EXTERNAL_SYNC_ENABLED", True) and poll_minutes > 0:
+        scheduler.add_job(
+            scheduled_external_feed_poll,
+            'interval',
+            minutes=poll_minutes,
+            id='external_feed_poll',
+            replace_existing=True,
+        )
 
     # Run the WebRTC session expiration job every hour
     scheduler.add_job(

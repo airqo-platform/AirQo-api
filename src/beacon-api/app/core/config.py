@@ -60,6 +60,17 @@ class Settings(BaseSettings):
     # metone ...) from the platform's analytics raw-data endpoint after the
     # nightly ThingSpeak sync.
     EXTERNAL_SYNC_ENABLED: bool = True
+    # Poll the registry's live feed (which calls the manufacturer API through
+    # the per-network adapter) for the latest reading of external devices.
+    # Minutes between polls; 0 disables. Only networks listed in
+    # EXTERNAL_FEED_NETWORKS have a working adapter today.
+    EXTERNAL_FEED_POLL_MINUTES: int = 60
+    EXTERNAL_FEED_NETWORKS: str = "airgradient,iqair"
+    # Direct history from AirGradient's authenticated raw endpoint (devices
+    # shared privately with this account, i.e. authRequired=true). Empty token
+    # disables the direct source and those devices use analytics raw-data.
+    AIRGRADIENT_API_TOKEN: str = ""
+    AIRGRADIENT_BASE_URL: str = "https://api.airgradient.com/public/api/v1"
 
     # Tokens
     ORG_TOKEN: str = ""

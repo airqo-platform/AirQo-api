@@ -112,6 +112,31 @@ async def sync_external_data(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@router.post("/poll-external-feeds", response_model=SyncTriggerResponse)
+async def poll_external_feeds_endpoint(
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(...),
+):
+    """
+    Fetch the latest reading of every external-manufacturer device straight
+    from the manufacturer (through the registry's live feed adapter) and store
+    it. Runs as a background task.
+    """
+    _extract_token(authorization)  # validate auth
+
+    try:
+        from app.services.external_sync_service import poll_external_feeds
+
+        background_tasks.add_task(poll_external_feeds)
+        return SyncTriggerResponse(
+            success=True,
+            message="External live-feed poll started in the background.",
+        )
+    except Exception as e:
+        logger.exception(f"Error triggering external feed poll: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 @router.get("/raw", response_model=RawDataResponse)
 def get_raw_data(
     authorization: str = Header(...),

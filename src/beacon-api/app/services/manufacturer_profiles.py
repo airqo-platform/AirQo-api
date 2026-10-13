@@ -45,6 +45,7 @@ EXTERNAL_LOWCOST_TELEMETRY_MAPPINGS: Dict[str, Dict[str, Any]] = {
     "field10": {"key": "tvoc", "label": "TVOC Index"},
     "field11": {"key": "nox", "label": "NOx Index"},
     "field12": {"key": "wifi_rssi", "label": "WiFi Signal", "unit": "dBm"},
+    "field13": {"key": "boot_count", "label": "Boot Count"},
     "field16": {"key": "temperature", "label": "Ambient Temperature", "unit": "C"},
     "field17": {"key": "humidity", "label": "Ambient Humidity", "unit": "%"},
 }
@@ -67,10 +68,11 @@ EXTERNAL_BAM_TELEMETRY_MAPPINGS: Dict[str, Dict[str, Any]] = {
     "field20": {"key": "pm10", "label": "PM10", "unit": "ug/m3"},
 }
 
-# Names the platform uses for a reading's fields → the semantic keys above.
-# Analytics raw-data rows use the left-hand names; the registry's live feed
-# (already normalised through the network adapter's field_map) uses the
-# right-hand names, so both sources map the same way.
+# Names a reading's fields arrive under → the semantic keys above.
+# - analytics raw-data rows and the registry live feed (already normalised
+#   through the network adapter's field_map) use the AirQo names;
+# - AirGradient's own API uses its vendor names (pm02, rco2, atmp ...), listed
+#   here so the direct source maps the same way.
 RECORD_KEY_ALIASES: Dict[str, str] = {
     "pm2_5": "pm2_5",
     "pm10": "pm10",
@@ -79,6 +81,17 @@ RECORD_KEY_ALIASES: Dict[str, str] = {
     "tvoc": "tvoc",
     "nox": "nox",
     "wifi_rssi": "wifi_rssi",
+    "boot_count": "boot_count",
+    # AirGradient vendor field names
+    "pm01": "pm1",
+    "pm02": "pm2_5",
+    "rco2": "co2",
+    "atmp": "temperature",
+    "rhum": "humidity",
+    "tvocIndex": "tvoc",
+    "noxIndex": "nox",
+    "wifi": "wifi_rssi",
+    "boot": "boot_count",
     "latitude": "latitude",
     "longitude": "longitude",
     "device_latitude": "latitude",

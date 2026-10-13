@@ -360,3 +360,238 @@ class TestReadPathForExternalDevices(_DbTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── Phase 2b: live feed + direct AirGradient source ───────────────────────────
+
+AIRGRADIENT_PRIVATE = dict(device_id="ag_2", device_name="ag_private", network_id="airgradient", category="lowcost",
+                           serial_number="88123", api_code="https://api.airgradient.com/public/api/v1/locations/88123/measures/current",
+                           auth_required=True, status="deployed")
+
+
+class TestAirGradientDirectSource(unittest.TestCase):
+    def setUp(self):
+        self.source = ext.AirGradientRawSource()
+
+    def test_supports_only_private_airgradient_devices_with_token(self):
+        public = SyncDevice(**AIRGRADIENT)       # authRequired false → world snapshot only
+        private = SyncDevice(**AIRGRADIENT_PRIVATE)
+        with patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", ""):
+            self.assertFalse(self.source.supports(private))
+        with patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"):
+            self.assertTrue(self.source.supports(private))
+            self.assertFalse(self.source.supports(public))
+            self.assertFalse(self.source.supports(SyncDevice(**IQAIR)))
+            self.assertIsNone(ext.direct_source_for(public))
+            self.assertIs(ext.direct_source_for(private), ext.DIRECT_SOURCES[0])
+
+    def test_location_id_falls_back_to_api_code(self):
+        dev = SyncDevice(**{**AIRGRADIENT_PRIVATE, "serial_number": None})
+        self.assertEqual(self.source.location_id(dev), "88123")
+        self.assertEqual(self.source.url(dev), "https://api.airgradient.com/public/api/v1/locations/88123/measures/raw")
+
+    def test_fetch_chunks_window_and_tags_records(self):
+        dev = SyncDevice(**AIRGRADIENT_PRIVATE)
+        client = MagicMock()
+        client.get = AsyncMock(return_value=_response(200, [
+            {"timestamp": "2026-10-11T10:00:00.000Z", "pm02": 12.5, "pm10": 14.0, "rco2": 600, "atmp": 25.5, "rhum": 60, "wifi": -55, "boot": 3},
+        ]))
+        with patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"):
+            records, ok = asyncio.run(self.source.fetch(client, dev, date(2026, 10, 11), date(2026, 10, 11)))
+        self.assertTrue(ok)
+        # one day → two 12-hour chunks
+        self.assertEqual(client.get.await_count, 2)
+        first_params = client.get.call_args_list[0].kwargs["params"]
+        self.assertEqual(first_params["token"], "tok")
+        self.assertEqual(first_params["from"], "20261011000000Z")
+        self.assertEqual(first_params["to"], "20261011120000Z")
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["device_name"], "ag_private")
+        self.assertEqual(records[0]["datetime"], "2026-10-11T10:00:00.000Z")
+
+    def test_vendor_fields_map_into_slots(self):
+        dev = SyncDevice(**AIRGRADIENT_PRIVATE)
+        slot_maps = {"ag_2": mp.slot_map_from_mappings(mp.EXTERNAL_LOWCOST_TELEMETRY_MAPPINGS)}
+        rows = ext.build_raw_rows([
+            {"device_name": "ag_private", "datetime": "2026-10-11T10:00:00.000Z",
+             "pm02": 12.5, "pm01": 8.0, "pm10": 14.0, "rco2": 600, "atmp": 25.5, "rhum": 60, "wifi": -55, "boot": 3, "tvocIndex": 100},
+        ], {"ag_private": dev}, slot_maps)
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["created_at_ts"], datetime(2026, 10, 11, 10, tzinfo=timezone.utc))
+        self.assertEqual(row["field1"], 12.5)    # pm02 → pm2_5
+        self.assertEqual(row["field8"], 8.0)     # pm01 → pm1
+        self.assertEqual(row["field9"], 600.0)   # rco2 → co2
+        self.assertEqual(row["field10"], 100.0)  # tvocIndex → tvoc
+        self.assertEqual(row["field12"], -55.0)  # wifi → wifi_rssi
+        self.assertEqual(row["field13"], 3.0)    # boot → boot_count
+        self.assertEqual(row["field16"], 25.5)
+        self.assertEqual(row["field17"], 60.0)
+
+    def test_failed_direct_fetch_falls_back_to_analytics(self):
+        dev = SyncDevice(**AIRGRADIENT_PRIVATE)
+        client = MagicMock()
+        client.get = AsyncMock(return_value=_response(401, text="bad token"))
+        with patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"):
+            records, ok = asyncio.run(self.source.fetch(client, dev, date(2026, 10, 11), date(2026, 10, 11)))
+        self.assertFalse(ok)
+        self.assertEqual(records, [])
+
+
+class TestOrchestratorWithDirectSource(_DbTestCase):
+    def setUp(self):
+        super().setUp()
+        self.db.add_all([SyncDevice(**AIRGRADIENT_PRIVATE), SyncDevice(**IQAIR)])
+        self.db.commit()
+
+    def test_direct_devices_skip_analytics(self):
+        captured = {"raw": []}
+
+        def fake_upsert(db, records, batch_size=2000):
+            captured["raw"].extend(records)
+            return len(records)
+
+        async def fake_get(url, **kwargs):
+            # Only the AirGradient raw endpoint is reached through client.get
+            self.assertIn("/locations/88123/measures/raw", url)
+            return _response(200, [{"timestamp": "2026-10-11T10:00:00.000Z", "pm02": 9.0, "pm10": 11.0}])
+
+        async def fake_post(url, json=None, params=None, headers=None):
+            # analytics is only asked about the device without a direct source
+            self.assertEqual(json["device_names"], ["phli_21"])
+            self.assertEqual(json["network"], "iqair")
+            return _response(200, {"data": [
+                {"device_name": "phli_21", "datetime": "2026-10-11 10:00:00Z", "pm2_5": 20.0, "pm10": 25.0},
+            ], "metadata": {"has_more": False}})
+
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=fake_get)
+        client.post = AsyncMock(side_effect=fake_post)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(ext, "SessionLocal", self.Session), \
+             patch.object(ext.httpx, "AsyncClient", return_value=client), \
+             patch.object(ext.crud_device_data, "upsert_raw_data", fake_upsert), \
+             patch.object(ext.crud_device_data, "upsert_hourly_data", lambda db, r, batch_size=2000: len(r)), \
+             patch.object(ext.crud_device_data, "upsert_daily_data", lambda db, r, batch_size=2000: len(r)), \
+             patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"), \
+             patch.object(ext.settings, "PLATFORM_API_TOKEN", "api-token"):
+            summary = asyncio.run(ext.sync_external_device_data(start_date="2026-10-11", end_date="2026-10-11"))
+
+        self.assertTrue(summary["success"], summary)
+        self.assertEqual(summary["devices"], 2)
+        self.assertEqual(summary["direct_devices"], 1)
+        self.assertEqual(summary["direct_requests"], 1)
+        self.assertEqual(summary["direct_failed"], 0)
+        self.assertEqual(summary["groups"], 1)
+        keys = {r["channel_id"] for r in captured["raw"]}
+        self.assertEqual(keys, {"ag_2", "iq_1"})
+        ag_row = next(r for r in captured["raw"] if r["channel_id"] == "ag_2")
+        self.assertEqual(ag_row["field1"], 9.0)
+
+    def test_direct_failure_adds_device_to_analytics_fallback(self):
+        asked_analytics_for = []
+
+        async def fake_get(url, **kwargs):
+            return _response(401, text="bad token")
+
+        async def fake_post(url, json=None, params=None, headers=None):
+            asked_analytics_for.extend(json["device_names"])
+            return _response(200, {"data": [], "metadata": {"has_more": False}})
+
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=fake_get)
+        client.post = AsyncMock(side_effect=fake_post)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(ext, "SessionLocal", self.Session), \
+             patch.object(ext.httpx, "AsyncClient", return_value=client), \
+             patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"):
+            summary = asyncio.run(ext.sync_external_device_data(start_date="2026-10-11", end_date="2026-10-11"))
+
+        self.assertFalse(summary["success"])
+        self.assertEqual(summary["direct_failed"], 1)
+        self.assertEqual(sorted(asked_analytics_for), ["ag_private", "phli_21"])
+
+
+class TestLiveFeedPoll(_DbTestCase):
+    def setUp(self):
+        super().setUp()
+        self.db.add_all([SyncDevice(**AIRGRADIENT), SyncDevice(**IQAIR), SyncDevice(**METONE)])
+        self.db.commit()
+
+    def test_feed_devices_limited_to_adapter_networks(self):
+        with patch.object(ext.settings, "EXTERNAL_FEED_NETWORKS", "airgradient,iqair"):
+            names = {d.device_name for d in ext.select_feed_devices(self.db)}
+        self.assertEqual(names, {"ag_201560", "phli_21"})   # metone has no live adapter
+
+    def test_feed_record_uses_reading_timestamp_or_poll_time(self):
+        dev = SyncDevice(**AIRGRADIENT)
+        polled = datetime(2026, 10, 12, 9, 7, tzinfo=timezone.utc)
+        rec = ext.feed_record(dev, {"isCache": False, "pm2_5": "8.5", "timestamp": "2026-10-12T09:05:00Z", "co2": 455}, polled)
+        self.assertEqual(rec["datetime"], datetime(2026, 10, 12, 9, 5, tzinfo=timezone.utc))
+        self.assertNotIn("isCache", rec)
+        rec = ext.feed_record(SyncDevice(**IQAIR), {"isCache": False, "pm2_5": 8.5}, polled)
+        self.assertEqual(rec["datetime"], polled)
+        self.assertIsNone(ext.feed_record(dev, {"isCache": False}, polled))
+
+    def test_poll_stores_reading_and_refreshes_aggregates(self):
+        feeds = {
+            "201560": _response(200, {"isCache": False, "pm2_5": 8.5, "pm10": 10.0, "co2": 455, "wifi_rssi": -60,
+                                      "temperature": 24.0, "humidity": 65, "timestamp": "2026-10-12T09:05:00Z"}),
+            "6796fa282f158127e2a1f9f3": _response(404, {"success": False, "reason": "upstream_device_not_found"}),
+        }
+
+        async def fake_get(url, params=None, headers=None, **kwargs):
+            self.assertTrue(url.endswith("/devices/feeds/transform/recent"))
+            self.assertEqual(params["token"], "api-token")
+            return feeds[params["serial_number"]]
+
+        stored = {"hourly": [], "daily": []}
+
+        def fake_upsert_raw(db, records, batch_size=2000):
+            # Persist through the ORM so the aggregate recompute can read it back.
+            for r in records:
+                db.add(SyncRawDeviceData(id=uuid.uuid4(), **r))
+            db.commit()
+            return len(records)
+
+        # An earlier sample in the same hour, already stored
+        self.db.add(SyncRawDeviceData(id=uuid.uuid4(), channel_id="ag_1", device_id="ag_1", entry_id=1,
+                                      created_at_ts=datetime(2026, 10, 12, 9, 0, tzinfo=timezone.utc), field1=11.5))
+        self.db.commit()
+
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=fake_get)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(ext, "SessionLocal", self.Session), \
+             patch.object(ext.httpx, "AsyncClient", return_value=client), \
+             patch.object(ext.crud_device_data, "upsert_raw_data", fake_upsert_raw), \
+             patch.object(ext.crud_device_data, "upsert_hourly_data", lambda db, r, batch_size=2000: stored["hourly"].extend(r) or len(r)), \
+             patch.object(ext.crud_device_data, "upsert_daily_data", lambda db, r, batch_size=2000: stored["daily"].extend(r) or len(r)), \
+             patch.object(ext.settings, "PLATFORM_API_TOKEN", "api-token"), \
+             patch.object(ext.settings, "EXTERNAL_FEED_NETWORKS", "airgradient,iqair"):
+            summary = asyncio.run(ext.poll_external_feeds())
+
+        self.assertEqual(summary["devices"], 2)
+        self.assertEqual(summary["polled"], 2)
+        self.assertEqual(summary["readings"], 1)
+        self.assertEqual(summary["not_found"], 1)
+        self.assertEqual(summary["failed"], 0)
+
+        rows = self.db.query(SyncRawDeviceData).filter(SyncRawDeviceData.channel_id == "ag_1").all()
+        self.assertEqual(len(rows), 2)
+        new_row = next(r for r in rows if r.entry_id != 1)
+        self.assertEqual(new_row.field1, 8.5)
+        self.assertEqual(new_row.field9, 455.0)
+        self.assertEqual(new_row.field12, -60.0)
+
+        # The hour's aggregate averages the earlier sample and the new one
+        self.assertEqual(len(stored["hourly"]), 1)
+        self.assertEqual(stored["hourly"][0]["field1_avg"], 10.0)
+        self.assertEqual(stored["hourly"][0]["record_count"], 2)
+        self.assertEqual(stored["daily"][0]["data_date"], date(2026, 10, 12))

@@ -136,15 +136,38 @@ Goal: external devices get readings in the same local tables airqo devices
 use, so latest readings, online status, performance, collocation and daily
 diagnostics work for every manufacturer without special cases downstream.
 
-**Data source: the analytics raw-data endpoint.** Beacon already fetches
-airqo readings from `POST /analytics/raw-data` in the cohort performance
-path. The ETL pipelines write every network's measurements to the same
-BigQuery raw table, tagged with the device's network, and the endpoint
-filters by device name, so it serves external devices as well. Its request
-model validated `network` against a short enum (`airqo`, `iqair`, `airnow`,
-`metone`); this branch widens that enum in the analytics service to every
-registry network, and beacon falls back to `network=airqo` on a 422 from an
-older deployment (the value is validated but not used in the query).
+**Three data sources, closest to the device first.** AirQo devices are read
+straight from ThingSpeak because it offers per-channel history by date range
+with a per-device key. Manufacturer APIs differ, so external devices combine:
+
+1. *Live feed* (`poll_external_feeds`, every `EXTERNAL_FEED_POLL_MINUTES`,
+   default 60; `POST /api/v1/data-sync/poll-external-feeds` on demand). The
+   registry's `GET /devices/feeds/transform/recent?serial_number=` calls the
+   manufacturer API through the per-network adapter, applies the vendor
+   credentials server-side and returns the latest reading with AirQo field
+   names. Beacon stores it as one raw sample (the reading's own timestamp
+   when the manufacturer supplies one, otherwise the poll time) and refreshes
+   that hour's and day's aggregates from every stored sample. Near real-time
+   latest readings and online status, no vendor secrets in beacon. Limited to
+   networks with a working adapter (`EXTERNAL_FEED_NETWORKS`, default
+   airgradient and iqair).
+2. *Direct history* (`DIRECT_SOURCES`). Manufacturer APIs with per-device
+   history by date range, read with beacon's own credentials. The first is
+   AirGradient's authenticated raw endpoint (`AIRGRADIENT_API_TOKEN`,
+   `AIRGRADIENT_BASE_URL`), in 12-hour chunks, for devices shared privately
+   with the account (`authRequired` true in the registry). Public "world"
+   devices expose a snapshot only and fall through to the next source.
+   IQAir's device URL returns a fixed historical block with no window
+   control, and Met One is only reachable through AirNow by bounding box, so
+   neither has a direct source yet.
+3. *Analytics raw-data* (fallback). The ETL pipelines write every network's
+   measurements to the same BigQuery raw table, tagged with the device's
+   network, and `POST /analytics/raw-data` serves them by device name. Used
+   for devices without a direct source and whenever a direct fetch fails. Its
+   request model validated `network` against a short enum; this branch widens
+   that enum in the analytics service, and beacon falls back to
+   `network=airqo` on a 422 from an older deployment (the value is validated
+   but not used in the query).
 
 **Source keys.** The local tables stay keyed by `channel_id`, but the key is
 now `device_source_key`: the ThingSpeak channel number for airqo devices and
@@ -163,16 +186,18 @@ second-sensor slots empty; the external BAM layout follows the AirQo BAM
 concentration slots. Reads label slots back through the same profile, so an
 external device's averages come out as `PM2.5`, `PM10`, `Ambient Temperature`.
 
-**The job.** `external_sync_service.sync_external_device_data` runs after the
-nightly ThingSpeak sync (`EXTERNAL_SYNC_ENABLED`, default on) and on demand
+**The nightly job.** `external_sync_service.sync_external_device_data` runs
+after the ThingSpeak sync (`EXTERNAL_SYNC_ENABLED`, default on) and on demand
 through `POST /api/v1/data-sync/sync-external`:
 
 1. seed/assign manufacturer profiles;
 2. select devices whose data source is `external_api`;
 3. per device, find the days in the window without a complete daily record;
-4. group by (network, category), chunk 50 device names and 7-day segments
-   per request, follow the cursor pagination, retry 429/5xx with backoff;
-5. upsert raw rows (`entry_id` = reading epoch second) and recompute the
+4. devices with a direct source fetch those days from the manufacturer;
+5. the rest (and any device whose direct fetch failed) are grouped by
+   (network, category), chunked into 50 device names and 7-day segments per
+   analytics request, with cursor pagination and 429/5xx backoff;
+6. upsert raw rows (`entry_id` = reading epoch second) and recompute the
    hourly and daily aggregates.
 
 Retention cleanup stays with the ThingSpeak job, which runs first.
@@ -188,6 +213,8 @@ Retention cleanup stays with the ThingSpeak job, which runs first.
   only appear once the pipeline writes them there.
 - Networks with no ingestion path (airbeam, plumelabs, airly, quant-aq)
   return no rows and stay offline.
+- Live-feed samples for IQAir carry the poll time, not a device timestamp,
+  so repeated polls of an unchanged reading store repeated samples.
 - `POST /api/v1/networks/profiles/seed` re-seeds profiles and assigns them
   to devices without one; operator edits to a profile's slot layout are
   never overwritten.
