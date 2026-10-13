@@ -361,6 +361,50 @@ class FleetDailySummaryResponse(BaseModel):
     worst_devices: List[FleetDeviceHealth] = []
 
 
+class DeviceDiagnosticsIssue(BaseModel):
+    issue_code: str
+    title: str
+    severity: str
+    subsystem: str
+    component_name: Optional[str] = None
+    streak_days: int
+    is_new: bool
+
+
+class DeviceDiagnostics(BaseModel):
+    """A device's most recent stored daily diagnosis, as attached to list responses."""
+    diagnosis_date: date
+    overall_health_score: float
+    lifecycle_state: str
+    issue_count: int
+    max_severity: Optional[str] = None
+    top_cause_code: Optional[str] = None
+    headline: Optional[str] = None
+    issues: List[DeviceDiagnosticsIssue] = []
+
+
+class DiagnosticsSummaryIssue(BaseModel):
+    issue_code: str
+    title: str
+    severity: str
+    subsystem: str
+    device_count: int
+
+
+class DiagnosticsSummary(BaseModel):
+    """Roll-up of the latest diagnoses of the devices in a site, grid or cohort."""
+    devices_total: int
+    devices_diagnosed: int
+    devices_not_diagnosed: int
+    devices_with_issues: int
+    average_health_score: Optional[float] = None
+    min_health_score: Optional[float] = None
+    lifecycle_state_counts: Dict[str, int] = {}
+    max_severity: Optional[str] = None
+    latest_diagnosis_date: Optional[date] = None
+    top_issues: List[DiagnosticsSummaryIssue] = []
+
+
 class DailyDiagnosticsRunResponse(BaseModel):
     success: bool
     message: str

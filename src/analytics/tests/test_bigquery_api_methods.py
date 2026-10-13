@@ -271,10 +271,11 @@ class TestFilterQueryBuilders:
             start_date="2025-01-01",
             end_date="2025-01-04",
             frequency=Frequency.HOURLY,
+            filter_type="device_names",
         )
         assert "SELECT pm2_5, timestamp" in cohort_query
         assert cohort_query.startswith("SELECT ") and "site_name" in cohort_query
-        # Only the filter condition may differ from the device_ids shape.
+        # Only the filter condition may differ from the device_names shape.
         assert (
             cohort_query.replace(
                 f"{bq_api.devices_table}.id IN ("

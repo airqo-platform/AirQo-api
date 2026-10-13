@@ -11,6 +11,7 @@ from app.schemas.cohort import (
     SingleSyncedCohortResponse,
 )
 from app.services import cohort_service, cohort_sync_service
+from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
 
 router = APIRouter()
@@ -138,6 +139,7 @@ def get_synced_cohorts(
     start_date_time: Optional[str] = Query(None, alias="startDateTime"),
     end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     frequency: Optional[str] = "hourly",
+    include_diagnostics: bool = Query(False, alias="includeDiagnostics"),
     db: Session = Depends(get_db),
 ):
     """List cohorts from the local sync table (source of truth).
@@ -148,6 +150,8 @@ def get_synced_cohorts(
     every supplied tag. When ``include_performance=true`` and both
     ``start_date_time`` / ``end_date_time`` are provided, each cohort and its
     devices are enriched with locally-computed performance metrics.
+    When ``includeDiagnostics=true``, each device carries its most recent
+    stored daily diagnosis and each cohort a ``diagnostics_summary`` roll-up.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -187,6 +191,9 @@ def get_synced_cohorts(
                 frequency=freq,
             )
 
+        if include_diagnostics:
+            apply_diagnostics_to_containers(result.get("cohorts", []), db)
+
         return result
     except HTTPException:
         raise
@@ -202,13 +209,15 @@ def get_synced_cohort(
     startDateTime: Optional[str] = None,
     endDateTime: Optional[str] = None,
     frequency: Optional[str] = "hourly",
+    includeDiagnostics: bool = False,
     db: Session = Depends(get_db),
 ):
     """Get a single cohort from the local sync table with associated devices.
 
     When ``includePerformance=true`` and both ``startDateTime`` /
     ``endDateTime`` are provided, the cohort and its devices are enriched
-    with locally-computed performance metrics.
+    with locally-computed performance metrics. When ``includeDiagnostics=true``,
+    devices carry their latest stored diagnosis and the cohort a roll-up.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -232,6 +241,9 @@ def get_synced_cohort(
                 endDateTime,
                 frequency=freq,
             )
+
+        if includeDiagnostics and cohort:
+            apply_diagnostics_to_containers([cohort], db)
 
         return result
     except HTTPException:

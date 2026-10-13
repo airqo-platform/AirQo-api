@@ -73,10 +73,13 @@ class TestFormatToAqcsv:
         assert "value_pm10" not in row
 
     def test_drops_internal_columns(self):
-        record = _daily_record(device_name="dev1", network="airqo", frequency="daily")
+        record = _daily_record(
+            device_name="dev1", device_id="id1", network="airqo", frequency="daily"
+        )
         result = format_to_aqcsv([record], ["pm2_5"], Frequency.DAILY)
         row = result[0]
         assert "device_name" not in row
+        assert "device_id" not in row
         assert "network" not in row
         assert "frequency" not in row
 
