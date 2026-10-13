@@ -112,6 +112,40 @@ class TestV2DataEndpoints:
         bound = [p.values for p in query.job_config.query_parameters]
         assert [injected] in bound
 
+    @pytest.mark.parametrize(
+        "key, column, other, returns_id",
+        [
+            ("device_ids", "id", "device_id", True),
+            ("device_names", "device_id", "id", False),
+        ],
+    )
+    def test_each_device_filter_uses_its_own_column(
+        self, client, fake_bigquery, key, column, other, returns_id
+    ):
+        """The device_ids filter compares the id column of the devices table and
+        returns it as device_id. The device_names filter compares the device_id
+        column, which the response names device_name."""
+        from tests.paging_support import DOWNLOAD, device_frame
+
+        body = {k: v for k, v in DOWNLOAD.items() if k != "device_ids"}
+        body[key] = ["dev_a", "dev_b"]
+        frame = device_frame(2)
+        if returns_id:
+            frame["id"] = ["id_a", "id_b"]
+        fake_bigquery.result_frame = frame
+
+        resp = client.post("/api/v2/analytics/data-download", json=body)
+
+        assert resp.status_code == 200
+        (query,) = fake_bigquery.queries
+        assert f".{column} IN UNNEST(@filter_value)" in query.sql
+        assert f".{other} IN UNNEST(@filter_value)" not in query.sql
+        assert (".id FROM " in query.sql) is returns_id
+        records = resp.json()["data"]
+        assert [r["device_name"] for r in records] == ["dev_a", "dev_b"]
+        expected_ids = ["id_a", "id_b"] if returns_id else [None, None]
+        assert [r.get("device_id") for r in records] == expected_ids
+
 
 # ---------------------------------------------------------------------------
 # V2 dashboard endpoints

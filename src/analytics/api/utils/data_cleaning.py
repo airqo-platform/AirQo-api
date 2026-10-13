@@ -224,12 +224,14 @@ class RenameDeviceIdToName(CleaningStep):
     """
     Rename ``device_id`` -> ``device_name`` for the public response contract.
 
-    Runs after sorting/dedup, which rely on ``device_id``.
+    The ``id`` column that a ``device_ids`` request selects becomes
+    ``device_id`` in the same rename.  The step runs after sorting and dedup,
+    which rely on ``device_id``.
     """
 
     def apply(self, df: pd.DataFrame, ctx: CleaningContext) -> pd.DataFrame:
         if "device_id" in df.columns:
-            df = df.rename(columns={"device_id": "device_name"})
+            df = df.rename(columns={"device_id": "device_name", "id": "device_id"})
         return df
 
 
