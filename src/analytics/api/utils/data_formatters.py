@@ -246,6 +246,7 @@ def format_to_aqcsv(
                 "pm2_5_raw_value",
                 "pm10_raw_value",
                 "device_name",
+                "device_id",
                 "network",
                 "device_latitude",
                 "device_longitude",

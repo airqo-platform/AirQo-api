@@ -140,7 +140,9 @@ class BigQueryApi:
         query, since all three ultimately just narrow down which devices'
         measurements to return:
         - "devices"/"device_ids"/"device_names" (default): filter_value is a
-          literal list of device IDs -> WHERE device_id IN UNNEST(@filter_value).
+          list of device identifiers.  The "device_ids" filter compares the
+          `id` column of the devices table and returns it with each row, and
+          the other two filters compare its `device_id` column.
         - "grid_ids": filter_value is a list of grid IDs -> WHERE device_id's site
           is in one of those grids, resolved via a grids_sites subquery.
           devices_table.site_id is reused directly here (no need to re-join
@@ -169,27 +171,26 @@ class BigQueryApi:
         """
         table_name = Utils.table_name(table)
 
-        if filter_type == "grid_ids":
-            filter_condition = (
-                f"{self.devices_table}.site_id IN ("
-                f"SELECT site_id FROM {self.grids_sites_table} "
-                f"WHERE grid_id IN UNNEST(@filter_value)"
-                f") "
-            )
-        elif filter_type == "cohort_ids":
-            filter_condition = (
-                f"{self.devices_table}.id IN ("
-                f"SELECT device_id FROM {self.cohorts_devices_table} "
-                f"WHERE cohort_id IN UNNEST(@filter_value)"
-                f") "
-            )
-        else:
-            filter_condition = (
-                f"{self.devices_table}.device_id IN UNNEST(@filter_value) "
-            )
+        devices = self.devices_table
+        filter_conditions = {
+            "device_ids": f"{devices}.id IN UNNEST(@filter_value) ",
+            "grid_ids": (
+                f"{devices}.site_id IN (SELECT site_id FROM {self.grids_sites_table} "
+                f"WHERE grid_id IN UNNEST(@filter_value)) "
+            ),
+            "cohort_ids": (
+                f"{devices}.id IN (SELECT device_id FROM {self.cohorts_devices_table} "
+                f"WHERE cohort_id IN UNNEST(@filter_value)) "
+            ),
+        }
+        filter_condition = filter_conditions.get(
+            filter_type, f"{devices}.device_id IN UNNEST(@filter_value) "
+        )
 
+        # A device_ids request also returns the id column that it filtered on.
+        id_column = f", {devices}.id" if filter_type == "device_ids" else ""
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.device_id "
+            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {devices}.device_id{id_column} "
             f"FROM {table_name} "
             f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {table_name}.device_id "
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
