@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.device_schema import DeviceProfile
+from app.models.device_schema import ComponentDefinition, ComponentRelationship, DeviceProfile, MetricDefinition
 from app.models.sync import SyncDevice
 from app.models.vendor import Vendor
 from app.utils.field_mappings import ensure_dict
@@ -203,6 +203,239 @@ def map_record_to_slots(record: Dict[str, Any], slot_map: Dict[str, str]) -> Dic
 
 
 # ---------------------------------------------------------------------------
+# Component models for the IoT diagnostic engine
+# ---------------------------------------------------------------------------
+# The engine builds its model from a profile's components (type, criticality),
+# their metrics (telemetry key, expected range, max rate of change per hour,
+# role) and the relationships between components. Everything below uses the
+# engine's generic vocabulary only: POWERS / COMMUNICATES_VIA dependencies, a
+# ``connectivity`` component that delivers the data, and the
+# ``signal_strength`` metric role. Metric keys must match the profile's
+# telemetry mappings or the engine cannot evaluate them.
+
+def _reporting_interval_config(default_seconds: int) -> Dict[str, Dict[str, Any]]:
+    return {
+        "config1": {
+            "key": "reporting_interval", "label": "Reporting Interval", "type": "int", "unit": "s",
+            "default": default_seconds,
+        },
+    }
+
+
+_PM_METRICS = [
+    {"key": "pm2_5", "unit": "ug/m3", "expected_min": 0.0, "expected_max": 500.0, "max_rate_of_change": 300.0},
+    {"key": "pm10", "unit": "ug/m3", "expected_min": 0.0, "expected_max": 600.0, "max_rate_of_change": 400.0},
+]
+_ENVIRONMENT_METRICS = [
+    {"key": "temperature", "unit": "C", "expected_min": -10.0, "expected_max": 60.0, "max_rate_of_change": 15.0},
+    {"key": "humidity", "unit": "%", "expected_min": 0.0, "expected_max": 100.0, "max_rate_of_change": 60.0},
+]
+_CO2_METRIC = {"key": "co2", "unit": "ppm", "expected_min": 380.0, "expected_max": 5000.0, "max_rate_of_change": 2000.0}
+
+# Readings for these components only reach beacon through some sources (the
+# live feed and AirGradient's direct history carry CO2, WiFi and boot count;
+# the analytics fallback carries PM, temperature and humidity only), so a day
+# without them is not a fault. PM is every device's purpose and always
+# delivered, so pm_sensor keeps the METRIC_MISSING check.
+_OPTIONAL_METRICS = {"diagnostics": {"disabled_checks": ["METRIC_MISSING"]}}
+# A cumulative counter that does not move is the healthy case.
+_COUNTER_METRICS = {"diagnostics": {"disabled_checks": ["METRIC_MISSING", "METRIC_STUCK"]}}
+
+# Generic mains-powered single-PM-sensor monitor reporting over an unmonitored
+# link (IQAir, Clarity, AirBeam). The link is the connectivity component, so
+# data gaps are attributed to it; mains power has no metrics and is only
+# suspected when every dependent fails.
+EXTERNAL_LOWCOST_COMPONENT_MODEL: Dict[str, Any] = {
+    "config_mappings": _reporting_interval_config(3600),
+    "components": [
+        {"name": "pm_sensor", "component_type": "sensor", "criticality": 0.45, "metrics": list(_PM_METRICS)},
+        {"name": "environment_sensor", "component_type": "sensor", "criticality": 0.15,
+         "metrics": list(_ENVIRONMENT_METRICS), "meta_data": _OPTIONAL_METRICS},
+        {"name": "data_link", "component_type": "connectivity", "criticality": 0.30, "metrics": []},
+        {"name": "mains_power", "component_type": "power", "criticality": 0.10, "metrics": []},
+    ],
+    "relationships": [
+        ("mains_power", "pm_sensor", "POWERS"),
+        ("mains_power", "environment_sensor", "POWERS"),
+        ("mains_power", "data_link", "POWERS"),
+        ("pm_sensor", "data_link", "COMMUNICATES_VIA"),
+        ("environment_sensor", "data_link", "COMMUNICATES_VIA"),
+    ],
+}
+
+IQAIR_COMPONENT_MODEL: Dict[str, Any] = {
+    **EXTERNAL_LOWCOST_COMPONENT_MODEL,
+    "components": [
+        {"name": "pm_sensor", "component_type": "sensor", "criticality": 0.40, "metrics": list(_PM_METRICS)},
+        {"name": "gas_sensor", "component_type": "sensor", "criticality": 0.15, "metrics": [dict(_CO2_METRIC)],
+         "meta_data": _OPTIONAL_METRICS},
+        {"name": "environment_sensor", "component_type": "sensor", "criticality": 0.15,
+         "metrics": list(_ENVIRONMENT_METRICS), "meta_data": _OPTIONAL_METRICS},
+        {"name": "data_link", "component_type": "connectivity", "criticality": 0.20, "metrics": []},
+        {"name": "mains_power", "component_type": "power", "criticality": 0.10, "metrics": []},
+    ],
+    "relationships": EXTERNAL_LOWCOST_COMPONENT_MODEL["relationships"] + [
+        ("mains_power", "gas_sensor", "POWERS"),
+        ("gas_sensor", "data_link", "COMMUNICATES_VIA"),
+    ],
+}
+
+# AirGradient reports WiFi signal and a boot counter, so the link is monitored
+# (weak signal → METRIC_BELOW_MIN on wifi_rssi) and reboot storms show up as
+# the boot counter rising faster than ``max_rate_of_change`` per hour.
+# Readings arrive about every 10 minutes through the pipeline.
+AIRGRADIENT_COMPONENT_MODEL: Dict[str, Any] = {
+    "config_mappings": _reporting_interval_config(600),
+    "components": [
+        {"name": "pm_sensor", "component_type": "sensor", "criticality": 0.35, "metrics": list(_PM_METRICS)},
+        {"name": "gas_sensor", "component_type": "sensor", "criticality": 0.15, "metrics": [
+            dict(_CO2_METRIC),
+            {"key": "tvoc", "expected_min": 0.0, "expected_max": 500.0, "max_rate_of_change": 300.0},
+            {"key": "nox", "expected_min": 0.0, "expected_max": 500.0, "max_rate_of_change": 300.0},
+        ], "meta_data": _OPTIONAL_METRICS},
+        {"name": "environment_sensor", "component_type": "sensor", "criticality": 0.10,
+         "metrics": list(_ENVIRONMENT_METRICS), "meta_data": _OPTIONAL_METRICS},
+        {"name": "wifi_modem", "component_type": "connectivity", "criticality": 0.25, "metrics": [
+            {"key": "wifi_rssi", "unit": "dBm", "expected_min": -85.0, "expected_max": -20.0, "role": "signal_strength"},
+        ], "meta_data": _OPTIONAL_METRICS},
+        {"name": "controller", "component_type": "compute", "criticality": 0.10, "metrics": [
+            # cumulative reboot counter: more than 2 reboots in an hour is a reboot storm
+            {"key": "boot_count", "max_rate_of_change": 2.0},
+        ], "meta_data": _COUNTER_METRICS},
+        {"name": "mains_power", "component_type": "power", "criticality": 0.05, "metrics": []},
+    ],
+    "relationships": [
+        ("mains_power", "pm_sensor", "POWERS"),
+        ("mains_power", "gas_sensor", "POWERS"),
+        ("mains_power", "environment_sensor", "POWERS"),
+        ("mains_power", "wifi_modem", "POWERS"),
+        ("mains_power", "controller", "POWERS"),
+        ("pm_sensor", "wifi_modem", "COMMUNICATES_VIA"),
+        ("gas_sensor", "wifi_modem", "COMMUNICATES_VIA"),
+        ("environment_sensor", "wifi_modem", "COMMUNICATES_VIA"),
+        ("controller", "wifi_modem", "COMMUNICATES_VIA"),
+    ],
+}
+
+# Met One BAM-1020 reported hourly through AirNow.
+METONE_BAM_COMPONENT_MODEL: Dict[str, Any] = {
+    "config_mappings": _reporting_interval_config(3600),
+    "components": [
+        {"name": "bam_sensor", "component_type": "sensor", "criticality": 0.60, "metrics": [
+            {"key": "pm2_5", "unit": "ug/m3", "expected_min": 0.0, "expected_max": 1000.0, "max_rate_of_change": 500.0},
+        ]},
+        {"name": "bam_diagnostics", "component_type": "sensor", "criticality": 0.10, "metrics": [
+            {"key": "realtime_conc", "unit": "ug/m3", "expected_min": 0.0, "expected_max": 1000.0},
+            {"key": "short_time_conc", "unit": "ug/m3", "expected_min": 0.0, "expected_max": 1000.0},
+        ], "meta_data": _OPTIONAL_METRICS},
+        {"name": "environment_sensor", "component_type": "sensor", "criticality": 0.10, "metrics": [
+            {"key": "temperature", "unit": "C", "expected_min": -30.0, "expected_max": 60.0, "max_rate_of_change": 15.0},
+            {"key": "humidity", "unit": "%", "expected_min": 0.0, "expected_max": 100.0},
+            {"key": "barometric_pressure", "unit": "hPa", "expected_min": 800.0, "expected_max": 1100.0, "max_rate_of_change": 20.0},
+            {"key": "wind_speed", "unit": "m/s", "expected_min": 0.0, "expected_max": 60.0},
+        ], "meta_data": _OPTIONAL_METRICS},
+        {"name": "data_link", "component_type": "connectivity", "criticality": 0.25, "metrics": []},
+        {"name": "mains_power", "component_type": "power", "criticality": 0.05, "metrics": []},
+    ],
+    "relationships": [
+        ("mains_power", "bam_sensor", "POWERS"),
+        ("mains_power", "bam_diagnostics", "POWERS"),
+        ("mains_power", "environment_sensor", "POWERS"),
+        ("mains_power", "data_link", "POWERS"),
+        ("bam_sensor", "data_link", "COMMUNICATES_VIA"),
+        ("bam_diagnostics", "data_link", "COMMUNICATES_VIA"),
+        ("environment_sensor", "data_link", "COMMUNICATES_VIA"),
+    ],
+}
+
+MANUFACTURER_COMPONENT_MODELS: Dict[str, Dict[str, Any]] = {
+    "airgradient_lowcost": AIRGRADIENT_COMPONENT_MODEL,
+    "iqair_lowcost": IQAIR_COMPONENT_MODEL,
+    "metone_bam": METONE_BAM_COMPONENT_MODEL,
+    "clarity_lowcost": EXTERNAL_LOWCOST_COMPONENT_MODEL,
+    "kcca_lowcost": EXTERNAL_LOWCOST_COMPONENT_MODEL,
+    "airbeam_lowcost": EXTERNAL_LOWCOST_COMPONENT_MODEL,
+}
+
+
+def component_model_for(profile_name: str, category: Any) -> Dict[str, Any]:
+    model = MANUFACTURER_COMPONENT_MODELS.get((profile_name or "").lower())
+    if model is not None:
+        return model
+    cat = (str(category or "lowcost")).strip().lower()
+    return METONE_BAM_COMPONENT_MODEL if cat == "bam" else EXTERNAL_LOWCOST_COMPONENT_MODEL
+
+
+def _attach_component_model(db: Session, profile: DeviceProfile, model: Dict[str, Any]) -> None:
+    """Create the components, metrics and relationships of ``model`` on ``profile`` (which has none)."""
+    telemetry_keys = {
+        (meta.get("key") if isinstance(meta, dict) else meta)
+        for meta in ensure_dict(profile.telemetry_mappings).values()
+    }
+    by_name: Dict[str, ComponentDefinition] = {}
+    for spec in model["components"]:
+        component = ComponentDefinition(
+            profile_id=profile.id,
+            name=spec["name"],
+            component_type=spec["component_type"],
+            criticality=spec.get("criticality", 1.0),
+            meta_data=spec.get("meta_data"),
+        )
+        db.add(component)
+        db.flush()
+        by_name[spec["name"]] = component
+        for metric in spec.get("metrics", []):
+            if metric["key"] not in telemetry_keys:
+                logger.warning(
+                    f"Profile {profile.name}: metric {metric['key']} is not in telemetry_mappings; "
+                    "the engine will not be able to evaluate it"
+                )
+            db.add(MetricDefinition(
+                component_id=component.id,
+                key=metric["key"],
+                unit=metric.get("unit"),
+                expected_min=metric.get("expected_min"),
+                expected_max=metric.get("expected_max"),
+                max_rate_of_change=metric.get("max_rate_of_change"),
+                role=metric.get("role"),
+            ))
+    for source, target, rel_type in model["relationships"]:
+        db.add(ComponentRelationship(
+            profile_id=profile.id,
+            source_component_id=by_name[source].id,
+            target_component_id=by_name[target].id,
+            relationship_type=rel_type,
+        ))
+    if not ensure_dict(profile.config_mappings):
+        profile.config_mappings = model.get("config_mappings", {})
+        db.add(profile)
+    db.flush()
+
+
+def manufacturer_profile_readiness(db: Session) -> List[Dict[str, Any]]:
+    """Diagnostic readiness of every manufacturer profile, as the engine sees it."""
+    from app.services.diagnostics.profile_model import build_model  # noqa: WPS433
+
+    names = [profile_name_for(net, cat) for net, cat, *_ in MANUFACTURER_PROFILE_SPECS]
+    rows = db.query(DeviceProfile).filter(func.lower(DeviceProfile.name).in_(names)).all()
+    out: List[Dict[str, Any]] = []
+    for profile in sorted(rows, key=lambda p: p.name):
+        model = build_model(profile)
+        out.append({
+            "name": profile.name,
+            "network": profile.name.rsplit("_", 1)[0],
+            "category": profile.name.rsplit("_", 1)[-1],
+            "profile_id": str(profile.id),
+            "diagnosable": model.diagnosable,
+            "components": sorted(model.components),
+            "transmission_components": list(model.transmission_components),
+            "errors": list(model.errors),
+            "warnings": list(model.warnings),
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Seeding and assignment
 # ---------------------------------------------------------------------------
 
@@ -223,27 +456,40 @@ def ensure_manufacturer_profiles(db: Session) -> Dict[str, Any]:
     """
     created: List[str] = []
     existing: List[str] = []
+    components_added: List[str] = []
     for network, category, vendor_name, vendor_desc, description in MANUFACTURER_PROFILE_SPECS:
         name = profile_name_for(network, category)
+        model = component_model_for(name, category)
         profile = db.query(DeviceProfile).filter(func.lower(DeviceProfile.name) == name).first()
         if profile is not None:
             existing.append(name)
+            # Profiles seeded before component models existed get theirs now;
+            # profiles an operator has already modelled are left alone.
+            if not profile.components:
+                _attach_component_model(db, profile, model)
+                components_added.append(name)
             continue
         vendor = _get_or_create_vendor(db, vendor_name, vendor_desc)
-        db.add(DeviceProfile(
+        profile = DeviceProfile(
             name=name,
             category=_PROFILE_CATEGORY_BY_DEVICE_CATEGORY.get(category, "air_quality"),
             description=description,
             vendor_id=vendor.id,
             telemetry_mappings=default_external_telemetry_mappings(category),
-            config_mappings={},
+            config_mappings=model.get("config_mappings", {}),
             metadata_mappings={},
-        ))
+        )
+        db.add(profile)
+        db.flush()
+        _attach_component_model(db, profile, model)
         created.append(name)
+        components_added.append(name)
     db.commit()
     if created:
         logger.info(f"Seeded manufacturer profiles: {created}")
-    return {"created": created, "existing": existing}
+    if components_added:
+        logger.info(f"Attached diagnostic component models to: {components_added}")
+    return {"created": created, "existing": existing, "components_added": components_added}
 
 
 def assign_profiles_to_external_devices(db: Session) -> int:

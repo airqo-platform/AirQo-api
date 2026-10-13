@@ -144,7 +144,8 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 |--------|----------|-------------|
 | `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts |
 | `POST` | `/api/v1/networks/sync` | Mirror the platform's networks list into `sync_network` |
-| `POST` | `/api/v1/networks/profiles/seed` | Seed per-manufacturer device profiles and assign them to devices |
+| `POST` | `/api/v1/networks/profiles/seed` | Seed per-manufacturer device profiles (with diagnostic component models) and assign them to devices |
+| `GET` | `/api/v1/networks/profiles` | Manufacturer profiles and their diagnostic readiness |
 | `POST` | `/api/v1/data-sync/sync-external` | Backfill readings for non-AirQo devices (direct manufacturer history, then analytics raw-data) |
 | `POST` | `/api/v1/data-sync/poll-external-feeds` | Store the latest reading of every non-AirQo device from the registry's live feed |
 

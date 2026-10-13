@@ -32,6 +32,13 @@ External devices are backfilled into the same `sync_*_device_data` tables airqo 
 - **Analytics** — the raw-data `Network` enum now accepts every registry network (airgradient, clarity, kcca, airbeam, airly, plumelabs, quant-aq, urbanbetter, nasa, purpleair).
 - Daily diagnostics only fall back to the plain category profile for airqo devices.
 
+### Feature: Per-manufacturer diagnostics
+
+Manufacturer profiles now carry component models for the IoT diagnostic engine, so the nightly daily diagnostics job evaluates external devices the same way it evaluates AirQo ones.
+
+- **`manufacturer_profiles.MANUFACTURER_COMPONENT_MODELS`** — components, metrics (ranges, rate limits, roles) and POWERS / COMMUNICATES_VIA relationships for `airgradient_lowcost` (incl. WiFi signal as `signal_strength` and a boot counter for reboot storms), `iqair_lowcost`, `metone_bam` and the generic single-PM profiles; attached on creation and retro-fitted to seeded profiles without components. Each sets a `reporting_interval` default.
+- **`GET /api/v1/networks/profiles`** — manufacturer profiles with the engine's readiness (diagnosable, components, warnings); the seed endpoint reports the same.
+
 
 ## Version 2.5.0
 **Released:** September 19, 2026

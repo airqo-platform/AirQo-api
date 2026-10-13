@@ -44,4 +44,25 @@ class NetworkProfileSeedResponse(BaseModel):
     message: str
     created: List[str] = []
     existing: List[str] = []
+    components_added: List[str] = []
     devices_assigned: int = 0
+    diagnosable: List[str] = []
+
+
+class NetworkProfileReadiness(BaseModel):
+    """How the IoT diagnostic engine sees one manufacturer profile."""
+    name: str
+    network: str
+    category: str
+    profile_id: str
+    diagnosable: bool
+    components: List[str] = []
+    transmission_components: List[str] = []
+    errors: List[str] = []
+    warnings: List[str] = []
+
+
+class NetworkProfilesResponse(BaseModel):
+    success: bool
+    message: str
+    profiles: List[NetworkProfileReadiness] = []

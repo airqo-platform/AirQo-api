@@ -11,11 +11,17 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.network import NetworkListResponse, NetworkProfileSeedResponse, NetworkSyncResponse
+from app.schemas.network import (
+    NetworkListResponse,
+    NetworkProfileSeedResponse,
+    NetworkProfilesResponse,
+    NetworkSyncResponse,
+)
 from app.services import network_sync_service
 from app.services.manufacturer_profiles import (
     assign_profiles_to_external_devices,
     ensure_manufacturer_profiles,
+    manufacturer_profile_readiness,
 )
 
 router = APIRouter()
@@ -78,13 +84,35 @@ def seed_manufacturer_profiles(db: Session = Depends(get_db)):
     try:
         seeded = ensure_manufacturer_profiles(db)
         assigned = assign_profiles_to_external_devices(db)
+        readiness = manufacturer_profile_readiness(db)
     except Exception as e:
         logger.exception(f"Unexpected error seeding manufacturer profiles: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
     return {
         "success": True,
-        "message": f"{len(seeded['created'])} profiles created, {assigned} devices assigned",
+        "message": (
+            f"{len(seeded['created'])} profiles created, "
+            f"{len(seeded.get('components_added', []))} component models attached, "
+            f"{assigned} devices assigned"
+        ),
         "created": seeded["created"],
         "existing": seeded["existing"],
+        "components_added": seeded.get("components_added", []),
         "devices_assigned": assigned,
+        "diagnosable": [r["name"] for r in readiness if r["diagnosable"]],
     }
+
+
+@router.get("/profiles", response_model=NetworkProfilesResponse)
+def list_manufacturer_profiles(db: Session = Depends(get_db)):
+    """
+    The per-manufacturer device profiles and how the IoT diagnostic engine
+    sees each one: whether it is diagnosable, its components, and the engine's
+    readiness warnings (unmapped metrics, missing limits, ...).
+    """
+    try:
+        profiles = manufacturer_profile_readiness(db)
+    except Exception as e:
+        logger.exception(f"Unexpected error reading manufacturer profile readiness: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return {"success": True, "message": "Manufacturer profiles fetched successfully", "profiles": profiles}

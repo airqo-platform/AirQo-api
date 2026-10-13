@@ -219,17 +219,63 @@ Retention cleanup stays with the ThingSpeak job, which runs first.
   to devices without one; operator edits to a profile's slot layout are
   never overwritten.
 
-## 5. Phase 3: manufacturer-aware operations
+## 5. Phase 3 (this branch): per-manufacturer diagnostics
+
+The IoT diagnostic engine is profile-driven and vendor-agnostic. It builds
+its model from a profile's components (type, criticality), their metrics
+(telemetry key, expected range, maximum rate of change per hour, role) and
+the relationships between components, using a generic vocabulary only:
+POWERS / COOLS / COMMUNICATES_VIA dependencies, MEASURES_SAME_AS redundancy,
+a `connectivity` component that delivers the data, and the `charge_level`,
+`charge_source` and `signal_strength` metric roles. Evidence codes are
+generic too (`METRIC_BELOW_MIN:<component>.<metric>`, `METRIC_STUCK:...`,
+`METRIC_RATE_EXCEEDED:...`, `DATA_GAPS:<link>`), and root causes come from
+the component graph, not from vendor rules. A profile is diagnosable as soon
+as it has components with at least one telemetry-mapped metric or a
+connectivity component.
+
+Phase 2 seeded the manufacturer profiles with slot layouts only, so the daily
+job skipped their devices. Phase 3 gives each one a component model
+(`manufacturer_profiles.MANUFACTURER_COMPONENT_MODELS`), attached when the
+profile is created and retro-fitted to profiles that have none; profiles an
+operator has already modelled are never touched.
+
+| Profile | Components | What the engine can detect |
+|---|---|---|
+| `airgradient_lowcost` | pm_sensor (pm2_5, pm10, pm1), gas_sensor (co2, tvoc, nox), environment_sensor, wifi_modem (connectivity, wifi_rssi as signal_strength), controller (boot_count), mains_power | out-of-range and stuck readings, weak WiFi (RSSI below -85 dBm), reboot storms (boot counter rising more than 2 per hour), data gaps on the WiFi link, mains power suspected when every dependent fails |
+| `iqair_lowcost` | pm_sensor (pm2_5, pm10), gas_sensor (co2), environment_sensor, data_link, mains_power | out-of-range and stuck readings, data gaps |
+| `metone_bam` | bam_sensor (pm2_5, realtime_conc, short_time_conc), environment_sensor (temperature, humidity, pressure, wind), data_link, mains_power | out-of-range and stuck concentrations, data gaps |
+| `clarity_lowcost`, `kcca_lowcost`, `airbeam_lowcost` | generic single-PM model: pm_sensor, environment_sensor, data_link, mains_power | out-of-range and stuck readings, data gaps, once data flows |
+
+Each model also sets a `reporting_interval` default (600 s for AirGradient,
+whose pipeline readings arrive every 10 minutes; 3600 s for the others) so
+outage detection uses a sensible gap threshold. Per-device overrides go
+through the device's config values as for AirQo devices. The data-gap check
+itself counts hours with no reading at all, so hourly live-feed samples do
+not register as gaps.
+
+What external devices cannot get: the two-sensor divergence check (one PM
+sensor), and charge or solar analysis (mains powered). CO2, WiFi signal and
+boot counter only reach beacon through the live feed or AirGradient's direct
+history, not through the analytics fallback.
+
+`GET /api/v1/networks/profiles` reports each manufacturer profile as the
+engine sees it (diagnosable, components, warnings); the seed endpoint
+returns the same readiness after attaching the models. The nightly daily
+diagnostics job picks up external devices automatically once their profile
+is diagnosable and a complete day of readings exists.
+
+## 6. Later: manufacturer-aware operations
 
 - Link `sync_network` to `vendor` so firmware, profiles and stock can be
   grouped by manufacturer.
 - Surface per-manufacturer health in the fleet overview and cohort/grid
   summaries.
-- Decide whether manufacturer credentials (`access_code`, network API keys)
-  ever need to live in Beacon; today they stay in the registry and Beacon
-  only calls registry endpoints.
+- Direct history sources for more manufacturers as their APIs allow, and a
+  registry endpoint that hands beacon vendor credentials if holding them in
+  config stops being acceptable.
 
-## 6. Open questions
+## 7. Open questions
 
 - The registry's `network=` filter treats a comma-separated value as one
   literal string unless every value is in its alias table, so Beacon passes
