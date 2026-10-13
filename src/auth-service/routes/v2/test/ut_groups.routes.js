@@ -32,6 +32,7 @@ const USER_ID = "60d21b4667d0d8992e610c99";
 // handler is undefined).
 let listImpl;
 let listSummaryImpl;
+let discoverImpl;
 let createImpl;
 let updateImpl;
 let deleteImpl;
@@ -49,6 +50,7 @@ const controllerStub = {
   updateSlug: notExercised,
   list: (req, res, next) => listImpl(req, res, next),
   listSummary: (req, res, next) => listSummaryImpl(req, res, next),
+  discover: (req, res, next) => discoverImpl(req, res, next),
   create: (req, res, next) => createImpl(req, res, next),
   update: (req, res, next) => updateImpl(req, res, next),
   updateName: notExercised,
@@ -289,6 +291,23 @@ describe("v2 groups route", () => {
       expect(response.body.errors[0].msg).to.equal(
         "Invalid tenant. Must be one of: airqo"
       );
+    });
+  });
+
+  describe("GET /discover", () => {
+    it("reaches the discover controller, not the /:grp_id route", async () => {
+      discoverImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+          return res.status(400).json({ errors: errors.array() });
+        return res.status(200).json({ groups: [] });
+      };
+
+      const response = await request(app)
+        .get("/discover")
+        .query({ tenant: "airqo" });
+      expect(response.status).to.equal(200);
+      expect(response.body.groups).to.deep.equal([]);
     });
   });
 

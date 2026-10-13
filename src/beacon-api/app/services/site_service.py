@@ -4,11 +4,13 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.sync import SyncSite, SyncSiteDevice, SyncDevice
-from app.services.device_service import upsert_device_to_sync
+from app.services import cohort_sync_service
+from app.services.device_service import AIRQO_NETWORK, upsert_device_to_sync
 
 logger = logging.getLogger(__name__)
 
@@ -369,79 +371,132 @@ async def sync_sites(db: Session, token: str) -> Dict[str, Any]:
 # Read: Local DB (source of truth)
 # ---------------------------------------------------------------------------
 
+def _site_device_junction_query(
+    db: Session,
+    group_device_ids: Optional[List[str]] = None,
+    airqo_only: bool = False,
+):
+    """Return a SyncSiteDevice query scoped to the group's devices and, optionally, airqo devices."""
+    query = db.query(SyncSiteDevice)
+    if group_device_ids is not None:
+        query = query.filter(SyncSiteDevice.device_id.in_(group_device_ids))
+    if airqo_only:
+        query = (
+            query.join(SyncDevice, SyncDevice.device_id == SyncSiteDevice.device_id)
+            .filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
+        )
+    return query
+
+
+def _build_site_devices(
+    db: Session,
+    site_ids: List[str],
+    group_device_ids: Optional[List[str]] = None,
+    airqo_only: bool = False,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Return junction-derived device dicts keyed by site_id."""
+    devices_by_site: Dict[str, List[Dict[str, Any]]] = {sid: [] for sid in site_ids}
+    if not site_ids:
+        return devices_by_site
+
+    junctions = (
+        _site_device_junction_query(db, group_device_ids, airqo_only)
+        .filter(SyncSiteDevice.site_id.in_(site_ids))
+        .all()
+    )
+
+    # Batch-fetch all SyncDevice rows referenced by these junctions to
+    # avoid an N+1 query (one SyncDevice lookup per junction).
+    device_ids = {j.device_id for j in junctions if j.device_id}
+    device_name_by_id: Dict[str, Optional[str]] = {}
+    if device_ids:
+        sync_devs = (
+            db.query(SyncDevice)
+            .filter(SyncDevice.device_id.in_(device_ids))
+            .all()
+        )
+        device_name_by_id = {sd.device_id: sd.device_name for sd in sync_devs}
+
+    for j in junctions:
+        devices_by_site[j.site_id].append({
+            "device_id": j.device_id,
+            # Falls back to None if the referenced SyncDevice row is missing.
+            "device_name": device_name_by_id.get(j.device_id),
+            "is_active": j.is_active or False,
+        })
+    return devices_by_site
+
+
+def _serialize_site(s: SyncSite, devices: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "site_id": s.site_id,
+        "name": s.name,
+        "latitude": s.latitude,
+        "longitude": s.longitude,
+        "network": s.network,
+        "country": s.country,
+        "city": s.city,
+        "county": s.county,
+        "district": s.district,
+        "region": s.region,
+        "data_provider": s.data_provider,
+        "description": s.description,
+        "generated_name": s.generated_name,
+        "site_tags": json.loads(s.site_tags) if s.site_tags else [],
+        "site_codes": json.loads(s.site_codes) if s.site_codes else [],
+        "number_of_devices": len(devices),
+        "devices": devices,
+    }
+
+
 def get_sites(
-    db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    group_device_ids: Optional[List[str]] = None,
+    airqo_only: bool = False,
 ) -> Dict[str, Any]:
-    """Read sites from the local sync_site table."""
+    """Read sites from the local sync_site table.
+
+    When ``group_device_ids`` is provided, only sites containing at least one
+    of those devices are returned, and each site lists only those devices.
+    ``airqo_only`` applies the same narrowing to devices on the airqo network.
+    """
     query = db.query(SyncSite)
 
     if search:
         query = query.filter(SyncSite.name.ilike(f"%{search}%"))
 
+    if group_device_ids is not None or airqo_only:
+        matching_site_ids = (
+            _site_device_junction_query(db, group_device_ids, airqo_only)
+            .with_entities(SyncSiteDevice.site_id)
+            .distinct()
+        )
+        query = query.filter(SyncSite.site_id.in_(matching_site_ids))
+
     total = query.count()
     sites = query.order_by(SyncSite.name).offset(skip).limit(limit).all()
 
-    result_sites = []
-    for s in sites:
-        # Fetch junction devices
-        junctions = (
-            db.query(SyncSiteDevice)
-            .filter(SyncSiteDevice.site_id == s.site_id)
-            .all()
-        )
-
-        # Batch-fetch all SyncDevice rows referenced by these junctions to
-        # avoid an N+1 query (one SyncDevice lookup per junction).
-        device_ids = [j.device_id for j in junctions if j.device_id]
-        device_name_by_id: Dict[str, Optional[str]] = {}
-        if device_ids:
-            sync_devs = (
-                db.query(SyncDevice)
-                .filter(SyncDevice.device_id.in_(device_ids))
-                .all()
-            )
-            device_name_by_id = {
-                sd.device_id: sd.device_name for sd in sync_devs
-            }
-
-        devices = []
-        for j in junctions:
-            devices.append({
-                "device_id": j.device_id,
-                # Falls back to None if the referenced SyncDevice row is missing.
-                "device_name": device_name_by_id.get(j.device_id),
-                "is_active": j.is_active or False,
-            })
-
-        result_sites.append({
-            "site_id": s.site_id,
-            "name": s.name,
-            "latitude": s.latitude,
-            "longitude": s.longitude,
-            "network": s.network,
-            "country": s.country,
-            "city": s.city,
-            "county": s.county,
-            "district": s.district,
-            "region": s.region,
-            "data_provider": s.data_provider,
-            "description": s.description,
-            "generated_name": s.generated_name,
-            "site_tags": json.loads(s.site_tags) if s.site_tags else [],
-            "site_codes": json.loads(s.site_codes) if s.site_codes else [],
-            "number_of_devices": len(devices),
-            "devices": devices,
-        })
+    devices_by_site = _build_site_devices(
+        db, [s.site_id for s in sites], group_device_ids, airqo_only
+    )
 
     return {
         "success": True,
         "message": "Synced sites fetched successfully",
         "meta": {"total": total, "skip": skip, "limit": limit},
-        "sites": result_sites,
+        "sites": [_serialize_site(s, devices_by_site[s.site_id]) for s in sites],
     }
 
 
-def get_site(db: Session, site_id: str) -> Dict[str, Any]:
+def get_site(
+    db: Session,
+    site_id: str,
+    group_device_ids: Optional[List[str]] = None,
+    airqo_only: bool = False,
+) -> Dict[str, Any]:
     """Read a single site from the local sync_site table."""
     s = db.query(SyncSite).filter(SyncSite.site_id == site_id).first()
     if not s:
@@ -451,41 +506,51 @@ def get_site(db: Session, site_id: str) -> Dict[str, Any]:
             "status_code": 404,
         }
 
-    junctions = (
-        db.query(SyncSiteDevice)
-        .filter(SyncSiteDevice.site_id == s.site_id)
-        .all()
-    )
+    devices = _build_site_devices(db, [s.site_id], group_device_ids, airqo_only)[s.site_id]
 
-    devices = []
-    for j in junctions:
-        sync_dev = db.query(SyncDevice).filter(SyncDevice.device_id == j.device_id).first()
-        devices.append({
-            "device_id": j.device_id,
-            "device_name": sync_dev.device_name if sync_dev else None,
-            "is_active": j.is_active or False,
-        })
+    if group_device_ids is not None and not devices:
+        return {
+            "success": False,
+            "message": "Site not found in group scope",
+            "status_code": 404,
+        }
+    if airqo_only and not devices:
+        return {
+            "success": False,
+            "message": (
+                f"Site {site_id} has no devices with network_id '{AIRQO_NETWORK}' "
+                "for includePerformance"
+            ),
+            "status_code": 404,
+        }
 
     return {
         "success": True,
         "message": "Synced site fetched successfully",
-        "site": {
-            "site_id": s.site_id,
-            "name": s.name,
-            "latitude": s.latitude,
-            "longitude": s.longitude,
-            "network": s.network,
-            "country": s.country,
-            "city": s.city,
-            "county": s.county,
-            "district": s.district,
-            "region": s.region,
-            "data_provider": s.data_provider,
-            "description": s.description,
-            "generated_name": s.generated_name,
-            "site_tags": json.loads(s.site_tags) if s.site_tags else [],
-            "site_codes": json.loads(s.site_codes) if s.site_codes else [],
-            "number_of_devices": len(devices),
-            "devices": devices,
-        },
+        "site": _serialize_site(s, devices),
     }
+
+
+# ---------------------------------------------------------------------------
+# Performance enrichment for synced-shape sites
+# ---------------------------------------------------------------------------
+
+def apply_local_performance_synced_sites(
+    sites: List[Dict[str, Any]],
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+    frequency: str = "hourly",
+) -> None:
+    """
+    Enrich synced-shape sites in place with locally-computed performance.
+
+    A site carries the same ``devices`` shape as a synced cohort
+    (``device_id`` / ``device_name`` / ``is_active``), so the cohort pipeline
+    is reused unchanged: each device gets ``data`` / ``uptime`` /
+    ``data_completeness`` / ``averages``, and each site gets the same fields
+    averaged across its devices.
+    """
+    cohort_sync_service.apply_local_performance_synced(
+        sites, db, start_date_time, end_date_time, frequency=frequency
+    )

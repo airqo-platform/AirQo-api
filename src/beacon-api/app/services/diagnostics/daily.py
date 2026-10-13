@@ -684,9 +684,14 @@ def build_fleet_daily_summary(
     db: Session,
     diagnosis_date: Optional[date] = None,
     top_n: int = 10,
+    device_scope: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Fleet-wide health overview for one day (defaults to the most recent diagnosed day)."""
-    day = diagnosis_date or crud_diagnostics.get_latest_diagnosis_date(db)
+    """
+    Fleet health overview for one day (defaults to the most recent diagnosed day).
+    ``device_scope`` is a SQL select of device IDs (e.g. a group's devices) that
+    limits the overview to those devices; ``None`` covers the whole fleet.
+    """
+    day = diagnosis_date or crud_diagnostics.get_latest_diagnosis_date(db, device_scope=device_scope)
     summary: Dict[str, Any] = {
         "diagnosis_date": day,
         "devices_diagnosed": 0,
@@ -703,6 +708,10 @@ def build_fleet_daily_summary(
         return summary
 
     on_day = DeviceDailyDiagnostic.diagnosis_date == day
+    issues_on_day = DeviceDailyIssue.diagnosis_date == day
+    if device_scope is not None:
+        on_day = and_(on_day, DeviceDailyDiagnostic.device_id.in_(device_scope))
+        issues_on_day = and_(issues_on_day, DeviceDailyIssue.device_id.in_(device_scope))
     devices_diagnosed, devices_with_issues, average_score = db.query(
         func.count(DeviceDailyDiagnostic.id),
         func.sum(case((DeviceDailyDiagnostic.issue_count > 0, 1), else_=0)),
@@ -743,7 +752,7 @@ def build_fleet_daily_summary(
             device_count,
             func.sum(case((DeviceDailyIssue.is_new == True, 1), else_=0)),  # noqa: E712
         )
-        .filter(DeviceDailyIssue.diagnosis_date == day)
+        .filter(issues_on_day)
         .group_by(DeviceDailyIssue.issue_code)
         .order_by(device_count.desc(), DeviceDailyIssue.issue_code)
         .all()

@@ -7,7 +7,7 @@ sync_device gains those columns and a sync_network table mirrors the
 platform's list of networks ("sensor manufacturers").
 
 Revision ID: f1a2b3c4d5e6
-Revises: d0e1f2a3b4c5
+Revises: e1f2a3b4c5d6
 Create Date: 2026-10-12 18:00:00.000000
 
 """
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f1a2b3c4d5e6'
-down_revision: Union[str, None] = 'd0e1f2a3b4c5'
+down_revision: Union[str, None] = 'e1f2a3b4c5d6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

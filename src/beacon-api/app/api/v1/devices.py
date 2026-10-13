@@ -15,6 +15,7 @@ from app.schemas.device import (
     DeviceSyncResponse,
 )
 from app.services import device_service
+from app.services.diagnostics.summaries import apply_diagnostics_to_devices
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -234,23 +235,68 @@ def get_synced_devices(
         default=None,
         description="Comma-separated sensor manufacturer(s) / network(s), e.g. airqo,airgradient",
     ),
+    include_performance: Annotated[bool, Query(alias="includePerformance")] = False,
+    start_date_time: Annotated[Optional[str], Query(alias="startDateTime")] = None,
+    end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
+    frequency: str = "hourly",
+    include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
 ):
-    """List devices from the local sync_device table, filtered by group (and optionally network)."""
+    """List devices from the local sync_device table, filtered by group.
+
+    ``network`` narrows the list to one or more sensor manufacturers.
+    When ``includePerformance=true`` and both date bounds are provided, each
+    device on the page is enriched with locally-computed metrics.
+    When ``includeDiagnostics=true``, each device carries its most recent
+    stored daily diagnosis under ``diagnostics``.
+    """
+    freq = (frequency or "hourly").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid frequency. Expected one of: raw, hourly, daily.",
+        )
+
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
 
     cohort_ids = resolve_group_cohort_ids(db, group)
     group_device_ids = resolve_group_device_ids(db, cohort_ids)
+    with_performance = bool(include_performance and start_date_time and end_date_time)
+
+    query_params = {"group": group, "search": search, "network": network}
+    if with_performance:
+        query_params.update({
+            "includePerformance": "true",
+            "startDateTime": start_date_time,
+            "endDateTime": end_date_time,
+            "frequency": freq,
+        })
+    if include_diagnostics:
+        query_params["includeDiagnostics"] = "true"
 
     try:
-        return device_service.get_synced_device_details(
+        result = device_service.get_synced_device_details(
             db,
             skip=skip,
             limit=limit,
             search=search,
             group_device_ids=group_device_ids,
-            query_params={"group": group, "search": search, "network": network},
+            query_params=query_params,
             network=network,
         )
+
+        if with_performance:
+            device_service.apply_local_performance_synced_devices(
+                result.get("devices", []),
+                db,
+                start_date_time,
+                end_date_time,
+                frequency=freq,
+            )
+
+        if include_diagnostics:
+            apply_diagnostics_to_devices(result.get("devices", []), db, id_key="_id")
+
+        return result
     except HTTPException:
         raise
     except Exception as e:
