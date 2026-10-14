@@ -26,7 +26,7 @@ every other endpoint answers an empty result.
 
 Raises:
     ValueError: invalid date range (equal start/end, or span over the
-        MAX_HOURLY_QUERY_DAYS limit).
+        MAX_AGGREGATION_QUERY_DAYS limit).
     LookupError: no members found for the entity — mapped to HTTP 404 by the
         service layer.
     QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
@@ -71,15 +71,14 @@ def validate_dates(start: datetime, end: datetime) -> None:
 
     Rules:
     - Start time cannot equal end time.
-    - The full span must not exceed MAX_HOURLY_QUERY_DAYS whole days, the
-      limit every request that reads hourly rows carries.
+    - The full span must not exceed MAX_AGGREGATION_QUERY_DAYS whole days.
 
     Raises:
         ValueError: When either rule is violated.
     """
     if start == end:
         raise ValueError("Start time and end time cannot be the same.")
-    max_days = settings.hourly_query_days()
+    max_days = settings.aggregation_query_days()
     if end - start > timedelta(days=max_days):
         raise ValueError(f"Time range must not exceed {max_days} days.")
 

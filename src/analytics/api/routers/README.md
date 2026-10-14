@@ -149,13 +149,15 @@ Every rule below is enforced server-side and returns **422** with a
 - At most `MAX_FILTER_VALUES` entries in that filter list — **150** by
   default.
 - At most **one** `grid_id`, and at most **one** `cohort_id`.
-- Date window no wider than `MAX_HOURLY_QUERY_DAYS` — **31 days** by default —
-  at `raw` and `hourly` frequency, and no wider than `MAX_QUERY_DAYS` —
+- Date window no wider than `MAX_RAW_QUERY_DAYS` — **31 days** by default —
+  at `raw` frequency, no wider than `MAX_HOURLY_QUERY_DAYS` — **90 days** by
+  default — at `hourly` frequency, and no wider than `MAX_QUERY_DAYS` —
   **365 days** by default — at `daily` and coarser frequencies. `report`,
   `summary`, `forecast-data`, `dashboard/historical/daily-averages`,
   `dashboard/historical/daily-averages-devices`, `dashboard/exceedances` and
-  `dashboard/exceedances-devices` carry the 31-day limit as well. To cover a
-  longer period, send one request for each month.
+  `dashboard/exceedances-devices` carry the `MAX_AGGREGATION_QUERY_DAYS`
+  limit — **31 days** by default. To cover a longer period, send one request
+  for each month.
 - `startDateTime` must not be in the future; `endDateTime` must be strictly
   after it.
 - `datatype: "calibrated"` is invalid with `frequency: "raw"`.
@@ -280,13 +282,13 @@ This endpoint returns satellite forecasts for one country or one city. It
 exists on v3 only and returns JSON only. The body carries the date range and
 the location:
 
-| JSON field      | Type              | Required              | Notes                                                 |
-| --------------- | ----------------- | --------------------- | ----------------------------------------------------- |
-| `startDateTime` | ISO 8601 datetime | **yes**               | —                                                     |
-| `endDateTime`   | ISO 8601 datetime | **yes**               | After `startDateTime`, within `MAX_HOURLY_QUERY_DAYS` |
-| `country`       | string            | one location required | Used when both locations are present                  |
-| `city`          | string            | one location required | —                                                     |
-| `cursor`        | string            | no                    | Token from `metadata.next`                            |
+| JSON field      | Type              | Required              | Notes                                                      |
+| --------------- | ----------------- | --------------------- | ---------------------------------------------------------- |
+| `startDateTime` | ISO 8601 datetime | **yes**               | —                                                          |
+| `endDateTime`   | ISO 8601 datetime | **yes**               | After `startDateTime`, within `MAX_AGGREGATION_QUERY_DAYS` |
+| `country`       | string            | one location required | Used when both locations are present                       |
+| `city`          | string            | one location required | —                                                          |
+| `cursor`        | string            | no                    | Token from `metadata.next`                                 |
 
 ```json
 {
@@ -366,12 +368,12 @@ PM2.5/PM10 aggregates over a window for **one grid or one cohort**, computed
 server-side and returned in a single response. This does not paginate, and
 takes a different body from the endpoints above:
 
-| JSON field   | Type              | Required            | Notes                          |
-| ------------ | ----------------- | ------------------- | ------------------------------ |
-| `grid_id`    | string            | one entity required | Report on a grid               |
-| `cohort_id`  | string            | one entity required | Report on a cohort             |
-| `start_time` | ISO 8601 datetime | **yes**             | Non-zero window                |
-| `end_time`   | ISO 8601 datetime | **yes**             | Within `MAX_HOURLY_QUERY_DAYS` |
+| JSON field   | Type              | Required            | Notes                               |
+| ------------ | ----------------- | ------------------- | ----------------------------------- |
+| `grid_id`    | string            | one entity required | Report on a grid                    |
+| `cohort_id`  | string            | one entity required | Report on a cohort                  |
+| `start_time` | ISO 8601 datetime | **yes**             | Non-zero window                     |
+| `end_time`   | ISO 8601 datetime | **yes**             | Within `MAX_AGGREGATION_QUERY_DAYS` |
 
 Supply **exactly one** of `grid_id` / `cohort_id` — zero or both is a 422. The
 entity lives in the body rather than the path.
@@ -599,9 +601,9 @@ separate endpoint. For an unaggregated hourly series use
 
 ### Errors and empty windows
 
-This reads hourly consolidated data, so the window is limited to
-`MAX_HOURLY_QUERY_DAYS` (31 days by default), and a window can still exceed
-the byte ceiling and return the 400 described in
+This reads hourly consolidated data. The window is limited to
+`MAX_AGGREGATION_QUERY_DAYS` (31 days by default), and a window can still
+exceed the byte ceiling and return the 400 described in
 [Error Handling](#error-handling).
 
 `404` means the entity could not be resolved — the `grid_id` or `cohort_id` has
@@ -816,7 +818,7 @@ that moves the figure. Narrowing `sites`/`device_ids` does not help — that
 filter is applied after the scan. Retry with a shorter window, or split the
 window into several requests. This ceiling applies inside the date-range
 limits: at `raw` frequency it is reached within a few days, well inside the
-31-day `MAX_HOURLY_QUERY_DAYS` limit.
+31-day `MAX_RAW_QUERY_DAYS` limit.
 
 **400 when the query runs too long.** Every query also runs under a job
 timeout (`BIGQUERY_JOB_TIMEOUT_MS`, **30 seconds** by default). BigQuery might
@@ -1009,11 +1011,11 @@ async function fetchAll(path, params) {
 
 ## Best Practices
 
-1. **Keep windows modest.** 31 days is the cap for raw and hourly data and 365
-   days for daily and coarser data, but the byte ceiling usually bites first —
-   narrower ranges return faster, cost less to serve, and avoid the 400
-   described in [Error Handling](#error-handling). Fetch a long period in
-   monthly parts.
+1. **Keep windows modest.** 31 days is the cap for raw data, 90 days for
+   hourly data and 365 days for daily and coarser data, but the byte ceiling
+   usually bites first — narrower ranges return faster, cost less to serve,
+   and avoid the 400 described in [Error Handling](#error-handling). Fetch a
+   long period in monthly parts.
 2. **Filter deliberately.** One filter family per request; keep lists well
    under the 150-entry cap.
 3. **Page promptly and at a steady pace.** A cursor expires 6 minutes after

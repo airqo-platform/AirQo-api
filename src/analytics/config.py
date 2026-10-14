@@ -210,19 +210,32 @@ class BaseConfig(BaseSettings):
     )
 
     # Longest date range of one request.  MAX_QUERY_DAYS applies to daily,
-    # weekly, monthly and yearly data.  MAX_HOURLY_QUERY_DAYS applies to raw
-    # and hourly data, and to the report, summary, forecast and dashboard
-    # aggregation requests.  The default of 31 days lets one request cover a
-    # full calendar month.
+    # weekly, monthly and yearly data.  MAX_HOURLY_QUERY_DAYS applies to hourly
+    # data and MAX_RAW_QUERY_DAYS applies to raw data.  MAX_AGGREGATION_QUERY_DAYS
+    # applies to the report, summary, forecast and dashboard aggregation
+    # requests.  The default of 31 days for raw data and for aggregation
+    # requests lets one request cover a full calendar month.
     max_query_days: int = Field(default=365, validation_alias="MAX_QUERY_DAYS")
     max_hourly_query_days: int = Field(
-        default=31, validation_alias="MAX_HOURLY_QUERY_DAYS"
+        default=90, validation_alias="MAX_HOURLY_QUERY_DAYS"
+    )
+    max_raw_query_days: int = Field(default=31, validation_alias="MAX_RAW_QUERY_DAYS")
+    max_aggregation_query_days: int = Field(
+        default=31, validation_alias="MAX_AGGREGATION_QUERY_DAYS"
     )
     max_filter_values: int = Field(default=150, validation_alias="MAX_FILTER_VALUES")
 
     def hourly_query_days(self) -> int:
-        """The date limit for raw and hourly data, at most MAX_QUERY_DAYS."""
+        """The date limit for hourly data, at most MAX_QUERY_DAYS."""
         return min(self.max_hourly_query_days, self.max_query_days)
+
+    def raw_query_days(self) -> int:
+        """The date limit for raw data, at most MAX_QUERY_DAYS."""
+        return min(self.max_raw_query_days, self.max_query_days)
+
+    def aggregation_query_days(self) -> int:
+        """The date limit for aggregation requests, at most MAX_QUERY_DAYS."""
+        return min(self.max_aggregation_query_days, self.max_query_days)
 
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
