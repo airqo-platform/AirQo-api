@@ -14,10 +14,12 @@ from pydantic import ValidationError
 from api.schemas.requests import (
     DailyAveragesRequest,
     DataExportRequest,
+    DataSummaryRequest,
     DashboardChartRequest,
     DeviceDailyAveragesRequest,
     DeviceExceedancesRequest,
     ExceedancesRequest,
+    ForecastDataExportRequest,
     AirQualityReportRequest,
     RawDataExportRequest,
     ScheduledExportRequest,
@@ -106,12 +108,10 @@ class TestDataExportRequestInvalid:
         payload = {**BASE, "startDateTime": start, "endDateTime": end}
         assert DataExportRequest(**payload) is not None
 
-    @pytest.mark.parametrize("frequency", ["raw", "hourly"])
-    def test_raw_and_hourly_use_the_shorter_limit(self, frequency):
-        """Raw and hourly rows use MAX_HOURLY_QUERY_DAYS."""
-        from config import settings
-
-        limit = settings.hourly_query_days()
+    @pytest.mark.parametrize("frequency,limit", [("raw", 31), ("hourly", 90)])
+    def test_raw_and_hourly_use_their_own_limits(self, frequency, limit):
+        """Pinned as literals on purpose, because the README states these
+        defaults of MAX_RAW_QUERY_DAYS and MAX_HOURLY_QUERY_DAYS."""
         base = {**BASE, "frequency": frequency, "datatype": "raw"}
 
         start, end = _span(limit)
@@ -150,8 +150,8 @@ class TestDataExportRequestInvalid:
                 **{
                     **BASE,
                     "frequency": "hourly",
-                    "startDateTime": "2024-01-01T00:00:00",
-                    "endDateTime": "2024-03-01T00:00:00+00:00",
+                    "startDateTime": "2026-01-01T00:00:00",
+                    "endDateTime": "2026-06-01T00:00:00+00:00",
                 }
             )
 
@@ -222,8 +222,8 @@ class TestDataExportRequestInvalid:
         assert RawDataExportRequest(**payload).offers_coarser_frequency() is False
 
     def test_hourly_limit_never_exceeds_max_query_days(self, monkeypatch):
-        """A MAX_HOURLY_QUERY_DAYS above MAX_QUERY_DAYS is clamped, so raw and
-        hourly requests never span more days than daily requests."""
+        """A MAX_HOURLY_QUERY_DAYS above MAX_QUERY_DAYS is clamped, so hourly
+        requests never span more days than daily requests."""
         from config import settings
 
         monkeypatch.setattr(settings, "max_hourly_query_days", 1000)
@@ -239,6 +239,25 @@ class TestDataExportRequestInvalid:
                     "endDateTime": _now(),
                 }
             )
+
+    @pytest.mark.parametrize(
+        "setting,accessor",
+        [
+            ("max_raw_query_days", "raw_query_days"),
+            ("max_aggregation_query_days", "aggregation_query_days"),
+        ],
+    )
+    def test_raw_and_aggregation_limits_never_exceed_max_query_days(
+        self, monkeypatch, setting, accessor
+    ):
+        """A MAX_RAW_QUERY_DAYS or MAX_AGGREGATION_QUERY_DAYS above
+        MAX_QUERY_DAYS is clamped."""
+        from config import settings
+
+        monkeypatch.setattr(settings, setting, 1000)
+        monkeypatch.setattr(settings, "max_query_days", 365)
+
+        assert getattr(settings, accessor)() == 365
 
     def test_oversized_filter_list_rejected(self):
         from config import settings
@@ -302,6 +321,24 @@ class TestRawDataExportRequest:
         assert req.frequency == "raw"
         assert req.datatype == "raw"
 
+    def test_window_limited_to_raw_query_days(self):
+        """The raw-data request carries the MAX_RAW_QUERY_DAYS limit."""
+        from config import settings
+
+        limit = settings.raw_query_days()
+        body = {
+            "network": "airqo",
+            "device_category": "lowcost",
+            "pollutants": ["pm2_5"],
+            "sites": ["site1"],
+        }
+        start, end = _span(limit)
+        assert RawDataExportRequest(startDateTime=start, endDateTime=end, **body)
+        with pytest.raises(ValidationError):
+            RawDataExportRequest(
+                startDateTime=_past(limit + 1), endDateTime=_now(), **body
+            )
+
     def test_sql_injection_in_site_id_is_just_a_string(self):
         """Site IDs with SQL-like content must be accepted by Pydantic
         (sanitisation happens at the BigQuery parameterized-query layer).
@@ -335,7 +372,7 @@ class TestDashboardChartRequest:
 
 class TestAirQualityReportRequest:
     """The report body: snake_case keys, window non-zero and within
-    MAX_HOURLY_QUERY_DAYS. The entity is chosen in the body — exactly one of
+    MAX_AGGREGATION_QUERY_DAYS. The entity is chosen in the body — exactly one of
     grid_id / cohort_id."""
 
     def test_mixed_naive_aware_datetimes_normalised(self):
@@ -416,12 +453,12 @@ class TestDashboardAggregationRequests:
             ),
         ],
     )
-    def test_window_limited_to_hourly_query_days(self, build):
+    def test_window_limited_to_aggregation_query_days(self, build):
         """Each dashboard aggregation request carries the
-        MAX_HOURLY_QUERY_DAYS limit."""
+        MAX_AGGREGATION_QUERY_DAYS limit."""
         from config import settings
 
-        limit = settings.hourly_query_days()
+        limit = settings.aggregation_query_days()
         start, end = _span(limit)
         assert build({"startDate": start, "endDate": end})
         with pytest.raises(ValidationError):
@@ -443,11 +480,11 @@ class TestForecastDataExportRequest:
         start, end = _span(days)
         return {"startDateTime": start, "endDateTime": end, "country": "ug"}
 
-    def test_window_limited_to_hourly_query_days(self):
+    def test_window_limited_to_aggregation_query_days(self):
         from api.schemas.requests import ForecastDataExportRequest
         from config import settings
 
-        limit = settings.hourly_query_days()
+        limit = settings.aggregation_query_days()
         assert ForecastDataExportRequest(**self._window(limit))
         with pytest.raises(ValidationError):
             ForecastDataExportRequest(**self._window(limit + 1))
@@ -554,3 +591,75 @@ class TestAirQualityReportEntitySelection:
                 start_time="2024-02-01T00:00:00",
                 end_time="2024-01-01T00:00:00",
             )
+
+
+class TestWindowLimitsAreIndependent:
+    """The raw, hourly and aggregation settings hold different values, so a
+    request that reads the wrong setting accepts or rejects the wrong window."""
+
+    _RAW = "max_raw_query_days"
+    _HOURLY = "max_hourly_query_days"
+    _AGGREGATION = "max_aggregation_query_days"
+    _LIMITS = {_RAW: 10, _HOURLY: 20, _AGGREGATION: 30}
+
+    _DATE_TIME = ("startDateTime", "endDateTime")
+    _DATE = ("startDate", "endDate")
+    _TIME = ("start_time", "end_time")
+
+    _SITES = {"pollutant": "pm2_5", "sites": ["s1"]}
+    _DEVICES = {"pollutant": "pm2_5", "devices": ["d1"]}
+
+    @pytest.mark.parametrize(
+        "setting,request_class,window_keys,fields",
+        [
+            (
+                _RAW,
+                DataExportRequest,
+                _DATE_TIME,
+                {**BASE, "frequency": "raw", "datatype": "raw"},
+            ),
+            (_HOURLY, DataExportRequest, _DATE_TIME, {**BASE, "frequency": "hourly"}),
+            (_RAW, RawDataExportRequest, _DATE_TIME, {**BASE, "frequency": "raw"}),
+            (_AGGREGATION, ForecastDataExportRequest, _DATE_TIME, {"country": "ug"}),
+            (_AGGREGATION, DailyAveragesRequest, _DATE, _SITES),
+            (_AGGREGATION, DeviceDailyAveragesRequest, _DATE, _DEVICES),
+            (_AGGREGATION, ExceedancesRequest, _DATE, {**_SITES, "standard": "aqi"}),
+            (
+                _AGGREGATION,
+                DeviceExceedancesRequest,
+                _DATE,
+                {**_DEVICES, "standard": "aqi"},
+            ),
+            (_AGGREGATION, AirQualityReportRequest, _TIME, {"grid_id": "g1"}),
+            (_AGGREGATION, DataSummaryRequest, _TIME, {"grid_id": "g1"}),
+        ],
+        ids=[
+            "data-download raw",
+            "data-download hourly",
+            "raw-data",
+            "forecast-data",
+            "daily-averages",
+            "daily-averages-devices",
+            "exceedances",
+            "exceedances-devices",
+            "report",
+            "summary",
+        ],
+    )
+    def test_each_request_reads_its_own_limit(
+        self, monkeypatch, setting, request_class, window_keys, fields
+    ):
+        from config import settings
+
+        for name, days in self._LIMITS.items():
+            monkeypatch.setattr(settings, name, days)
+
+        def build(start, end):
+            window = {window_keys[0]: start, window_keys[1]: end}
+            return request_class(**{**fields, **window})
+
+        limit = self._LIMITS[setting]
+        start, end = _span(limit)
+        assert build(start, end)
+        with pytest.raises(ValidationError):
+            build(_past(limit + 1), _now())

@@ -85,8 +85,7 @@ _VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
 _VALID_WEATHER_FIELDS = {"temperature", "humidity"}
 _FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids", "cohort_ids")
 
-# Frequencies whose rows are raw or hourly measurements.  A filter request at
-# one of these frequencies is limited to MAX_HOURLY_QUERY_DAYS.
+# Frequencies whose rows are raw or hourly measurements.
 _HOURLY_FREQUENCIES = {Frequency.RAW, Frequency.HOURLY}
 
 
@@ -105,7 +104,10 @@ def _is_hourly_frequency(frequency: Any) -> bool:
 
 def _window_limit_days(frequency: Any) -> int:
     """The longest date range, in days, for a request at ``frequency``."""
-    if _is_hourly_frequency(frequency):
+    value = getattr(frequency, "value", frequency)
+    if value == Frequency.RAW.value:
+        return settings.raw_query_days()
+    if value == Frequency.HOURLY.value:
         return settings.hourly_query_days()
     return settings.max_query_days
 
@@ -143,8 +145,9 @@ class BaseFilterRequest(BaseRequest):
       - exactly one of sites / device_ids / device_names / grid_ids / cohort_ids
       - grid_ids currently capped at one ID per request
       - filter lists capped at MAX_FILTER_VALUES entries
-      - end_date_time > start_date_time, within MAX_HOURLY_QUERY_DAYS for raw
-        and hourly data and within MAX_QUERY_DAYS for daily and coarser data
+      - end_date_time > start_date_time, within MAX_RAW_QUERY_DAYS for raw
+        data, MAX_HOURLY_QUERY_DAYS for hourly data and MAX_QUERY_DAYS for
+        daily and coarser data
       - start_date_time not in the future
     """
 
@@ -223,8 +226,7 @@ class BaseFilterRequest(BaseRequest):
             raise ValueError("endDateTime must be after startDateTime")
 
         # Window cap. BigQuery prunes by the timestamp partition, so the date
-        # range decides how much each request scans. Raw and hourly data get
-        # the shorter limit; daily and coarser data get MAX_QUERY_DAYS.
+        # range decides how much each request scans.
         if start and end:
             frequency = getattr(self, "frequency", None)
             label = f" for {getattr(frequency, 'value', frequency)} data"
@@ -386,7 +388,7 @@ class ForecastDataExportRequest(BaseRequest):
         start, end = _normalise_window(self.start_date_time, self.end_date_time)
         if end <= start:
             raise ValueError("endDateTime must be after startDateTime")
-        _check_window_limit(start, end, settings.hourly_query_days())
+        _check_window_limit(start, end, settings.aggregation_query_days())
         if not self.country and not self.city:
             raise ValueError("At least one of 'country' or 'city' must be provided")
         return self
@@ -437,7 +439,7 @@ class _DashboardWindowRequest(BaseRequest):
     """
     startDate / endDate pair of the dashboard aggregation requests.
 
-    Each aggregation request is limited to MAX_HOURLY_QUERY_DAYS.
+    Each aggregation request is limited to MAX_AGGREGATION_QUERY_DAYS.
     """
 
     start_date: datetime = Field(..., alias="startDate")
@@ -446,7 +448,7 @@ class _DashboardWindowRequest(BaseRequest):
     @model_validator(mode="after")
     def within_window_limit(self) -> "_DashboardWindowRequest":
         start, end = _normalise_window(self.start_date, self.end_date)
-        _check_window_limit(start, end, settings.hourly_query_days())
+        _check_window_limit(start, end, settings.aggregation_query_days())
         return self
 
 
@@ -497,8 +499,7 @@ def _validate_report_window(start: datetime, end: datetime) -> None:
     """
     Check the start_time / end_time window of a report or summary request.
 
-    The report and the summary read hourly rows, so the window is limited to
-    MAX_HOURLY_QUERY_DAYS on both API versions.
+    The window is limited to MAX_AGGREGATION_QUERY_DAYS on both API versions.
 
     Raises:
         ValueError: window reversed, zero-length, or wider than the limit.
@@ -512,7 +513,7 @@ def _validate_report_window(start: datetime, end: datetime) -> None:
     if end < start:
         raise ValueError("end_time must be after start_time")
 
-    _check_window_limit(start, end, settings.hourly_query_days())
+    _check_window_limit(start, end, settings.aggregation_query_days())
 
 
 class AirQualityReportRequest(BaseRequest):
@@ -520,8 +521,7 @@ class AirQualityReportRequest(BaseRequest):
     POST /report — PM aggregates for ONE grid or cohort.
 
     Body: snake_case ``start_time`` / ``end_time`` (ISO datetimes), window
-    non-zero and within MAX_HOURLY_QUERY_DAYS, the limit every request that
-    reads hourly rows carries.
+    non-zero and within MAX_AGGREGATION_QUERY_DAYS.
 
     The entity is chosen in the body rather than by path, and DataSummaryRequest
     takes the identical body: grids and cohorts differ only in how membership

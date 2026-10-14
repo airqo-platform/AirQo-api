@@ -422,7 +422,7 @@ class TestReportAndSummary:
     @pytest.mark.parametrize("path", [V2_REPORT, V3_REPORT, V2_SUMMARY, V3_SUMMARY])
     def test_window_limit_is_31_days_on_both_versions(self, client, path):
         """Pinned as a literal on purpose. A test written against
-        settings.hourly_query_days() would stay green if the default drifted,
+        settings.aggregation_query_days() would stay green if the default drifted,
         while every README that says "31 days" went stale."""
         with _stub_report(), patch(
             "api.services.DataExportService.get_summary",
