@@ -4047,6 +4047,308 @@ describe("create Event utils", function() {
   // processCohortIds must scope the query to "nothing", not leave
   // request.query.device_id unset — which would fall through to an
   // UNSCOPED query instead of an empty one.
+  describe("getRepresentativeAirQualityForGrid — two-level cache", () => {
+    const proxyquire = require("proxyquire");
+    const gridId = "64b7f325d7249f0029fed743";
+    const cacheKey = `representative_aq_grid_${gridId}`;
+    const reading = {
+      _id: "66f0000000000000000000a1",
+      site_id: "site_1",
+      time: new Date("2026-10-11T08:00:00.000Z"),
+      pm2_5: { value: 31.2 },
+      aqi_category: "Moderate",
+    };
+    const computed = {
+      success: true,
+      message: "Successfully retrieved representative air quality value.",
+      data: reading,
+      status: httpStatus.OK,
+    };
+    let proxiedEventUtil;
+    let findOneStub;
+    let findOneAndUpdateStub;
+    let computeStub;
+    let next;
+
+    const l2Returns = (doc) =>
+      findOneStub.returns({ lean: () => Promise.resolve(doc) });
+    const makeRequest = (query = {}) => ({
+      query: { tenant: "airqo", grid_id: gridId, ...query },
+    });
+    // A cache hit is the uncached result plus the entry's remaining lifetime.
+    const expectHit = (result, minSeconds, maxSeconds) => {
+      const { cacheMaxAgeSeconds, ...rest } = result;
+      expect(rest).to.deep.equal(computed);
+      expect(cacheMaxAgeSeconds).to.be.within(minSeconds, maxSeconds);
+    };
+
+    beforeEach(() => {
+      findOneStub = sinon.stub();
+      findOneAndUpdateStub = sinon.stub().resolves(null);
+      l2Returns(null);
+      // A fresh module per test also gives each test an empty L1 cache.
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/ComputedCache": () => ({
+          findOne: findOneStub,
+          findOneAndUpdate: findOneAndUpdateStub,
+        }),
+      });
+      computeStub = sinon
+        .stub(proxiedEventUtil, "getRepresentativeAirQuality")
+        .resolves(computed);
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("computes on a miss and stores the reading in MongoDB with a 5 minute expiry", async () => {
+      const before = Date.now();
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(computeStub.calledOnce).to.equal(true);
+      expect(findOneStub.firstCall.args[0]).to.deep.equal({
+        key: cacheKey,
+        tenant: "airqo",
+      });
+      expect(findOneAndUpdateStub.calledOnce).to.equal(true);
+      const [filter, update, options] = findOneAndUpdateStub.firstCall.args;
+      expect(filter).to.deep.equal({ key: cacheKey, tenant: "airqo" });
+      expect(update.$set.data).to.equal(reading);
+      expect(update.$set.expiresAt.getTime() - before).to.be.within(
+        299000,
+        301000,
+      );
+      expect(options.upsert).to.equal(true);
+    });
+
+    it("serves the next request from pod memory without touching MongoDB or recomputing", async () => {
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expectHit(result, 298, 300);
+      expect(computeStub.calledOnce).to.equal(true);
+      expect(findOneStub.calledOnce).to.equal(true);
+    });
+
+    it("serves a fresh MongoDB entry without recomputing, then refills pod memory", async () => {
+      l2Returns({
+        key: cacheKey,
+        tenant: "airqo",
+        data: reading,
+        expiresAt: new Date(Date.now() + 60000),
+      });
+
+      const first = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const second = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      // max-age is the MongoDB entry's remaining 60s, not a fresh 5 minutes.
+      expectHit(first, 58, 60);
+      expectHit(second, 58, 60);
+      expect(computeStub.called).to.equal(false);
+      expect(findOneStub.calledOnce).to.equal(true);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("returns a body identical to the uncached response on a cache hit", async () => {
+      const miss = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const hit = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      const { cacheMaxAgeSeconds, ...hitBody } = hit;
+      expect(JSON.stringify(hitBody)).to.equal(JSON.stringify(miss));
+    });
+
+    it("ignores an expired MongoDB entry", async () => {
+      l2Returns({
+        key: cacheKey,
+        tenant: "airqo",
+        data: { stale: true },
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(computeStub.calledOnce).to.equal(true);
+    });
+
+    it("still returns the computed result when the MongoDB read and write both fail", async () => {
+      findOneStub.returns({
+        lean: () => Promise.reject(new Error("mongo down")),
+      });
+      findOneAndUpdateStub.rejects(new Error("mongo down"));
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(next.called).to.equal(false);
+    });
+
+    it("does not store an empty result", async () => {
+      const empty = {
+        success: true,
+        message: "No recent readings available for the specified group.",
+        data: {},
+        status: httpStatus.OK,
+      };
+      computeStub.resolves(empty);
+
+      const first = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(first).to.deep.equal(empty);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+      expect(computeStub.calledTwice).to.equal(true);
+    });
+
+    it("does not store a failed or already-forwarded (undefined) result", async () => {
+      computeStub.resolves(undefined);
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.equal(undefined);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("bypasses the cache entirely when the caller supplies site_id", async () => {
+      const request = makeRequest({ site_id: "site_9" });
+
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(request, next);
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(request, next);
+
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.called).to.equal(false);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("keeps the 400 conflict when cohort_id is supplied, even with a warm cache", async () => {
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const conflict = {
+        success: false,
+        message: "Bad Request",
+        errors: {
+          message: "Provide either grid_id or cohort_id, but not both.",
+        },
+        status: httpStatus.BAD_REQUEST,
+      };
+      computeStub.resolves(conflict);
+      findOneStub.resetHistory();
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest({ cohort_id: "64b7f325d7249f0029fed7c1" }),
+        next,
+      );
+
+      expect(result).to.deep.equal(conflict);
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.called).to.equal(false);
+    });
+
+    it("computes once for concurrent misses on the same grid", async () => {
+      const results = await Promise.all([
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+      ]);
+
+      results.forEach((result) => expect(result).to.deep.equal(computed));
+      expect(computeStub.calledOnce).to.equal(true);
+    });
+
+    it("replays a computation failure to every concurrent caller's own next", async () => {
+      const failure = new Error("aggregation failed");
+      // The real util forwards the error via next() and resolves undefined.
+      computeStub.callsFake(async (request, forward) => {
+        forward(failure);
+      });
+      const nexts = [sinon.stub(), sinon.stub(), sinon.stub()];
+
+      const results = await Promise.all(
+        nexts.map((callerNext) =>
+          proxiedEventUtil.getRepresentativeAirQualityForGrid(
+            makeRequest(),
+            callerNext,
+          ),
+        ),
+      );
+
+      expect(computeStub.calledOnce).to.equal(true);
+      results.forEach((result) => expect(result).to.equal(undefined));
+      nexts.forEach((callerNext) => {
+        expect(callerNext.calledOnce).to.equal(true);
+        expect(callerNext.firstCall.args[0]).to.equal(failure);
+      });
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("keeps separate entries per grid", async () => {
+      const otherGridId = "64b7f325d7249f0029fed744";
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest({ grid_id: otherGridId }),
+        next,
+      );
+
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.secondCall.args[0].key).to.equal(
+        `representative_aq_grid_${otherGridId}`,
+      );
+    });
+  });
+
   describe("processCohortIds — suppressed (private) cohorts", () => {
     const proxyquire = require("proxyquire");
     let proxiedEventUtil;

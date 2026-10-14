@@ -865,6 +865,31 @@ def get_synced_device_details(
         "devices": serialized_devices,
     }
 
+def apply_local_performance_synced_devices(
+    devices: List[Dict[str, Any]],
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+    frequency: str = "hourly",
+) -> None:
+    """
+    Enrich serialized synced devices in place with locally-computed
+    ``uptime`` / ``data_completeness`` / ``averages`` / ``data``.
+    """
+    from app.services import cohort_service
+
+    names = [d.get("name") for d in devices if d.get("name")]
+    metrics = cohort_service.compute_device_performance(
+        db, names, start_date_time, end_date_time, frequency=frequency,
+    )
+    for device in devices:
+        m = metrics.get(device.get("name")) or {}
+        device["uptime"] = m.get("uptime", 0.0)
+        device["data_completeness"] = m.get("data_completeness", 0.0)
+        device["averages"] = m.get("averages") or {}
+        device["data"] = m.get("data") or []
+
+
 async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str, Any]:
     # 1. Fetch data from PLATFORM_BASE_URL/devices/{device_id}
     headers = {"Authorization": f"JWT {token}"}

@@ -14,6 +14,7 @@ const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 const crypto = require("crypto");
+const publicCohortUtil = require("@utils/public-cohort.util");
 
 // Strictly a 24-char hex Mongo ObjectId string. Deliberately not
 // mongoose's isValidObjectId, which also accepts arbitrary 12-byte
@@ -591,6 +592,11 @@ const cohortValidations = {
         }),
       commonValidations.name,
     ]),
+    query("include_devices")
+      .optional()
+      .isBoolean()
+      .withMessage("include_devices must be a boolean")
+      .toBoolean(),
     handleValidationErrors,
   ],
 
@@ -948,8 +954,73 @@ const promoteCohorts = [
   requireAdminSecret,
 ];
 
+const adminSecretBody = () =>
+  body("admin_secret")
+    .exists()
+    .withMessage("admin_secret is required")
+    .bail()
+    .isString()
+    .withMessage("admin_secret must be a string")
+    .bail()
+    .notEmpty()
+    .withMessage("admin_secret must not be empty");
+
+const getPublicCohortConfig = [
+  ...commonValidations.tenant,
+  handleValidationErrors,
+];
+
+const updatePublicCohortConfig = [
+  ...commonValidations.tenant,
+  adminSecretBody(),
+  body("devices_per_grid")
+    .optional()
+    .isInt({ min: 1, max: publicCohortUtil.MAX_DEVICES_PER_GRID })
+    .withMessage(
+      `devices_per_grid must be an integer between 1 and ${publicCohortUtil.MAX_DEVICES_PER_GRID}`,
+    )
+    .bail()
+    .toInt(),
+  body("max_offline_hours")
+    .optional()
+    .isInt({ min: 1, max: publicCohortUtil.MAX_OFFLINE_HOURS_LIMIT })
+    .withMessage(
+      `max_offline_hours must be an integer between 1 and ${publicCohortUtil.MAX_OFFLINE_HOURS_LIMIT}`,
+    )
+    .bail()
+    .toInt(),
+  body().custom((value) => {
+    if (
+      !value ||
+      (value.devices_per_grid === undefined &&
+        value.max_offline_hours === undefined)
+    ) {
+      throw new Error(
+        "provide at least one of devices_per_grid or max_offline_hours",
+      );
+    }
+    return true;
+  }),
+  body("updated_by")
+    .optional()
+    .isString()
+    .withMessage("updated_by must be a string"),
+  handleValidationErrors,
+  requireAdminSecret,
+];
+
+const refreshPublicCohort = [
+  ...commonValidations.tenant,
+  adminSecretBody(),
+  handleValidationErrors,
+  requireAdminSecret,
+];
+
 module.exports = {
   ...cohortValidations,
   promoteCohorts,
+  getPublicCohortConfig,
+  updatePublicCohortConfig,
+  refreshPublicCohort,
   pagination: commonValidations.pagination,
 };

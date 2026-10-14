@@ -296,6 +296,32 @@ let attachments = [
   },
 ];
 
+// Billing emails go to every billing contact on the invoice, copy the finance
+// inboxes, and attach the rendered PDF. The PDF travels as base64 because
+// queued mailOptions are persisted in MongoDB, where a Buffer would not
+// survive the round trip.
+const billingMailOptions = (baseMailOptions, params) => ({
+  ...baseMailOptions,
+  to: (params.recipients && params.recipients.length
+    ? params.recipients
+    : [baseMailOptions.to]
+  ).join(","),
+  cc: params.cc && params.cc.length ? params.cc.join(",") : undefined,
+  attachments: [
+    ...(baseMailOptions.attachments || []),
+    ...(params.pdf
+      ? [
+          {
+            filename: params.pdf.filename,
+            content: params.pdf.content,
+            encoding: "base64",
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+  ],
+});
+
 const createMailerFunction = (
   functionName,
   category,
@@ -965,6 +991,19 @@ const getEmailSubject = (functionName, params) => {
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
     sendCompromiseSummary:
       "Daily Security Alert Summary - Compromised Token Activity",
+
+    // ===== BILLING FUNCTIONS =====
+    invoiceIssued: `AirQo ${params.document_title || "Invoice"} ${sanitizeEmailString(
+      params.invoice_number || "",
+    )} - ${sanitizeEmailString(params.customer_name || "")}`,
+    paymentReceipt: `[AirQo] Payment Receipt ${sanitizeEmailString(
+      params.receipt_number || "",
+    )} for ${sanitizeEmailString(params.customer_name || "")}`,
+    invoiceReminder: params.overdue
+      ? `Overdue: AirQo Invoice ${sanitizeEmailString(params.invoice_number || "")}`
+      : `Reminder: AirQo Invoice ${sanitizeEmailString(
+          params.invoice_number || "",
+        )} is due ${sanitizeEmailString(params.due_date || "")}`,
   };
 
   return subjects[functionName] || `AirQo Account Notification`;
@@ -1052,7 +1091,13 @@ const EMAIL_CATEGORIES = {
     "sendPollutionAlert",
   ],
   // Triggered directly by user action — always delivered regardless of subscription status
-  TRANSACTIONAL: ["feedbackConfirmation"],
+  TRANSACTIONAL: [
+    "feedbackConfirmation",
+    // Billing documents must reach the customer regardless of subscription.
+    "invoiceIssued",
+    "paymentReceipt",
+    "invoiceReminder",
+  ],
 };
 
 /**
@@ -3014,6 +3059,25 @@ const mailer = {
       }),
   ),
 };
+
+mailer.invoiceIssued = createMailerFunction(
+  "invoiceIssued",
+  "TRANSACTIONAL",
+  (params) => msgs.invoiceIssued(params),
+  billingMailOptions,
+);
+mailer.paymentReceipt = createMailerFunction(
+  "paymentReceipt",
+  "TRANSACTIONAL",
+  (params) => msgs.paymentReceipt(params),
+  billingMailOptions,
+);
+mailer.invoiceReminder = createMailerFunction(
+  "invoiceReminder",
+  "TRANSACTIONAL",
+  (params) => msgs.invoiceReminder(params),
+  billingMailOptions,
+);
 
 mailer.startEmailQueue = startEmailQueue;
 mailer.stopEmailQueue = stopEmailQueue;

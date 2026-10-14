@@ -624,8 +624,11 @@ class CRUDDiagnostics:
             .first()
         )
 
-    def get_latest_diagnosis_date(self, db: Session) -> Optional[date]:
-        return db.query(func.max(DeviceDailyDiagnostic.diagnosis_date)).scalar()
+    def get_latest_diagnosis_date(self, db: Session, device_scope: Optional[Any] = None) -> Optional[date]:
+        q = db.query(func.max(DeviceDailyDiagnostic.diagnosis_date))
+        if device_scope is not None:
+            q = q.filter(DeviceDailyDiagnostic.device_id.in_(device_scope))
+        return q.scalar()
 
     def list_daily_issues(
         self,
@@ -643,10 +646,13 @@ class CRUDDiagnostics:
         limit: int = 100,
         component_name: Optional[str] = None,
         check_type: Optional[str] = None,
+        device_scope: Optional[Any] = None,
     ) -> List[DeviceDailyIssue]:
         q = db.query(DeviceDailyIssue, SyncDevice.device_name).outerjoin(
             SyncDevice, SyncDevice.device_id == DeviceDailyIssue.device_id
         )
+        if device_scope is not None:
+            q = q.filter(DeviceDailyIssue.device_id.in_(device_scope))
         if diagnosis_date:
             q = q.filter(DeviceDailyIssue.diagnosis_date == diagnosis_date)
         if start_date:

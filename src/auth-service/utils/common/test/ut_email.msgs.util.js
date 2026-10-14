@@ -437,6 +437,28 @@ describe("email.msgs", () => {
       const result = msgs.compromiseSummary({ email: "user@example.com", count: 0, compromiseDetails: [] });
       expect(result).to.be.a("string");
     });
+
+    it("should flag a token seen from several IPs as a changing outbound IP", () => {
+      const result = msgs.compromiseSummary({
+        ...baseArgs,
+        compromiseDetails: [
+          { tokenSuffix: "MNBR", ip: "99.80.25.45", timestamp: "" },
+          { tokenSuffix: "MNBR", ip: "99.80.11.2", timestamp: "" },
+        ],
+      });
+      expect(result).to.include("Your outbound IP address appears to change");
+      expect(result).to.include("2 different IP addresses");
+    });
+
+    it("should not show the changing-IP notice when each token used a single IP", () => {
+      const result = msgs.compromiseSummary(baseArgs);
+      expect(result).to.not.include("Your outbound IP address appears to change");
+    });
+
+    it("should link to the blocked-requests troubleshooting guide", () => {
+      const result = msgs.compromiseSummary(baseArgs);
+      expect(result).to.include(constants.API_ACCESS_TROUBLESHOOTING_URL);
+    });
   });
 
   describe("bypassExpiryReminder", () => {

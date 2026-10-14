@@ -23,6 +23,7 @@ const httpStatus = require("http-status");
 
 const transactions = require("@utils/transaction.util");
 const paddleConfig  = require("@config/paddle");
+const constants = require("@config/constants");
 
 // ── Scope / rate-limit constants mirrored from transaction.util.js ────────────
 const FREE_SCOPES = [
@@ -801,7 +802,7 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     shouldAlertStub.reset();
   });
 
-  it("logs TRANSACTION_COMPLETION_FAILED with message and transactionId via opsLogger", async () => {
+  it("logs TRANSACTION_COMPLETION_FAILED with environment, message and transactionId via opsLogger", async () => {
     shouldAlertStub.resolves(true);
     const error = new Error("Payment gateway timeout");
     const eventData = { id: "txn_abc123", customer_id: "cust_xyz" };
@@ -812,9 +813,27 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
     expect(errorType).to.equal("TRANSACTION_COMPLETION_FAILED");
     expect(payload).to.deep.equal({
+      environment: constants.ENVIRONMENT,
       message: "Payment gateway timeout",
       transactionId: "txn_abc123",
     });
+  });
+
+  it("logs under the given alert type when one is passed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_declined", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_declined"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+
+    sinon.assert.calledOnce(opsLoggerErrorStub);
+    const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
+    expect(errorType).to.equal("TRANSACTION_PAYMENT_FAILED");
+    expect(payload.environment).to.equal(constants.ENVIRONMENT);
   });
 
   it("uses undefined transactionId when eventData is absent", async () => {
@@ -834,7 +853,68 @@ describe("transactions.notifyAdminOfTransactionError", () => {
 
     await localTransactions.notifyAdminOfTransactionError(error, eventData);
 
-    sinon.assert.calledWith(shouldAlertStub, "transaction-error:txn_repeat");
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_repeat",
+    );
     sinon.assert.notCalled(opsLoggerErrorStub);
+  });
+
+  it("keys the cooldown on alert type so different alerts for one transaction are not suppressed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_both", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_both"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Registration failed"),
+      eventData,
+      "airqo",
+    );
+
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_PAYMENT_FAILED:txn_both",
+    );
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_both",
+    );
+  });
+});
+
+describe("transactions.handleFailedTransaction", () => {
+  let notifyStub;
+
+  beforeEach(() => {
+    notifyStub = sinon
+      .stub(transactions, "notifyAdminOfTransactionError")
+      .resolves();
+  });
+
+  afterEach(() => {
+    notifyStub.restore();
+  });
+
+  it("raises a TRANSACTION_PAYMENT_FAILED alert for a declined payment", async () => {
+    const eventData = {
+      id: "txn_declined",
+      customer_id: "ctm_123",
+      total: 50,
+      currency: "USD",
+    };
+
+    await transactions.handleFailedTransaction(eventData, "airqo");
+
+    sinon.assert.calledOnce(notifyStub);
+    const [error, passedEventData, tenant, alertType] = notifyStub.firstCall.args;
+    expect(error.message).to.equal("Payment failed for transaction txn_declined");
+    expect(passedEventData).to.equal(eventData);
+    expect(tenant).to.equal("airqo");
+    expect(alertType).to.equal("TRANSACTION_PAYMENT_FAILED");
   });
 });

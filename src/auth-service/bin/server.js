@@ -115,9 +115,11 @@ const jobs = [
   "@bin/jobs/feedback-screenshot-cleanup-job",
   "@bin/jobs/feedback-reminder-job",
   "@bin/jobs/transaction-amount-fix-job",
+  "@bin/jobs/page-satisfaction-migration-job",
   "@bin/jobs/selfie-cleanup-job",
   "@bin/jobs/username-email-sync-job",
   "@bin/jobs/usage-rollup-job",
+  "@bin/jobs/invoice-reminder-job",
 ];
 
 // Initialize log4js with SAFE configuration
@@ -534,6 +536,12 @@ const createServer = () => {
         console.log("✅ Usage recorder flushed.");
       } catch (error) {
         console.error("❌ Error flushing usage recorder:", error.message);
+      }
+      try {
+        await require("@utils/api-key-usage-recorder.util").shutdown();
+        console.log("✅ API-key usage recorder flushed.");
+      } catch (error) {
+        console.error("❌ Error flushing API-key usage recorder:", error.message);
       }
 
       // Enhanced cron job shutdown handling

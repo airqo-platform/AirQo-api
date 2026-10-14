@@ -5,6 +5,7 @@ const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
+const publicCohortUtil = require("@utils/public-cohort.util");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -310,6 +311,8 @@ const createCohort = {
           },
           next,
         );
+        // A cohort switched to private takes its devices out of the public one
+        publicCohortUtil.evictPrivateDevicesInBackground(tenant);
         return responseFromModifyCohort;
       }
     } catch (error) {
@@ -528,6 +531,15 @@ const createCohort = {
         filter.visibility = true;
       }
 
+      // Lightweight summary path (/cohorts/summary?include_devices=false):
+      // cohort details without the devices $lookup, for callers that only
+      // need to label cohorts (e.g. a cohort selector). No visibility filter,
+      // unlike the public metadata path.
+      const isLightweightSummary =
+        detailLevel === "summary" &&
+        (request.query.include_devices === false ||
+          request.query.include_devices === "false");
+
       const pipeline = isPublicMetadata
         ? [
             { $match: filter },
@@ -538,6 +550,31 @@ const createCohort = {
                   { $skip: _skip },
                   { $limit: _limit },
                   { $project: { _id: 1, name: 1 } },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ]
+        : isLightweightSummary
+        ? [
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      network: 1,
+                      visibility: 1,
+                      cohort_tags: 1,
+                      groups: 1,
+                      createdAt: 1,
+                    },
+                  },
                 ],
                 totalCount: [{ $count: "count" }],
               },
@@ -1016,6 +1053,7 @@ const createCohort = {
         { _id: { $in: toAssign } },
         { $addToSet: { cohorts: resolvedCohortId } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       // Re-query after the update to confirm which devices were actually assigned,
       // guarding against concurrent requests that may have already written the same cohort_id.
@@ -1282,6 +1320,7 @@ const createCohort = {
         { $addToSet: { cohorts: resolvedCohortId } },
         { new: true },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       return {
         success: true,
@@ -1685,6 +1724,7 @@ const createCohort = {
         { _id: { $in: devicesToUpdate } },
         { $addToSet: { cohorts: newCohort._id } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       logObject(
         "updateResult from assigning devices to new cohort",

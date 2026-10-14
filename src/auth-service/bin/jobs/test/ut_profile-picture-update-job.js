@@ -53,6 +53,7 @@ describe("updateProfilePictures", () => {
   let origLogger;
   let origLogText;
   let origLogObject;
+  let origDefaultProfilePicture;
 
   beforeEach(() => {
     origGroupModel = rewireProfilePictureUpdate.__get__("GroupModel");
@@ -62,6 +63,16 @@ describe("updateProfilePictures", () => {
     origLogger = rewireProfilePictureUpdate.__get__("logger");
     origLogText = rewireProfilePictureUpdate.__get__("logText");
     origLogObject = rewireProfilePictureUpdate.__get__("logObject");
+    origDefaultProfilePicture = rewireProfilePictureUpdate.__get__(
+      "DEFAULT_PROFILE_PICTURE"
+    );
+
+    // The job aborts on an invalid default URL, and the env var behind it
+    // is not set in every test environment.
+    rewireProfilePictureUpdate.__set__(
+      "DEFAULT_PROFILE_PICTURE",
+      "https://example.com/default.png"
+    );
 
     rewireProfilePictureUpdate.__set__(
       "acquireCronLock",
@@ -83,6 +94,10 @@ describe("updateProfilePictures", () => {
     rewireProfilePictureUpdate.__set__("logger", origLogger);
     rewireProfilePictureUpdate.__set__("logText", origLogText);
     rewireProfilePictureUpdate.__set__("logObject", origLogObject);
+    rewireProfilePictureUpdate.__set__(
+      "DEFAULT_PROFILE_PICTURE",
+      origDefaultProfilePicture
+    );
     sinon.restore();
   });
 

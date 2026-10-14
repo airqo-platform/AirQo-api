@@ -273,6 +273,7 @@ function addMinutes(number, next) {
     );
   }
 }
+// Order-independent, like getDifferenceInWeeks.
 function getDifferenceInMonths(d1, d2) {
   let months;
   let start = new Date(d1);
@@ -280,8 +281,9 @@ function getDifferenceInMonths(d1, d2) {
   months = (end.getFullYear() - start.getFullYear()) * 12;
   months -= start.getMonth();
   months += end.getMonth();
-  logObject(" result for getDifferenceInMonths()", months <= 0 ? 0 : months);
-  return months <= 0 ? 0 : months;
+  months = Math.abs(months);
+  logObject(" result for getDifferenceInMonths()", months);
+  return months;
 }
 function getDifferenceInWeeks(d1, d2) {
   const oneWeekInMilliseconds = 7 * 24 * 60 * 60 * 1000;

@@ -311,6 +311,12 @@ const createAccessToken = {
             );
           }
         }
+        // nginx auth_request discards this response's body, so also expose the
+        // rejection reason as a header the gateway can forward with
+        // auth_request_set (e.g. $upstream_http_x_auth_error_code).
+        if (!result.success && result.errors && result.errors.code) {
+          res.set("X-Auth-Error-Code", result.errors.code);
+        }
         // Return full JSON so callers (e.g. device-registry resource binding
         // middleware) can parse the response body, including allowed_grids /
         // allowed_cohorts.  HTTP status code semantics are unchanged, so

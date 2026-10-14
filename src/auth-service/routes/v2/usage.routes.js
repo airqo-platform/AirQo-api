@@ -101,4 +101,28 @@ router.get(
   usageController.retention,
 );
 
+// API-key views: attribute gateway traffic (e.g. analytics/BigQuery load) to
+// the key that generated it. "/api-keys/timeseries" must precede ":clientId".
+router.get(
+  "/api-keys",
+  usageValidations.apiKeys,
+  enhancedJWTAuth,
+  requireUsageAccess,
+  usageController.apiKeys,
+);
+router.get(
+  "/api-keys/timeseries",
+  usageValidations.apiKeysTimeseries,
+  enhancedJWTAuth,
+  requireUsageAccess,
+  usageController.apiKeysTimeseries,
+);
+router.get(
+  "/api-keys/:clientId",
+  usageValidations.apiKeyDetail,
+  enhancedJWTAuth,
+  requireUsageAccess,
+  usageController.apiKeyDetail,
+);
+
 module.exports = router;

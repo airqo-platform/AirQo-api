@@ -229,6 +229,15 @@ describe("addMonthsToProvideDateTime", () => {
 });
 
 describe("monthsInfront", () => {
+  // Freeze "now" so the test and the function read the same instant.
+  let clock;
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+  });
+  afterEach(() => {
+    clock.restore();
+  });
+
   it("should return a new date with the specified number of months in front of the current date", () => {
     const number = 3;
     const currentDate = new Date();

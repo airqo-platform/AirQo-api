@@ -73,6 +73,20 @@ router.get(
   groupController.listSummary,
 );
 
+// Group discovery — authenticated only, no GROUP_VIEW permission required.
+// GROUP_VIEW is only granted once a user already belongs to some group, so
+// a brand-new/outsider user (exactly who needs to browse groups to request
+// to join one) would otherwise get 403 on both /groups and /groups/summary.
+// Mirrors the v3 route: the gateway only forwards v1/v2 user paths, so the
+// v3 one is unreachable from the frontend. Must stay above "/:grp_id".
+router.get(
+  "/discover",
+  groupValidations.listSummary,
+  enhancedJWTAuth,
+  pagination(),
+  groupController.discover,
+);
+
 // Group creation - requires system-level permissions
 router.post(
   "/",

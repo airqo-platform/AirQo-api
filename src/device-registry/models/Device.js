@@ -303,7 +303,9 @@ const deviceSchema = new mongoose.Schema(
     // and skip pointless re-polling until channelStatusCheckedAt goes stale.
     channelStatus: {
       type: String,
-      enum: ["not_found"],
+      // null must be listed: mongoose 5 enum validator rejects null otherwise,
+      // which breaks every new device create via the default below.
+      enum: ["not_found", null],
       default: null,
     },
     channelStatusCheckedAt: {

@@ -21,6 +21,7 @@ const {
   cohortLookupFilter,
   resolveCohortObjectIds,
 } = require("@utils/cohort.util");
+const publicCohortUtil = require("@utils/public-cohort.util");
 const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
@@ -2621,6 +2622,9 @@ const deviceUtil = {
           },
           next,
         );
+        if (update.visibility !== undefined || update.cohorts !== undefined) {
+          publicCohortUtil.evictPrivateDevicesInBackground(tenant);
+        }
         return responseFromModifyDevice;
       }, trackingParams);
     } catch (error) {
@@ -2698,6 +2702,13 @@ const deviceUtil = {
         },
         next,
       );
+
+      if (
+        updateData &&
+        (updateData.visibility !== undefined || updateData.cohorts !== undefined)
+      ) {
+        publicCohortUtil.evictPrivateDevicesInBackground(tenant);
+      }
 
       // Attach additional metadata to the response
       return {
@@ -3190,6 +3201,7 @@ const deviceUtil = {
           message: "Device may have been claimed by another user.",
         });
       }
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       // Log the claim activity
       try {
@@ -3451,6 +3463,10 @@ const deviceUtil = {
             error: error.message,
           });
         }
+      }
+
+      if (results.successful_claims.length > 0) {
+        publicCohortUtil.evictPrivateDevicesInBackground(tenant);
       }
 
       return {
@@ -4949,6 +4965,8 @@ const deviceUtil = {
           httpStatus.CONFLICT,
         );
       }
+
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       // Step 8: Finalize the activity log.
       try {
