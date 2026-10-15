@@ -17,6 +17,45 @@ const createGroupUtil = require("@utils/group.util");
 const RoleModel = require("@models/Role");
 const RBACService = require("@services/rbac.service");
 const { logObject, HttpError, logText } = require("@utils/shared");
+const notificationUtil = require("@utils/notification.util");
+
+// In-app notifications are best-effort and fire-and-forget: notifyUsers never
+// throws, and nothing here is awaited, so the access-request flow is never
+// slowed or broken by them.
+const notifyAccessRequestOutcome = (
+  tenant,
+  accessRequest,
+  outcome,
+  user_id = accessRequest.user_id,
+) => {
+  if (!user_id || accessRequest.requestType !== "group") {
+    return;
+  }
+  (async () => {
+    const group = await GroupModel(tenant)
+      .findById(accessRequest.targetId)
+      .select("grp_title")
+      .lean();
+    const groupTitle = (group && group.grp_title) || "the organization";
+    const approved = outcome === "approved";
+    await notificationUtil.notifyUsers({
+      tenant,
+      user_ids: [user_id],
+      category: "access_request",
+      event: `access_request.${outcome}`,
+      title: approved ? "Access request approved" : "Access request declined",
+      message: approved
+        ? `Your request to join ${groupTitle} has been approved. You now have access to the organization.`
+        : `Your request to join ${groupTitle} was not approved.`,
+      group_id: accessRequest.targetId,
+      metadata: { request_id: accessRequest._id },
+    });
+  })().catch((error) =>
+    logger.error(
+      `Non-critical: failed to notify user of ${outcome} access request -- ${error.message}`,
+    ),
+  );
+};
 
 // Mirrors middleware/groupNetworkAuth.js's requireGroupManagerAccess — used
 // where a group-manager-level check is needed from inside a util function
@@ -161,6 +200,31 @@ const createAccessRequest = {
           );
         }
         const requesterName = `${firstName} ${lastName}`;
+
+        notificationUtil.notifyUsers({
+          tenant,
+          user_ids: [user._id],
+          category: "access_request",
+          event: "access_request.submitted",
+          title: "Access request sent",
+          message: `Your request to join ${group.grp_title} has been sent to its administrators. We'll let you know once it has been reviewed.`,
+          group_id: group._id,
+          metadata: { request_id: createdAccessRequest._id },
+        });
+        notificationUtil.notifyUsers({
+          tenant,
+          user_ids: recipients.map((recipient) => recipient._id),
+          category: "access_request",
+          event: "access_request.received",
+          title: "New access request",
+          message: `${requesterName} (${user.email}) has requested to join ${group.grp_title}.`,
+          priority: "high",
+          group_id: group._id,
+          metadata: {
+            request_id: createdAccessRequest._id,
+            requester_id: user._id,
+          },
+        });
 
         // Note: no `next` passed to these mailer calls — they run inside
         // Promise.allSettled as non-critical, best-effort notifications, and
@@ -1397,6 +1461,12 @@ const createAccessRequest = {
               actor: { user_id: request.user?._id, email: request.user?.email },
               target_user: { user_id: user._id, email },
             });
+            notifyAccessRequestOutcome(
+              tenant,
+              accessRequest,
+              "approved",
+              user._id,
+            );
             const updatedUserDetails = { groups: 1 };
             const responseFromSendEmail = await mailer.update(
               {
@@ -1529,6 +1599,8 @@ const createAccessRequest = {
               : { email: accessRequest.email },
           });
         }
+
+        notifyAccessRequestOutcome(tenant, accessRequest, "rejected");
 
         // Send rejection notification email
         let userEmail = accessRequest.email;

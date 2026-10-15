@@ -13,6 +13,7 @@ const { mockRequest, mockResponse } = require("mock-req-res");
 const { generateFilter } = require("@utils/common");
 const createGroupUtil = require("@utils/group.util");
 const { ActivityLogger } = require("@utils/common/activity-logger.util");
+const notificationUtil = require("@utils/notification.util");
 const { expect } = chai;
 
 describe("createAccessRequest Util", () => {
@@ -22,6 +23,8 @@ describe("createAccessRequest Util", () => {
   // down along with its own stubs.
   beforeEach(() => {
     sinon.stub(ActivityLogger, "logActivity").returns({ success: true });
+    // Same for in-app notifications, which are also fire-and-forget.
+    sinon.stub(notificationUtil, "notifyUsers").resolves({ success: true });
   });
 
   describe("requestAccessToGroup()", () => {
@@ -116,7 +119,12 @@ describe("createAccessRequest Util", () => {
         .stub(mailer, "notifyGroupManagerOfJoinRequest")
         .resolves({ success: true, status: httpStatus.OK });
       sinon.stub(createGroupUtil, "getGroupManagementRecipients").resolves([
-        { email: "manager@example.com", firstName: "Jane", lastName: "Manager" },
+        {
+          _id: "manager_id",
+          email: "manager@example.com",
+          firstName: "Jane",
+          lastName: "Manager",
+        },
       ]);
 
       requestMock.query.tenant = tenant;
@@ -129,6 +137,16 @@ describe("createAccessRequest Util", () => {
       const notifyArgs = notifyManagerStub.firstCall.args[0];
       expect(notifyArgs.email).to.equal("manager@example.com");
       expect(notifyArgs.entity_title).to.equal(groupTitle);
+
+      // In-app: one notification for the requester, one for the managers
+      sinon.assert.calledTwice(notificationUtil.notifyUsers);
+      const [requesterCall, managerCall] = notificationUtil.notifyUsers
+        .getCalls()
+        .map((call) => call.args[0]);
+      expect(requesterCall.event).to.equal("access_request.submitted");
+      expect(requesterCall.user_ids).to.deep.equal(["user_id"]);
+      expect(managerCall.event).to.equal("access_request.received");
+      expect(managerCall.user_ids).to.deep.equal(["manager_id"]);
     });
 
     it("should handle the case where the group does not exist", async () => {
