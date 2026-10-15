@@ -56,10 +56,10 @@ const isGroupManagerOrAdmin = async (tenant, userId, groupId) => {
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-      } = request;
+      const { query } = request;
+      // enhancedJWTAuth sets req.user to a plain (lean) object; fall back to
+      // _doc only for legacy callers that still pass a Mongoose document.
+      const user = request.user?._doc || request.user || {};
       const { tenant } = query;
       const { grp_id } = request.params;
       logObject("the user", user);
