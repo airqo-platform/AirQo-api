@@ -32,13 +32,12 @@ describe("createAccessRequest Util", () => {
 
     beforeEach(() => {
       requestMock = {
+        // Mirrors enhancedJWTAuth, which sets req.user to a plain lean object
         user: {
-          _doc: {
-            _id: "user_id",
-            firstName: "John",
-            lastName: "Doe",
-            email: "john@example.com",
-          },
+          _id: "user_id",
+          firstName: "John",
+          lastName: "Doe",
+          email: "john@example.com",
         },
         query: {},
         params: {},
@@ -218,7 +217,7 @@ describe("createAccessRequest Util", () => {
         register: sinon.stub().resolves({ success: true, data: {} }),
       }));
 
-      requestMock.user._doc.email = null;
+      requestMock.user.email = null;
       requestMock.query.tenant = tenant;
       requestMock.params.grp_id = groupId;
 
