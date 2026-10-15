@@ -191,6 +191,12 @@ const authRoutes = [
     description: "Notification preferences management",
   },
   {
+    path: "/notifications",
+    route: "@routes/v2/notifications.routes",
+    name: "notifications",
+    description: "In-app notifications (inbox, org and system broadcasts)",
+  },
+  {
     path: "/maintenances",
     route: "@routes/v2/maintenance.routes",
     name: "maintenances",
@@ -423,7 +429,7 @@ function getCategoryForRoute(routeName) {
       "org-requests",
       "surveys",
     ],
-    notifications: ["notification-preferences", "campaigns"],
+    notifications: ["notifications", "notification-preferences", "campaigns"],
     billing: ["billing", "transactions"],
     misc: ["checklist", "guests", "selfies"],
   };
