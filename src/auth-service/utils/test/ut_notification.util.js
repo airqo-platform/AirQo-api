@@ -224,7 +224,7 @@ describe("notification util", () => {
   });
 
   describe("broadcast()", () => {
-    it("audience 'users' only notifies users that exist", async () => {
+    it("audience 'users' only notifies users that exist, ignoring repeated ids", async () => {
       notificationUtil.__set__("UserModel", () => ({
         find: () => leanQuery([{ _id: "u1" }]),
       }));
@@ -238,7 +238,7 @@ describe("notification util", () => {
           query: { tenant: "airqo" },
           body: {
             audience: "users",
-            user_ids: ["u1", "missing"],
+            user_ids: ["u1", "missing", "u1"],
             title: "t",
             message: "m",
           },

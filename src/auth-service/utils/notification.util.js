@@ -246,8 +246,9 @@ const notification = {
       };
 
       if (audience === "users") {
+        const uniqueUserIds = [...new Set(user_ids.map(String))];
         const recipients = await UserModel(tenant)
-          .find({ _id: { $in: user_ids } })
+          .find({ _id: { $in: uniqueUserIds } })
           .select("_id")
           .lean();
         const insertedCount = await insertInBatches(
@@ -264,7 +265,7 @@ const notification = {
             audience,
             recipients: recipients.length,
             delivered: insertedCount,
-            not_found: user_ids.length - recipients.length,
+            not_found: uniqueUserIds.length - recipients.length,
           },
         };
       }

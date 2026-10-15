@@ -270,17 +270,7 @@ NotificationSchema.statics = {
 const NotificationModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    let notifications = mongoose.model("notifications");
-    return notifications;
-  } catch (error) {
-    let notifications = getModelByTenant(
-      dbTenant,
-      "notification",
-      NotificationSchema,
-    );
-    return notifications;
-  }
+  return getModelByTenant(dbTenant, "notification", NotificationSchema);
 };
 
 NotificationModel.NOTIFICATION_CATEGORIES = NOTIFICATION_CATEGORIES;

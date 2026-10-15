@@ -210,7 +210,11 @@ const createAccessRequest = {
           message: `Your request to join ${group.grp_title} has been sent to its administrators. We'll let you know once it has been reviewed.`,
           group_id: group._id,
           metadata: { request_id: createdAccessRequest._id },
-        });
+        }).catch((error) =>
+          logger.error(
+            `Non-critical: failed to send access_request.submitted notification -- ${error.message}`,
+          ),
+        );
         notificationUtil.notifyUsers({
           tenant,
           user_ids: recipients.map((recipient) => recipient._id),
@@ -224,7 +228,11 @@ const createAccessRequest = {
             request_id: createdAccessRequest._id,
             requester_id: user._id,
           },
-        });
+        }).catch((error) =>
+          logger.error(
+            `Non-critical: failed to send access_request.received notification -- ${error.message}`,
+          ),
+        );
 
         // Note: no `next` passed to these mailer calls — they run inside
         // Promise.allSettled as non-critical, best-effort notifications, and
