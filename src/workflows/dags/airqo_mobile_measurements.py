@@ -25,13 +25,12 @@ from task_docs import (
 )
 def airqo_raw_data_measurements_mobile():
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs):
-        execution_time = kwargs["dag_run"].execution_date
-        hour_of_day = execution_time - timedelta(minutes=5)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day = logical_date - timedelta(minutes=5)
 
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
