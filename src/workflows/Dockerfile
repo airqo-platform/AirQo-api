@@ -35,6 +35,8 @@ COPY --chown=airflow:root --from=wheel-builder /build/dist/airqo_etl_utils-1.0.0
 # pip check runs before the Jupyter strip because great-expectations declares notebook and nbformat.
 # The Jupyter/notebook ecosystem dragged in by great_expectations 0.18.x serves its Data Docs UI;
 # the strip shares this layer with the install, so the removed files never reach the image.
+# After the strip, the Great Expectations modules the service uses are imported, so a version
+# that needs a stripped package fails the build.
 RUN pip install --no-cache-dir \
         "apache-airflow==${AIRFLOW_VERSION}" \
         /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl && \
@@ -46,6 +48,7 @@ RUN pip install --no-cache-dir \
         ipykernel widgetsnbextension jupyterlab-widgets \
         nbconvert nbformat nbclient jupyterlab-pygments notebook-shim \
         debugpy nest-asyncio 2>/dev/null || true; } && \
+    python -B -c "import great_expectations.checkpoint, great_expectations.data_context, great_expectations.render.renderer.site_builder, great_expectations.datasource.fluent" && \
     rm -f /home/airflow/*.whl
 
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
