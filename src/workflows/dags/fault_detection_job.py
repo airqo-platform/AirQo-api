@@ -10,6 +10,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     tags=["airqo", "fault_detection"],
     schedule="0 1 * * 1",
     default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
 )
 def airqo_fault_detection_dag():
     @task()

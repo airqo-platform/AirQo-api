@@ -49,6 +49,26 @@ class DateUtils:
                 return date.strftime(DAY_START_FORMAT)
 
     @staticmethod
+    def get_dag_run_time(**kwargs: Dict[str, Any]) -> datetime:
+        """
+        Returns the DAG run's logical date from the Airflow context. Runs without a logical
+        date use the run's run_after value, and a missing DAG run uses the current UTC time.
+
+        Args:
+            - **kwargs: Extra arguments to pass. Usually from the airflow context.
+
+        Returns:
+            A timezone-aware datetime.
+        """
+        dag_run = kwargs.get("dag_run", None)
+        run_time = kwargs.get("logical_date", None)
+        if run_time is None:
+            run_time = getattr(dag_run, "logical_date", None)
+        if run_time is None:
+            run_time = getattr(dag_run, "run_after", None)
+        return run_time if run_time is not None else datetime.now(timezone.utc)
+
+    @staticmethod
     def get_dag_date_time_values(
         days: Optional[int] = None,
         hours: Optional[int] = None,
@@ -70,7 +90,7 @@ class DateUtils:
         value: int = hours if hours else (days if days else 1)
         delta_kwargs = {unit: value}
         dag_run = kwargs.get("dag_run", None)
-        is_manual_run = dag_run.external_trigger if dag_run else False
+        is_manual_run = getattr(dag_run, "run_type", None) == "manual"
         logger.info(f"KWARGS:, {kwargs}")
         logger.info(f"IS MANUAL RUN: {is_manual_run}")
 
@@ -79,20 +99,18 @@ class DateUtils:
             end_date_time = kwargs.get("params", {}).get("end_date_time")
             if not start_date_time or not end_date_time:
                 try:
-                    logger.info("DAG RUN:", dag_run)
+                    logger.info(f"DAG RUN: {dag_run}")
                     start_date_time = dag_run.conf["start_date_time"]
                     end_date_time = dag_run.conf["end_date_time"]
-                except Exception as e:
+                except Exception:
                     exception_occurred = True
-                    logger.exception(f"Exception in get_dag_date_time_values", {e})
+                    logger.exception("Exception in get_dag_date_time_values")
 
         if not is_manual_run or exception_occurred:
-            execution_date = (
-                dag_run.execution_date if dag_run else datetime.now(timezone.utc)
-            )
+            run_time = DateUtils.get_dag_run_time(**kwargs)
             delta = timedelta(**delta_kwargs)
-            start_date_time = execution_date - delta
-            end_date_time = execution_date
+            start_date_time = run_time - delta
+            end_date_time = run_time
 
             start_date_time = DateUtils.format_datetime_by_unit_str(
                 start_date_time, unit + "_start"
@@ -119,21 +137,17 @@ class DateUtils:
         Args:
             hours(int, optional): The number of hours to use for the time window when `days` is zero. Defaults to 1.
             days(int, optional): The number of days to use for the time window. If non-zero, this value overrides `hours`. Defaults to 0.
-            **kwargs: Additional keyword arguments. Expected to contain a "dag_run" key with an `execution_date` attribute.
+            **kwargs: Additional keyword arguments. Usually the Airflow context, read by `get_dag_run_time`.
 
         Returns:
             tuple: A tuple containing two strings:
                 - The formatted start datetime.
                 - The formatted end datetime.
         """
-        execution_date = (
-            kwargs["dag_run"].execution_date
-            if kwargs.get("dag_run", None)
-            else datetime.now(timezone.utc)
-        )
+        run_time = DateUtils.get_dag_run_time(**kwargs)
 
         delta = timedelta(days=days) if days else timedelta(hours=hours)
-        start_date_time = execution_date - delta
+        start_date_time = run_time - delta
         end_date_time = start_date_time + delta
 
         return DateUtils.date_to_str(

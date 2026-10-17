@@ -15,6 +15,7 @@ from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.calibration import CalibrationPipeline
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from dag_docs import calibration_model_training_doc
@@ -32,7 +33,9 @@ def calibration_model_training():
     @task()
     def compute_training_window(**context) -> dict:
         """Derive [start, end] dates from the DAG logical date."""
-        end = context["logical_date"].replace(hour=0, minute=0, second=0, microsecond=0)
+        end = DateUtils.get_dag_run_time(**context).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         end = end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         start = end - relativedelta(
             months=int(configuration.CALIBRATION_TRAINING_MONTHS)
@@ -43,7 +46,7 @@ def calibration_model_training():
         }
 
     @task()
-    def run_calibration_training(window: dict) -> dict:
+    def run_calibration_training(window: dict) -> None:
         """Fetch → preprocess → train → deploy for every configured country."""
         pipeline = CalibrationPipeline(
             start_date=window["start_date"],

@@ -18,7 +18,7 @@ from airqo_etl_utils.weather_data_utils import WeatherDataUtils
     tags=["weather", "historical", "raw"],
 )
 def weather_data_historical_raw_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=7, **kwargs
@@ -54,7 +54,7 @@ def weather_data_historical_raw_measurements():
     tags=["weather", "historical", "hourly"],
 )
 def weather_data_historical_hourly_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=7, **kwargs
@@ -92,7 +92,7 @@ def weather_data_historical_hourly_measurements():
     tags=["weather", "cleanup"],
 )
 def weather_data_cleanup_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
@@ -106,7 +106,7 @@ def weather_data_cleanup_measurements():
             remove_outliers=False,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
@@ -169,11 +169,11 @@ def weather_data_cleanup_measurements():
     tags=["weather", "hourly", "raw"],
 )
 def weather_data_realtime():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
 
-        execution_date = kwargs["dag_run"].execution_date
-        hour_of_day = execution_date - timedelta(hours=1)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day = logical_date - timedelta(hours=1)
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
         )

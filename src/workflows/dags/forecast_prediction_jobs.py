@@ -27,6 +27,7 @@ from task_docs import (
     "AirQo-forecasting-job",
     schedule="0 1 * * *",
     default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
     tags=["airqo", "hourly-forecast", "daily-forecast", "prediction-job"],
 )
 def make_forecasts():
@@ -88,11 +89,11 @@ def make_forecasts():
         ForecastUtils.save_forecasts_to_mongo(data, Frequency.HOURLY)
 
     # Daily forecast tasks
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def get_historical_data_for_daily_forecasts(**kwargs):
 
-        execution_date = kwargs["dag_run"].execution_date
-        start_date = execution_date - timedelta(
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        start_date = logical_date - timedelta(
             days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
 
@@ -202,10 +203,10 @@ def make_site_daily_forecasts():
     @task()
     def fetch_site_prediction_data(**kwargs):
         """Fetch site-level prediction history for the configured lookback window."""
-        execution_date = kwargs["dag_run"].execution_date
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
         lookback_days = int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE or 30)
         return ForecastModelTrainer.fetch_site_prediction_data(
-            execution_date=execution_date,
+            execution_date=logical_date,
             lookback_days=lookback_days,
         )
 
@@ -288,10 +289,10 @@ def make_site_hourly_forecasts():
     @task(doc_md=fetch_site_hourly_prediction_data_doc)
     def fetch_site_prediction_data(**kwargs: Any) -> Any:
         """Fetch site-level hourly PM2.5 history from BigQuery."""
-        execution_date = kwargs["dag_run"].execution_date
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
         lookback_days = int(Config.SITE_HOURLY_FORECAST_LOOKBACK_DAYS or 14)
         return ForecastModelTrainer.fetch_site_hourly_prediction_data(
-            execution_date=execution_date,
+            execution_date=logical_date,
             lookback_days=lookback_days,
             min_hours=2,
         )

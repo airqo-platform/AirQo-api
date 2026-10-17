@@ -15,6 +15,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     dag_id="AirQo-satellite-model-training-job",
     schedule="0 0 1 * *",
     default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job", "satellite"],
 )
 def train_satellite_model():
