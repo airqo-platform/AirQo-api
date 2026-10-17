@@ -25,7 +25,6 @@ def cleanup_measurements():
     import pandas as pd
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=10),
     )
@@ -61,7 +60,7 @@ def cleanup_measurements():
 def realtime_daily_measurements():
     import pandas as pd
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
@@ -97,7 +96,7 @@ def realtime_daily_measurements():
 def historical_daily_measurements():
     import pandas as pd
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=7, **kwargs

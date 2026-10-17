@@ -1,6 +1,5 @@
 import pandas as pd
 from airflow.decorators import dag, task
-from airflow.utils.dates import days_ago
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.airnow_utils import AirnowDataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
@@ -9,14 +8,13 @@ from datetime import timedelta
 
 @dag(
     dag_id="Airnow-Historical-Bam-Data",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    start_date=days_ago(1),
     tags=["bam", "airnow", "historical"],
 )
 def airnow_bam_historical_data():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         return AirnowDataUtils.extract_bam_data(
@@ -49,14 +47,13 @@ def airnow_bam_historical_data():
 
 @dag(
     dag_id="Airnow-Realtime-Bam-Data",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    start_date=days_ago(1),
     tags=["bam", "airnow", "realtime", "hourly"],
 )
 def airnow_bam_realtime_data():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
         return AirnowDataUtils.extract_bam_data(

@@ -3,8 +3,6 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
-from airflow.utils.dates import days_ago
-
 import pandas as pd
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.datautils import DataUtils
@@ -18,14 +16,13 @@ from airqo_etl_utils.constants import Frequency, DeviceNetwork, DeviceCategory, 
 
 @dag(
     "AirQo-Historical-Bam-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
-    start_date=days_ago(1),
 )
 def airqo_bam_historical_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
@@ -85,7 +82,7 @@ airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
     tags=["airqo", "bam", "realtime"],
 )
 def airqo_bam_realtime_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
@@ -174,7 +171,7 @@ def airqo_bam_realtime_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_bam_measurements_cleanup():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=10, **kwargs
@@ -190,7 +187,7 @@ def airqo_bam_measurements_cleanup():
             data, remove_outliers=False
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=15, **kwargs
@@ -236,7 +233,7 @@ def airqo_bam_measurements_cleanup():
             exclude_cols=exclude_cols,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
 
         big_query_api = BigQueryApi()
@@ -244,7 +241,7 @@ def airqo_bam_measurements_cleanup():
             dataframe=data, table=big_query_api.raw_bam_measurements_table
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_hourly_data(data: pd.DataFrame):
 
         big_query_api = BigQueryApi()
