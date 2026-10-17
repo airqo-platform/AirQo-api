@@ -1,0 +1,68 @@
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel
+
+
+class NetworkResponse(BaseModel):
+    """A sensor manufacturer / data provider ("network" on the platform)."""
+    network_id: Optional[str] = None      # platform _id; None when only seen on devices
+    name: str
+    acronym: Optional[str] = None
+    status: Optional[str] = None
+    category: Optional[str] = None
+    data_source: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    description: Optional[str] = None
+    profile_picture: Optional[str] = None
+    platform_updated_at: Optional[datetime] = None
+    enabled: bool = True                  # passes the ENABLED_NETWORKS allow-list
+    total_devices: int = 0
+    deployed_devices: int = 0
+    online_devices: int = 0
+    thingspeak_devices: int = 0           # devices beacon can read from ThingSpeak
+    external_api_devices: int = 0         # devices readable through the manufacturer adapter
+
+
+class NetworkListResponse(BaseModel):
+    success: bool
+    message: str
+    total: int = 0
+    networks: List[NetworkResponse] = []
+
+
+class NetworkSyncResponse(BaseModel):
+    success: bool
+    message: str
+    updates_count: Optional[int] = None
+    new_count: Optional[int] = None
+
+
+class NetworkProfileSeedResponse(BaseModel):
+    success: bool
+    message: str
+    created: List[str] = []
+    existing: List[str] = []
+    components_added: List[str] = []
+    devices_assigned: int = 0
+    diagnosable: List[str] = []
+
+
+class NetworkProfileReadiness(BaseModel):
+    """How the IoT diagnostic engine sees one manufacturer profile."""
+    name: str
+    network: str
+    category: str
+    profile_id: str
+    diagnosable: bool
+    components: List[str] = []
+    transmission_components: List[str] = []
+    errors: List[str] = []
+    warnings: List[str] = []
+
+
+class NetworkProfilesResponse(BaseModel):
+    success: bool
+    message: str
+    profiles: List[NetworkProfileReadiness] = []

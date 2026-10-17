@@ -2,9 +2,10 @@
 CRUD helpers for reading the locally-synced ThingSpeak data tables:
 ``sync_raw_device_data`` / ``sync_hourly_device_data`` / ``sync_daily_device_data``.
 
-These tables key rows by ``channel_id`` (the ThingSpeak channel number as a
-string). We resolve device identity by joining with ``sync_device`` on
-``sync_device.device_number`` (Integer) cast to text.
+These tables key rows by ``channel_id``: the ThingSpeak channel number for
+airqo devices and the registry device id for devices from other
+manufacturers (see ``app.utils.networks.device_source_key``). We resolve
+device identity by joining with ``sync_device`` on that source key.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from app.models.device_data import (
     SyncDailyDeviceData,
 )
 from app.models.sync import SyncDevice
+from app.utils.networks import device_source_key
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +55,9 @@ def _resolve_devices(
     """
     Build lookups from a list of device names:
 
-    - ``info_by_name``: {device_name: {device_id, device_number, category}}
-    - ``name_by_channel``: {channel_id_str: device_name}
+    - ``info_by_name``: {device_name: {device_id, device_number, category,
+      network, profile_id, source_key}}
+    - ``name_by_channel``: {source_key: device_name}
     """
     names = [n for n in device_names if n]
     if not names:
@@ -70,13 +73,17 @@ def _resolve_devices(
     for row in rows:
         if not row.device_name:
             continue
+        source_key = device_source_key(row.network_id, row.device_id, row.device_number)
         info_by_name[row.device_name] = {
             "device_id": row.device_id,
             "device_number": row.device_number,
             "category": row.category or "lowcost",
+            "network": row.network_id,
+            "profile_id": row.profile_id,
+            "source_key": source_key,
         }
-        if row.device_number is not None:
-            name_by_channel[str(row.device_number)] = row.device_name
+        if source_key:
+            name_by_channel[source_key] = row.device_name
 
     return info_by_name, name_by_channel
 

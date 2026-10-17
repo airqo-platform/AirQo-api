@@ -214,7 +214,7 @@ def get_synced_grid(
                 raise HTTPException(
                     status_code=404,
                     detail=(
-                        f"Grid {grid_id} has no active devices with network_id '{grid_sync_service.AIRQO_NETWORK}' "
+                        f"Grid {grid_id} has no active devices on an enabled network "
                         "for includePerformance"
                     ),
                 )
