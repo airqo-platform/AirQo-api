@@ -31,6 +31,42 @@ const PADDLE_NOT_CONFIGURED = {
   status: httpStatus.SERVICE_UNAVAILABLE,
 };
 
+// Paddle answers "forbidden" when the API key in use has expired, lacks the
+// permission for the requested operation, or belongs to another Paddle account.
+// That is an environment configuration problem, not a server fault, so surface
+// it as 503 with a clear message instead of a generic 500. Clients poll the
+// status endpoint, so the ops alert is cooled down per operation.
+const paddleForbiddenResponse = async (error, operation, tenant) => {
+  if (!error || error.code !== "forbidden") return null;
+  const hint =
+    "check that PADDLE_API_KEY has not expired, has the required permissions " +
+    "and belongs to the same Paddle account and environment " +
+    `(${constants.PADDLE_ENVIRONMENT || "sandbox"}) as the subscription`;
+  logger.warn(`Paddle rejected ${operation.detail} with "forbidden" — ${hint}`);
+  const shouldAlert = await opsAlertDeduplicator.shouldAlert(
+    `paddle-forbidden:${operation.name}`,
+    { tenant },
+  );
+  if (shouldAlert) {
+    opsLogger.error("PADDLE_REQUEST_FORBIDDEN", {
+      environment: constants.ENVIRONMENT,
+      operation: operation.detail,
+      message: error.message,
+      hint,
+    });
+  }
+  return {
+    success: false,
+    message: "The payment provider rejected this request",
+    errors: {
+      message:
+        "Subscription management is temporarily unavailable. " +
+        "Please try again later or contact support.",
+    },
+    status: httpStatus.SERVICE_UNAVAILABLE,
+  };
+};
+
 /**
  * Determine subscription tier from a completed Paddle transaction.
  * Priority: customData.tier (set at checkout) > Paddle price ID > amount fallback.
@@ -1511,12 +1547,11 @@ const transactions = {
   getSubscriptionStatus: async (request) => {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
     let freshUser;
+    const tenant =
+      (request.query && request.query.tenant) ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
     try {
-      const tenant =
-        (request.query && request.query.tenant) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
-
       // Re-fetch from DB: request.user is decoded from the JWT and may predate
       // the webhook that wrote currentSubscriptionId onto the user document.
       freshUser = await UserModel(tenant)
@@ -1556,6 +1591,15 @@ const transactions = {
         },
       };
     } catch (error) {
+      const forbidden = await paddleForbiddenResponse(
+        error,
+        {
+          name: "subscriptions.get",
+          detail: `subscriptions.get for user ${request.user._id}, subscriptionId ${freshUser && freshUser.currentSubscriptionId}`,
+        },
+        tenant,
+      );
+      if (forbidden) return forbidden;
       logger.error(
         `getSubscriptionStatus error for user ${request.user._id}, subscriptionId ${freshUser && freshUser.currentSubscriptionId} --- ${stringify(error)}`,
       );
@@ -1570,11 +1614,11 @@ const transactions = {
 
   changeSubscriptionTier: async (request, next) => {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    const tenant =
+      (request.query && request.query.tenant) ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
     try {
-      const tenant =
-        (request.query && request.query.tenant) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
       const { tier: requestedTier } = request.body;
 
       const TIER_PRICE_MAP = {
@@ -1672,6 +1716,15 @@ const transactions = {
         },
       };
     } catch (error) {
+      const forbidden = await paddleForbiddenResponse(
+        error,
+        {
+          name: "subscriptions.update",
+          detail: `subscriptions.update (change tier) for user ${request.user._id}`,
+        },
+        tenant,
+      );
+      if (forbidden) return forbidden;
       logger.error(`changeSubscriptionTier error --- ${stringify(error)}`);
       return {
         success: false,
