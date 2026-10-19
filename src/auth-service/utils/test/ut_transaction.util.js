@@ -768,6 +768,129 @@ describe("transactions.getSubscriptionStatus", () => {
   });
 });
 
+describe("Paddle 'forbidden' errors on subscription endpoints", () => {
+  let localTransactions;
+  let localPaddleClient;
+  let opsLoggerErrorStub;
+  let shouldAlertStub;
+  let originalPremiumPriceId;
+
+  const forbiddenError = () =>
+    Object.assign(new Error("You aren't permitted to perform this request."), {
+      type: "request_error",
+      code: "forbidden",
+    });
+
+  const mockRequest = (body = {}) => ({
+    user: { _id: "user123" },
+    query: { tenant: "airqo" },
+    body,
+  });
+
+  before(() => {
+    // Intercept loggers before transaction.util.js binds opsLogger at load time.
+    const log4js = require("log4js");
+    const fakeLogger = { error: sinon.stub(), info: () => {}, warn: () => {} };
+    opsLoggerErrorStub = fakeLogger.error;
+
+    const getLoggerStub = sinon.stub(log4js, "getLogger").callsFake(() => fakeLogger);
+    delete require.cache[require.resolve("@config/paddle")];
+    delete require.cache[require.resolve("@utils/transaction.util")];
+    localTransactions = require("@utils/transaction.util");
+    localPaddleClient = require("@config/paddle").paddleClient;
+    getLoggerStub.restore();
+  });
+
+  beforeEach(() => {
+    sinon.restore();
+    opsLoggerErrorStub.resetHistory();
+
+    const UserModel = require("@models/User");
+    sinon.stub(UserModel("airqo"), "findById").returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({
+          _id: "user123",
+          currentSubscriptionId: "sub_forbidden",
+          subscriptionTier: "Standard",
+        }),
+      }),
+    });
+
+    const {
+      opsAlertDeduplicator,
+    } = require("@utils/common/ops-alert-dedup.util");
+    shouldAlertStub = sinon.stub(opsAlertDeduplicator, "shouldAlert").resolves(true);
+
+    originalPremiumPriceId = constants.PADDLE_PREMIUM_PRICE_ID;
+    constants.PADDLE_PREMIUM_PRICE_ID = "pri_premium_test";
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    constants.PADDLE_PREMIUM_PRICE_ID = originalPremiumPriceId;
+  });
+
+  it("getSubscriptionStatus returns 503 with a clear message instead of 500", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    const result = await localTransactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    expect(result.success).to.equal(false);
+    expect(result.message).to.equal("The payment provider rejected this request");
+  });
+
+  it("changeSubscriptionTier returns 503 with a clear message instead of 500", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "update").rejects(forbiddenError());
+
+    const result = await localTransactions.changeSubscriptionTier(
+      mockRequest({ tier: "Premium" }),
+    );
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    expect(result.success).to.equal(false);
+    expect(result.message).to.equal("The payment provider rejected this request");
+  });
+
+  it("sends one PADDLE_REQUEST_FORBIDDEN ops alert keyed on the operation", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    await localTransactions.getSubscriptionStatus(mockRequest());
+
+    sinon.assert.calledWith(shouldAlertStub, "paddle-forbidden:subscriptions.get");
+    const alertCalls = opsLoggerErrorStub
+      .getCalls()
+      .filter((c) => c.args[0] === "PADDLE_REQUEST_FORBIDDEN");
+    expect(alertCalls).to.have.lengthOf(1);
+    expect(alertCalls[0].args[1].environment).to.equal(constants.ENVIRONMENT);
+  });
+
+  it("suppresses the ops alert while the cooldown is active", async () => {
+    shouldAlertStub.resolves(false);
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    const result = await localTransactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    const alertCalls = opsLoggerErrorStub
+      .getCalls()
+      .filter((c) => c.args[0] === "PADDLE_REQUEST_FORBIDDEN");
+    expect(alertCalls).to.have.lengthOf(0);
+  });
+
+  it("still returns 500 for other Paddle errors", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "update").rejects(new Error("Paddle API down"));
+
+    const result = await localTransactions.changeSubscriptionTier(
+      mockRequest({ tier: "Premium" }),
+    );
+
+    expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    expect(result.message).to.equal("Failed to change subscription tier");
+    sinon.assert.notCalled(shouldAlertStub);
+  });
+});
+
 describe("transactions.notifyAdminOfTransactionError", () => {
   let localTransactions;
   let opsLoggerErrorStub;
