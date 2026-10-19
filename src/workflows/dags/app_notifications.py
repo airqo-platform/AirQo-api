@@ -223,7 +223,7 @@ def send_push_notification():
     "Send-Email-Notifications",
     schedule="0 4 * * 1",
     default_args=AirflowUtils.dag_default_configs(),
-    catchup=True,
+    catchup=False,
     tags=["app", "notifications", "email"],
 )
 def send_email_notifications():

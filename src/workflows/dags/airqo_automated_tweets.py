@@ -11,8 +11,9 @@ from typing import Dict
 @dag(
     "AirQo-automated-tweets",
     # set the schedule to 7am every day
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     default_args=AirflowUtils.dag_default_configs(),
+    catchup=False,
     tags=["airqo", "automated-tweets"],
 )
 def create_forecast_tweets():

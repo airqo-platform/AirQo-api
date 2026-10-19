@@ -55,7 +55,6 @@ def retrieve_satellite_data():
 )
 def copernicus_hourly_measurements():
     @task(
-        provide_context=True,
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
@@ -66,7 +65,6 @@ def copernicus_hourly_measurements():
             raise RuntimeError(f"CAMS download failed: {result.error}")
 
     @task(
-        provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
@@ -87,7 +85,6 @@ def copernicus_hourly_measurements():
         return merged_df
 
     @task(
-        provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
@@ -115,7 +112,6 @@ def NOMADS_daily_measurements():
     from airflow.models import Variable
 
     @task(
-        provide_context=True,
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
@@ -136,7 +132,6 @@ def NOMADS_daily_measurements():
         return file
 
     @task(
-        provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
@@ -151,7 +146,6 @@ def NOMADS_daily_measurements():
         return clean_data
 
     @task(
-        provide_context=True,
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
@@ -178,20 +172,20 @@ def NOMADS_daily_measurements():
 def satellite_data_location_approximations():
     from airqo_etl_utils.storage import get_configured_storage
 
-    @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
+    @task(retries=1, retry_delay=timedelta(minutes=5))
     def approximate_locations(**kwargs) -> pd.DataFrame:
-        execution_date = kwargs["dag_run"].execution_date
-        hour_of_day: datetime = execution_date - timedelta(hours=1)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day: datetime = logical_date - timedelta(hours=1)
         # TODO: Periodically review data sources for more accurate satellite data and or forecast data.
         # Pass only dates since most satellite data only have date with times set to 00:00:00,
-        # so we approximate the satellite data locations for the whole day of the execution date, which is the previous day of the current date.
+        # so we approximate the satellite data locations for the whole day of the logical date, which is the previous day of the current date.
         start_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
         end_date_time = DateUtils.date_to_str(hour_of_day, str_format="%Y-%m-%d")
         return SatelliteUtils.approximate_satellite_data_locations_for_airquality_measurements(
             start_date=start_date_time, end_date=end_date_time
         )
 
-    @task(provide_context=True, retries=1, retry_delay=timedelta(minutes=5))
+    @task(retries=1, retry_delay=timedelta(minutes=5))
     def load_to_bigquery(data):
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.SATELLITE, Frequency.HOURLY
