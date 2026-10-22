@@ -108,22 +108,21 @@ class TestDataExportRequestInvalid:
         payload = {**BASE, "startDateTime": start, "endDateTime": end}
         assert DataExportRequest(**payload) is not None
 
-    @pytest.mark.parametrize("frequency,limit", [("raw", 31), ("hourly", 90)])
-    def test_raw_and_hourly_use_their_own_limits(self, frequency, limit):
+    @pytest.mark.parametrize(
+        "model,frequency,limit",
+        [(RawDataExportRequest, "raw", 31), (DataExportRequest, "hourly", 90)],
+    )
+    def test_raw_and_hourly_use_their_own_limits(self, model, frequency, limit):
         """Pinned as literals on purpose, because the README states these
         defaults of MAX_RAW_QUERY_DAYS and MAX_HOURLY_QUERY_DAYS."""
         base = {**BASE, "frequency": frequency, "datatype": "raw"}
 
         start, end = _span(limit)
-        at_limit = DataExportRequest(
-            **{**base, "startDateTime": start, "endDateTime": end}
-        )
+        at_limit = model(**{**base, "startDateTime": start, "endDateTime": end})
         assert at_limit.frequency == frequency
 
         with pytest.raises(ValidationError):
-            DataExportRequest(
-                **{**base, "startDateTime": _past(limit + 1), "endDateTime": _now()}
-            )
+            model(**{**base, "startDateTime": _past(limit + 1), "endDateTime": _now()})
 
     def test_limit_counts_the_full_span(self):
         """A window of the limit plus one hour is rejected."""
@@ -202,16 +201,10 @@ class TestDataExportRequestInvalid:
         [
             ({"frequency": "hourly"}, True),
             ({"frequency": "daily"}, False),
-            ({"frequency": "raw", "datatype": "raw"}, True),
-            (
-                {"frequency": "raw", "datatype": "raw", "device_category": "mobile"},
-                False,
-            ),
         ],
     )
     def test_offers_coarser_frequency(self, changes, offered):
-        """A download offers a coarser frequency at raw and hourly, except for
-        mobile devices, which accept the raw frequency only."""
+        """A download offers a coarser frequency when its frequency is hourly."""
         assert (
             DataExportRequest(**{**BASE, **changes}).offers_coarser_frequency()
             is offered
@@ -295,18 +288,6 @@ class TestDataExportRequestInvalid:
         with pytest.raises(ValidationError):
             DataExportRequest(**{**BASE, "frequency": "quarterly"})
 
-    def test_calibrated_with_raw_frequency_rejected(self):
-        with pytest.raises(ValidationError) as exc:
-            DataExportRequest(**{**BASE, "datatype": "calibrated", "frequency": "raw"})
-        assert "calibrated" in str(exc.value).lower()
-
-    def test_mobile_with_non_raw_frequency_rejected(self):
-        with pytest.raises(ValidationError) as exc:
-            DataExportRequest(
-                **{**BASE, "device_category": "mobile", "frequency": "hourly"}
-            )
-        assert "mobile" in str(exc.value).lower()
-
 
 class TestRawDataExportRequest:
     def test_valid_raw_request(self):
@@ -353,6 +334,55 @@ class TestRawDataExportRequest:
             sites=["site1'; DROP TABLE sites; --"],
         )
         assert req.sites is not None
+
+
+class TestDownloadPollutants:
+    @pytest.mark.parametrize("model", [DataExportRequest, RawDataExportRequest])
+    @pytest.mark.parametrize("pollutants", [None, []])
+    def test_at_least_one_pollutant_required(self, model, pollutants):
+        body = {k: v for k, v in BASE.items() if k not in ("pollutants", "frequency")}
+        if pollutants is not None:
+            body["pollutants"] = pollutants
+        with pytest.raises(ValidationError) as exc:
+            model(**body)
+        assert [error["loc"] for error in exc.value.errors()] == [("pollutants",)]
+
+    @pytest.mark.parametrize(
+        "model,overrides,valid",
+        [
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5"]},
+                True,
+            ),
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5", "pm10"]},
+                False,
+            ),
+            (
+                DataExportRequest,
+                {
+                    "device_category": "bam",
+                    "frequency": "hourly",
+                    "pollutants": ["pm2_5", "pm10"],
+                },
+                True,
+            ),
+        ],
+    )
+    def test_pollutants_follow_the_requested_data(self, model, overrides, valid):
+        """
+        The requested data decides which pollutants a download request accepts.
+        """
+        body = {k: v for k, v in BASE.items() if k != "frequency"}
+        body.update(overrides)
+        if valid:
+            assert model(**body).pollutants == overrides["pollutants"]
+        else:
+            with pytest.raises(ValidationError) as exc:
+                model(**body)
+            assert [error["type"] for error in exc.value.errors()] == ["value_error"]
 
 
 class TestDashboardChartRequest:
@@ -612,12 +642,6 @@ class TestWindowLimitsAreIndependent:
     @pytest.mark.parametrize(
         "setting,request_class,window_keys,fields",
         [
-            (
-                _RAW,
-                DataExportRequest,
-                _DATE_TIME,
-                {**BASE, "frequency": "raw", "datatype": "raw"},
-            ),
             (_HOURLY, DataExportRequest, _DATE_TIME, {**BASE, "frequency": "hourly"}),
             (_RAW, RawDataExportRequest, _DATE_TIME, {**BASE, "frequency": "raw"}),
             (_AGGREGATION, ForecastDataExportRequest, _DATE_TIME, {"country": "ug"}),
@@ -634,7 +658,6 @@ class TestWindowLimitsAreIndependent:
             (_AGGREGATION, DataSummaryRequest, _TIME, {"grid_id": "g1"}),
         ],
         ids=[
-            "data-download raw",
             "data-download hourly",
             "raw-data",
             "forecast-data",

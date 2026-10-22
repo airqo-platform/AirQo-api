@@ -50,6 +50,25 @@ class TestV2DataEndpoints:
         assert body["data"] is None and body["metadata"] is None
         assert "detail" not in body
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/v2/analytics/data-download",
+            "/api/v2/analytics/raw-data",
+            "/api/v3/public/analytics/data-download",
+            "/api/v3/public/analytics/raw-data",
+        ],
+    )
+    def test_empty_pollutant_list_returns_422(
+        self, client, valid_export_payload, valid_raw_payload, path
+    ):
+        payload = (
+            valid_raw_payload if path.endswith("raw-data") else valid_export_payload
+        )
+        resp = client.post(path, json={**payload, "pollutants": []})
+        assert resp.status_code == 422
+        assert [error["loc"][-1] for error in resp.json()["errors"]] == ["pollutants"]
+
     def test_unknown_route_404_uses_error_envelope(self, client):
         """Framework-raised (starlette) HTTPExceptions must get the same
         envelope as service-raised ones."""

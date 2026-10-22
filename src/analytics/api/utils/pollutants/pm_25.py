@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 PM_25_COLOR_MAPPER = {
     600.4: "#808080",
     500.4: "#81202e",
@@ -96,6 +98,24 @@ COMMON_POLLUTANT_MAPPING_v2 = {
     "no2_calibrated": ["no2_calibrated_value"],
     "no2_raw": ["no2_raw_value"],
 }
+
+
+def pollutant_column_map(
+    device_category: str, data_type: str, frequency: str
+) -> Dict[str, List[str]]:
+    """
+    Map each pollutant name to the columns that hold it in the table that a
+    request reads.
+    """
+    # Calibrated data and BAM data coarser than raw come from the averaged tables.
+    kind = (
+        "averaged"
+        if data_type == "calibrated"
+        or (device_category == "bam" and frequency != "raw")
+        else "raw"
+    )
+    return COMMON_POLLUTANT_MAPPING_v2.get(device_category, {}).get(kind, {})
+
 
 BQ_FREQUENCY_MAPPER = {
     "raw": COMMON_POLLUTANT_MAPPING,

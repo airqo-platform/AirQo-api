@@ -28,6 +28,7 @@ from typing import List, Optional, Sequence, Set
 import numpy as np
 import pandas as pd
 
+from api.utils.pollutants.pm_25 import pollutant_column_map
 from constants import DataType, DeviceCategory, Frequency
 
 logger = logging.getLogger(__name__)
@@ -144,7 +145,9 @@ class CoerceNumericAndDropZeroColumns(CleaningStep):
     Non-numeric junk in numeric columns becomes NaN (``errors="coerce"``).
     For raw data spanning non-airqo or mixed networks, ``pm2_5`` is treated as
     a required numeric column so its absence is surfaced as an error rather
-    than silently returning a malformed export.
+    than silently returning a malformed export. For BAM data, the columns that
+    ``COMMON_POLLUTANT_MAPPING_v2`` gives for the requested pollutants take the
+    place of ``pm2_5``.
 
     Raises:
         ValueError: If a required numeric column is missing.
@@ -156,7 +159,17 @@ class CoerceNumericAndDropZeroColumns(CleaningStep):
         if ctx.datatype == DataType.RAW and "network" in df.columns:
             networks = df["network"].dropna().unique().tolist()
             if "airqo" not in networks or len(networks) > 1:
-                required.add("pm2_5")
+                if ctx.device_category == DeviceCategory.BAM:
+                    columns = pollutant_column_map(
+                        ctx.device_category.value,
+                        ctx.datatype.value,
+                        ctx.frequency.value,
+                    )
+                    required.update(
+                        c for p in ctx.pollutants for c in columns.get(p, [])
+                    )
+                else:
+                    required.add("pm2_5")
 
         missing = [col for col in required if col not in df.columns]
         if missing:

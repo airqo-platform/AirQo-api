@@ -200,10 +200,14 @@ class BaseConfig(BaseSettings):
     )
     # The /report data query (v2 and v3) reads the hourly consolidated table
     # for every member of a grid or cohort over the whole window, so it takes
-    # a ceiling of 200 MB (200,000,000 bytes).  Every other query keeps
-    # bigquery_max_bytes_billed.
+    # a ceiling of 200 MB (200,000,000 bytes).  A query without a ceiling of its
+    # own keeps bigquery_max_bytes_billed.
     bigquery_report_max_bytes_billed: int = Field(
         default=200_000_000, validation_alias="BIGQUERY_REPORT_MAX_BYTES_BILLED"
+    )
+    # The /raw-data query reads the largest tables, so it takes a ceiling of 200 MB.
+    bigquery_raw_data_max_bytes_billed: int = Field(
+        default=200_000_000, validation_alias="BIGQUERY_RAW_DATA_MAX_BYTES_BILLED"
     )
     bigquery_job_timeout_ms: int = Field(
         default=30_000, validation_alias="BIGQUERY_JOB_TIMEOUT_MS"
@@ -501,7 +505,7 @@ class BaseConfig(BaseSettings):
                 DeviceCategory.BAM: {
                     Frequency.RAW: self.bigquery_raw_bam_data_table,
                     Frequency.HOURLY: self.bigquery_bam_hourly_data,
-                    Frequency.DAILY: self.bigquery_daily_data,
+                    Frequency.DAILY: self.bigquery_bam_hourly_data,
                 },
                 DeviceCategory.SATELLITE: {
                     Frequency.RAW: self.bigquery_satellite_data_table,
@@ -515,7 +519,7 @@ class BaseConfig(BaseSettings):
                 },
                 DeviceCategory.BAM: {
                     Frequency.HOURLY: self.bigquery_bam_hourly_data,
-                    Frequency.DAILY: self.bigquery_daily_data,
+                    Frequency.DAILY: self.bigquery_bam_hourly_data,
                 },
             },
         }

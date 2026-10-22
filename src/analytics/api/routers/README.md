@@ -129,7 +129,7 @@ see [Air-Quality Report](#air-quality-report).
 | `cohort_ids`      | string[]          | one filter required | —         | Exactly one cohort                                        |
 | `network`         | enum              | no                  | `airqo`   | `airqo`                                                   |
 | `device_category` | enum              | no                  | `lowcost` | `lowcost`, `bam`, `gas`, `general`, `mobile`, `satellite` |
-| `pollutants`      | string[]          | no                  | `[]`      | Only `pm2_5` and `pm10`                                   |
+| `pollutants`      | string[]          | downloads: **yes**  | —         | `pm2_5`, `pm10`; `pm2_5` only for raw `bam` data          |
 | `metaDataFields`  | string[]          | no                  | —         | Only `latitude`, `longitude`, `site_id`                   |
 | `weatherFields`   | string[]          | no                  | —         | Only `temperature`, `humidity`                            |
 | `cursor`          | string            | no                  | —         | Token from `metadata.next`, see [Pagination](#pagination) |
@@ -160,8 +160,11 @@ Every rule below is enforced server-side and returns **422** with a
   for each month.
 - `startDateTime` must not be in the future; `endDateTime` must be strictly
   after it.
-- `datatype: "calibrated"` is invalid with `frequency: "raw"`.
-- `device_category: "mobile"` requires `frequency: "raw"`.
+- `data-download` takes the `hourly`, `daily`, `weekly`, `monthly` and
+  `yearly` frequencies. The `raw` frequency comes from `raw-data`.
+- `data-download` and `raw-data` require at least one pollutant.
+- Raw data for `device_category: "bam"` takes `pm2_5` only. Other data takes
+  `pm2_5` and `pm10`.
 
 The `?tenant=` selector has been removed.
 
@@ -175,7 +178,7 @@ shared fields plus:
 
 | JSON field     | Type    | Default          | Allowed values                                          |
 | -------------- | ------- | ---------------- | ------------------------------------------------------- |
-| `frequency`    | enum    | `daily`          | `raw`, `hourly`, `daily`, `weekly`, `monthly`, `yearly` |
+| `frequency`    | enum    | `daily`          | `hourly`, `daily`, `weekly`, `monthly`, `yearly`        |
 | `datatype`     | enum    | `calibrated`     | `raw`, `averaged`, `calibrated`, `consolidated`         |
 | `downloadType` | enum    | `json`           | `json`, `csv`                                           |
 | `outputFormat` | enum    | `airqo-standard` | `airqo-standard`, `aqcsv`                               |
@@ -263,6 +266,10 @@ envelope as data-download. It **does** support `"downloadType": "csv"`. The
 route allows 5 exports a minute for each client. The requests for the later
 pages of an export count only against the global limit, as
 [Pagination](#pagination) describes.
+
+A request with `device_category: "bam"` names `pm2_5` in `pollutants`. Each
+record carries the `realtime_conc`, `hourly_conc` and `short_time_conc`
+columns.
 
 ```json
 {
@@ -796,7 +803,9 @@ Validation failures add an `errors` array describing each offending field:
 **400 when the date range scans too much data.** Every query runs under a
 per-request byte ceiling (`BIGQUERY_MAX_BYTES_BILLED`, **100 MB** by default).
 The data query of `report` runs under its own ceiling
-(`BIGQUERY_REPORT_MAX_BYTES_BILLED`, **200 MB** by default).
+(`BIGQUERY_REPORT_MAX_BYTES_BILLED`, **200 MB** by default), and the query of
+`raw-data` runs under another one (`BIGQUERY_RAW_DATA_MAX_BYTES_BILLED`,
+**200 MB** by default).
 BigQuery checks it while planning the job, so an over-budget request is refused
 before anything is scanned — the query never runs and costs nothing. The
 response names the two levers that bring a request under the ceiling:
@@ -838,10 +847,10 @@ fields that shape the query:
 
 The message names only the fields the request offers. The `data-download` and
 chart bodies offer all three: the site or device list, the date range and, at
-`raw` and `hourly` frequency, a coarser frequency. The `raw-data` body and a
-`data-download` body for `device_category: mobile` accept the raw frequency
-only, so their messages name the site or device list and the date range. The
-`report`, `summary` and `forecast-data` bodies offer the date range alone.
+`raw` and `hourly` frequency, a coarser frequency. The `raw-data` body accepts
+the raw frequency only, so its messages name the site or device list and the
+date range. The `report`, `summary` and `forecast-data` bodies offer the date
+range alone.
 
 A request that carries a cursor reads a stored result and runs no query, so
 the two responses above come only from the first request of a paged export.
