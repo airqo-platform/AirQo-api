@@ -1756,6 +1756,25 @@ const createAccessRequest = {
       );
     };
 
+    // Per-request: a role failure is recorded on that request's result and
+    // never stops the remaining requests. Returns {} when no role was asked for.
+    const tryApplyRole = async (userId) => {
+      if (!roleToApply) return {};
+      if (!userId) return { role_assignment: "unresolved" };
+      try {
+        await applyRole(userId);
+        return { role_assignment: "applied" };
+      } catch (error) {
+        logger.error(
+          `Bulk decision: failed to apply role ${roleToApply._id} to user ${userId} in group ${grp_id} -- ${error.message}`,
+        );
+        return {
+          role_assignment: "failed",
+          role_message: "Membership granted but the requested role could not be applied",
+        };
+      }
+    };
+
     const results = [];
     for (const requestId of uniqueIds) {
       const accessRequest = requestsById.get(requestId);
@@ -1781,7 +1800,9 @@ const createAccessRequest = {
           actor: user,
           next: captureNext,
         });
-        if (repair.repaired) await applyRole(repair.user_id);
+        const repairRole = repair.repaired
+          ? await tryApplyRole(repair.user_id)
+          : {};
         results.push({
           request_id: requestId,
           user_id: repair.user_id,
@@ -1791,6 +1812,7 @@ const createAccessRequest = {
               ? "failed"
               : "already_approved",
           ...(repair.message && { message: repair.message }),
+          ...repairRole,
         });
         continue;
       }
@@ -1831,21 +1853,37 @@ const createAccessRequest = {
       // approval and membership and then fail on the email step (so trust the
       // stored status), and it sets user_id on email invitations that had
       // none when first loaded.
-      const fresh = await AccessRequestModel(tenant)
-        .findById(requestId)
-        .select("status user_id")
-        .lean();
+      let fresh = null;
+      let rereadFailed = false;
+      try {
+        fresh = await AccessRequestModel(tenant)
+          .findById(requestId)
+          .select("status user_id")
+          .lean();
+      } catch (error) {
+        rereadFailed = true;
+        logger.error(
+          `Bulk decision: failed to re-read access request ${requestId} -- ${error.message}`,
+        );
+      }
       const succeeded =
         response?.success === true || fresh?.status === decision;
-      const resolvedUserId = fresh?.user_id || accessRequest.user_id;
+      // Without the re-read, an email invitation's user_id is unknown, so
+      // don't guess which user to apply a role to.
+      const resolvedUserId = rereadFailed
+        ? null
+        : fresh?.user_id || accessRequest.user_id;
 
-      if (succeeded && decision === "approved") {
-        await applyRole(resolvedUserId);
-      }
+      const roleResult =
+        succeeded && decision === "approved"
+          ? await tryApplyRole(resolvedUserId)
+          : {};
 
       results.push({
         request_id: requestId,
-        user_id: resolvedUserId,
+        user_id: resolvedUserId || accessRequest.user_id,
+        ...(rereadFailed && { user_status: "unresolved" }),
+        ...roleResult,
         outcome: succeeded ? decision : "failed",
         ...(!succeeded && {
           message:
