@@ -500,8 +500,9 @@ class BigQueryApi:
 
         The query carries the ORDER BY of ``_get_pagination_order_clause``,
         and BigQuery writes the whole result to a temporary table.  The job
-        configuration binds the filter values and carries the byte limit and
-        the job timeout of ``query_job_config``.
+        configuration binds the filter values and carries the job timeout and
+        the byte limit, which ``bigquery_raw_data_max_bytes_billed`` sets at
+        the raw frequency.
 
         Returns:
             Tuple[str, bigquery.QueryJobConfig]: The query text and its configuration.
@@ -536,6 +537,8 @@ class BigQueryApi:
             cursor_field, filter_type, table
         )
         job_config = query_job_config()
+        if frequency == Frequency.RAW:
+            job_config.maximum_bytes_billed = Config.bigquery_raw_data_max_bytes_billed
         job_config.query_parameters = [self._build_filter_parameter(filter_value)]
         job_config.use_query_cache = use_cache
         return (
