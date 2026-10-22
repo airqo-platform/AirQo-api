@@ -285,7 +285,6 @@ const createAccessRequest = {
                 group_id: grp_id,
                 group_title: group.grp_title,
                 request_id: createdAccessRequest._id,
-                requester_email: user.email,
                 hint: "No active manager or admin is left in this group to review join requests. A system admin can approve via POST /api/v2/users/requests/:request_id/approve and set a new manager via PUT /api/v2/users/groups/:grp_id/enhanced-set-manager/:user_id",
               });
             })
@@ -1682,6 +1681,9 @@ const createAccessRequest = {
       {
         $project: {
           user_details: 0, // Remove the temporary field
+          // Invitation tokens let the holder accept an invitation.
+          invitationToken: 0,
+          invitationTokenExpires: 0,
         },
       },
       { $sort: { createdAt: -1 } },
@@ -1806,7 +1808,10 @@ const createAccessRequest = {
       const subRequest = {
         query: { tenant },
         params: { request_id: requestId },
-        body: { reason },
+        // rejectAccessRequest applies the body as the update and checks the
+        // stored status; the single-reject controller sets it the same way.
+        body:
+          decision === "rejected" ? { status: "rejected", reason } : { reason },
         user,
       };
       let response;
@@ -1822,24 +1827,25 @@ const createAccessRequest = {
         captured = error;
       }
 
-      let succeeded = response?.success === true;
-      if (!succeeded) {
-        // approveAccessRequest can finish the approval and membership and
-        // then fail on the email step; trust the stored status.
-        const fresh = await AccessRequestModel(tenant)
-          .findById(requestId)
-          .select("status")
-          .lean();
-        succeeded = fresh?.status === decision;
-      }
+      // Re-read the stored request: approveAccessRequest can finish the
+      // approval and membership and then fail on the email step (so trust the
+      // stored status), and it sets user_id on email invitations that had
+      // none when first loaded.
+      const fresh = await AccessRequestModel(tenant)
+        .findById(requestId)
+        .select("status user_id")
+        .lean();
+      const succeeded =
+        response?.success === true || fresh?.status === decision;
+      const resolvedUserId = fresh?.user_id || accessRequest.user_id;
 
       if (succeeded && decision === "approved") {
-        await applyRole(accessRequest.user_id);
+        await applyRole(resolvedUserId);
       }
 
       results.push({
         request_id: requestId,
-        user_id: accessRequest.user_id,
+        user_id: resolvedUserId,
         outcome: succeeded ? decision : "failed",
         ...(!succeeded && {
           message:
