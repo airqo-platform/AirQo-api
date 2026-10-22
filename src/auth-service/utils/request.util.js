@@ -18,6 +18,12 @@ const RoleModel = require("@models/Role");
 const RBACService = require("@services/rbac.service");
 const { logObject, HttpError, logText } = require("@utils/shared");
 const notificationUtil = require("@utils/notification.util");
+const rolePermissionsUtil = require("@utils/role-permissions.util");
+const {
+  opsAlertDeduplicator,
+} = require("@utils/common/ops-alert-dedup.util");
+// "ops-alerts" forwards WARN+ to Slack; see config/log4js.js.
+const opsLogger = require("log4js").getLogger("ops-alerts");
 
 // In-app notifications are best-effort and fire-and-forget: notifyUsers never
 // throws, and nothing here is awaited, so the access-request flow is never
@@ -90,6 +96,72 @@ const isGroupManagerOrAdmin = async (tenant, userId, groupId) => {
       ),
     ]);
   return isGroupManager || hasManagerPermissions || hasManagerRole;
+};
+
+/**
+ * Adds the requester to the group for an access request that is marked
+ * "approved" but whose user never became a member, and sends the approval
+ * email they never received. No-op when the user is already a member.
+ */
+const repairApprovedRequestMembership = async ({
+  tenant,
+  grp_id,
+  accessRequest,
+  actor,
+  next,
+}) => {
+  const fields = "email firstName lastName group_roles";
+  let user = null;
+  if (accessRequest.user_id) {
+    user = await UserModel(tenant)
+      .findById(accessRequest.user_id)
+      .select(fields)
+      .lean();
+  } else if (accessRequest.email) {
+    user = await UserModel(tenant)
+      .findOne({ email: accessRequest.email.toLowerCase() })
+      .select(fields)
+      .lean();
+  }
+  if (!user) {
+    return {
+      repaired: false,
+      failed: true,
+      message: "User for this request was not found",
+    };
+  }
+
+  const isMember = (user.group_roles || []).some(
+    (gr) => gr.group && gr.group.toString() === grp_id.toString(),
+  );
+  if (isMember) return { repaired: false, user_id: user._id };
+
+  const response = await createGroupUtil.assignOneUser(
+    { params: { grp_id, user_id: user._id }, query: { tenant }, user: actor },
+    next,
+  );
+  if (!response || response.success !== true) {
+    return {
+      repaired: false,
+      failed: true,
+      user_id: user._id,
+      message: response?.message || "Failed to add user to the group",
+    };
+  }
+
+  try {
+    await mailer.update({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      updatedUserDetails: { groups: 1 },
+    });
+  } catch (error) {
+    logger.error(
+      `Non-critical: failed to send approval email after membership repair -- ${error.message}`,
+    );
+  }
+  return { repaired: true, user_id: user._id };
 };
 
 const createAccessRequest = {
@@ -198,6 +270,29 @@ const createAccessRequest = {
           logger.warn(
             `No group manager/admin found to notify for join request to group ${grp_id}`,
           );
+          // Nobody active can approve this request (e.g. the manager left or
+          // was deactivated), so tell the AirQo team — at most once a day
+          // per group.
+          opsAlertDeduplicator
+            .shouldAlert(`group-without-active-manager:${grp_id}`, {
+              tenant,
+              ttlSeconds: 24 * 60 * 60,
+            })
+            .then((shouldAlert) => {
+              if (!shouldAlert) return;
+              opsLogger.warn("GROUP_JOIN_REQUEST_UNATTENDED", {
+                environment: constants.ENVIRONMENT,
+                group_id: grp_id,
+                group_title: group.grp_title,
+                request_id: createdAccessRequest._id,
+                hint: "No active manager or admin is left in this group to review join requests. A system admin can approve via POST /api/v2/users/requests/:request_id/approve and set a new manager via PUT /api/v2/users/groups/:grp_id/enhanced-set-manager/:user_id",
+              });
+            })
+            .catch((error) =>
+              logger.error(
+                `Non-critical: failed to raise unattended join request alert -- ${error.message}`,
+              ),
+            );
         }
         const requesterName = `${firstName} ${lastName}`;
 
@@ -260,6 +355,7 @@ const createAccessRequest = {
                 requester_name: requesterName,
                 requester_email: user.email,
                 entity_title: group.grp_title,
+                entity_slug: group.organization_slug,
                 request_id: createdAccessRequest._id,
                 tenant,
               }),
@@ -1535,6 +1631,301 @@ const createAccessRequest = {
         ),
       );
     }
+  },
+
+  /**
+   * Pending access requests for a group, with the requester's basic profile
+   * in place of user_id (shape used by GET /groups/:grp_id/access-requests).
+   */
+  listPendingGroupAccessRequests: async ({ tenant, grp_id }) => {
+    return AccessRequestModel(tenant).aggregate([
+      {
+        $match: {
+          // aggregate() does not cast, and targetId is an ObjectId.
+          targetId: ObjectId(grp_id),
+          requestType: "group",
+          status: "pending",
+        },
+      },
+      {
+        $lookup: {
+          from: "users", // Collection name for the user model
+          // let/pipeline form: localField/foreignField combined with
+          // pipeline needs MongoDB 5.0+.
+          let: { userId: "$user_id" },
+          as: "user_details",
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+            {
+              $project: {
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                profilePicture: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          user_id: {
+            $cond: {
+              if: { $gt: [{ $size: "$user_details" }, 0] },
+              then: { $arrayElemAt: ["$user_details", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          user_details: 0, // Remove the temporary field
+          // Invitation tokens let the holder accept an invitation.
+          invitationToken: 0,
+          invitationTokenExpires: 0,
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+  },
+
+  /**
+   * Applies one decision to several of a group's access requests by running
+   * each through the same approve/reject flow as the single-request
+   * endpoints (membership assignment, approval email, activity log,
+   * notifications, rollback).
+   *
+   * Approving a request that is already "approved" but whose user never
+   * became a member — the state the previous bulk implementation left behind
+   * when no default_role was passed — repairs the membership.
+   *
+   * @returns {Promise<Object>} { success, status, message, data }
+   */
+  processBulkAccessRequestDecision: async ({
+    tenant,
+    grp_id,
+    request_ids = [],
+    decision,
+    reason,
+    default_role,
+    user,
+  }) => {
+    const uniqueIds = [...new Set(request_ids.map((id) => id.toString()))];
+
+    let roleToApply = null;
+    if (decision === "approved" && default_role) {
+      roleToApply = await RoleModel(tenant)
+        .findOne({ _id: default_role, group_id: grp_id })
+        .lean();
+      if (!roleToApply) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "default_role does not belong to this group",
+          errors: { message: "default_role does not belong to this group" },
+        };
+      }
+    }
+
+    const accessRequests = await AccessRequestModel(tenant)
+      .find({
+        _id: { $in: uniqueIds.map((id) => ObjectId(id)) },
+        targetId: ObjectId(grp_id),
+        requestType: "group",
+      })
+      .lean();
+    const requestsById = new Map(
+      accessRequests.map((ar) => [ar._id.toString(), ar]),
+    );
+
+    const applyRole = async (userId) => {
+      if (!roleToApply || !userId) return;
+      await rolePermissionsUtil.syncGroupManagerRolePermissions(
+        tenant,
+        roleToApply,
+      );
+      await UserModel(tenant).updateOne(
+        { _id: userId, "group_roles.group": ObjectId(grp_id) },
+        {
+          $set: {
+            "group_roles.$.role": roleToApply._id,
+            "group_roles.$.updatedAt": new Date(),
+          },
+        },
+      );
+    };
+
+    // Per-request: a role failure is recorded on that request's result and
+    // never stops the remaining requests. Returns {} when no role was asked for.
+    const tryApplyRole = async (userId) => {
+      if (!roleToApply) return {};
+      if (!userId) return { role_assignment: "unresolved" };
+      try {
+        await applyRole(userId);
+        return { role_assignment: "applied" };
+      } catch (error) {
+        logger.error(
+          `Bulk decision: failed to apply role ${roleToApply._id} to user ${userId} in group ${grp_id} -- ${error.message}`,
+        );
+        return {
+          role_assignment: "failed",
+          role_message: "Membership granted but the requested role could not be applied",
+        };
+      }
+    };
+
+    const results = [];
+    for (const requestId of uniqueIds) {
+      const accessRequest = requestsById.get(requestId);
+      if (!accessRequest) {
+        results.push({
+          request_id: requestId,
+          outcome: "not_found",
+          message: "Access request not found in this group",
+        });
+        continue;
+      }
+
+      let captured = null;
+      const captureNext = (error) => {
+        captured = error;
+      };
+
+      if (decision === "approved" && accessRequest.status === "approved") {
+        const repair = await repairApprovedRequestMembership({
+          tenant,
+          grp_id,
+          accessRequest,
+          actor: user,
+          next: captureNext,
+        });
+        const repairRole = repair.repaired
+          ? await tryApplyRole(repair.user_id)
+          : {};
+        results.push({
+          request_id: requestId,
+          user_id: repair.user_id,
+          outcome: repair.repaired
+            ? "membership_repaired"
+            : repair.failed
+              ? "failed"
+              : "already_approved",
+          ...(repair.message && { message: repair.message }),
+          ...repairRole,
+        });
+        continue;
+      }
+
+      if (accessRequest.status !== "pending") {
+        results.push({
+          request_id: requestId,
+          user_id: accessRequest.user_id,
+          outcome: "skipped",
+          message: `Request has already been ${accessRequest.status}`,
+        });
+        continue;
+      }
+
+      const subRequest = {
+        query: { tenant },
+        params: { request_id: requestId },
+        // rejectAccessRequest applies the body as the update and checks the
+        // stored status; the single-reject controller sets it the same way.
+        body:
+          decision === "rejected" ? { status: "rejected", reason } : { reason },
+        user,
+      };
+      let response;
+      try {
+        response =
+          decision === "approved"
+            ? await createAccessRequest.approveAccessRequest(subRequest, captureNext)
+            : await createAccessRequest.rejectAccessRequest(
+                subRequest,
+                captureNext,
+              );
+      } catch (error) {
+        captured = error;
+      }
+
+      // Re-read the stored request: approveAccessRequest can finish the
+      // approval and membership and then fail on the email step (so trust the
+      // stored status), and it sets user_id on email invitations that had
+      // none when first loaded.
+      let fresh = null;
+      let rereadFailed = false;
+      try {
+        fresh = await AccessRequestModel(tenant)
+          .findById(requestId)
+          .select("status user_id")
+          .lean();
+      } catch (error) {
+        rereadFailed = true;
+        logger.error(
+          `Bulk decision: failed to re-read access request ${requestId} -- ${error.message}`,
+        );
+      }
+      const succeeded =
+        response?.success === true || fresh?.status === decision;
+      // Without the re-read, an email invitation's user_id is unknown, so
+      // don't guess which user to apply a role to.
+      const resolvedUserId = rereadFailed
+        ? null
+        : fresh?.user_id || accessRequest.user_id;
+
+      const roleResult =
+        succeeded && decision === "approved"
+          ? await tryApplyRole(resolvedUserId)
+          : {};
+
+      results.push({
+        request_id: requestId,
+        user_id: resolvedUserId || accessRequest.user_id,
+        ...(rereadFailed && { user_status: "unresolved" }),
+        ...roleResult,
+        outcome: succeeded ? decision : "failed",
+        ...(!succeeded && {
+          message:
+            response?.message ||
+            captured?.errors?.message ||
+            captured?.message ||
+            "Unable to process request",
+        }),
+      });
+    }
+
+    const countOf = (outcome) =>
+      results.filter((r) => r.outcome === outcome).length;
+    const decidedCount = countOf(decision);
+    const repairedCount = countOf("membership_repaired");
+    const processedCount = decidedCount + repairedCount;
+
+    logger.info(
+      `User ${user?.email} processed bulk ${decision} for group ${grp_id}: ${decidedCount} ${decision}, ${repairedCount} repaired, ${countOf("failed")} failed`,
+    );
+
+    return {
+      success: true,
+      status: httpStatus.OK,
+      message: `${processedCount} access requests ${decision}`,
+      data: {
+        processed_count: processedCount,
+        decision,
+        auto_assigned_role: decision === "approved" && processedCount > 0,
+        role_applied: roleToApply ? roleToApply._id : null,
+        summary: {
+          requested: uniqueIds.length,
+          [decision]: decidedCount,
+          membership_repaired: repairedCount,
+          already_approved: countOf("already_approved"),
+          skipped: countOf("skipped"),
+          not_found: countOf("not_found"),
+          failed: countOf("failed"),
+        },
+        results,
+      },
+    };
   },
 
   rejectAccessRequest: async (request, next) => {

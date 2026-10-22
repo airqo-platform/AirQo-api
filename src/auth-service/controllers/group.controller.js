@@ -15,8 +15,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`,
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
-const UserModel = require("@models/User");
-const AccessRequestModel = require("@models/AccessRequest");
 
 // Helper function to handle common controller logic without RBAC
 const executeGroupAction = async (req, res, next, utilFunction) => {
@@ -626,7 +624,11 @@ const groupController = {
         );
       }
 
-      const { tenant, action = "list" } = req.query;
+      const { tenant } = req.query;
+      // POST /:grp_id/access-requests/bulk-decision without ?action= used to
+      // fall through to "list" and silently do nothing.
+      const action =
+        req.query.action || (req.method === "POST" ? "bulk_decision" : "list");
       const { request_ids, decision, reason, default_role } = req.body;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
@@ -635,50 +637,11 @@ const groupController = {
 
       switch (action) {
         case "list":
-          const requests = await AccessRequestModel(actualTenant).aggregate([
-            {
-              $match: {
-                targetId: grp_id,
-                requestType: "group",
-                status: "pending",
-              },
-            },
-            {
-              $lookup: {
-                from: "users", // Collection name for the user model
-                localField: "user_id",
-                foreignField: "_id",
-                as: "user_details",
-                pipeline: [
-                  {
-                    $project: {
-                      firstName: 1,
-                      lastName: 1,
-                      email: 1,
-                      profilePicture: 1,
-                    },
-                  },
-                ],
-              },
-            },
-            {
-              $addFields: {
-                user_id: {
-                  $cond: {
-                    if: { $gt: [{ $size: "$user_details" }, 0] },
-                    then: { $arrayElemAt: ["$user_details", 0] },
-                    else: null,
-                  },
-                },
-              },
-            },
-            {
-              $project: {
-                user_details: 0, // Remove the temporary field
-              },
-            },
-            { $sort: { createdAt: -1 } },
-          ]);
+          const requests =
+            await requestUtil.listPendingGroupAccessRequests({
+              tenant: actualTenant,
+              grp_id,
+            });
 
           result = {
             success: true,
@@ -688,71 +651,52 @@ const groupController = {
           break;
 
         case "bulk_decision":
-          if (!request_ids || !decision) {
+        case "single_decision": {
+          const ids =
+            action === "single_decision"
+              ? [req.body.request_id].filter(Boolean)
+              : request_ids;
+          if (!Array.isArray(ids) || ids.length === 0 || !decision) {
             return next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message:
-                  "request_ids and decision are required for bulk decisions",
+                  action === "single_decision"
+                    ? "request_id and decision are required for single decisions"
+                    : "request_ids and decision are required for bulk decisions",
               }),
             );
           }
 
-          const updateResult = await AccessRequestModel(
-            actualTenant,
-          ).updateMany(
-            {
-              _id: { $in: request_ids },
-              targetId: grp_id,
-              requestType: "group",
-            },
-            {
-              status: decision,
-              processedAt: new Date(),
-              processorReason: reason,
-              processedBy: user._id,
-            },
-          );
+          const decisionResult =
+            await requestUtil.processBulkAccessRequestDecision({
+              tenant: actualTenant,
+              grp_id,
+              request_ids: ids,
+              decision,
+              reason,
+              default_role,
+              user,
+            });
 
-          // If approved, add users to group
-          if (decision === "approved" && default_role) {
-            const approvedRequests = await AccessRequestModel(actualTenant)
-              .find({
-                _id: { $in: request_ids },
-                status: "approved",
-              })
-              .lean();
-
-            for (const request of approvedRequests) {
-              await UserModel(actualTenant).findByIdAndUpdate(request.user_id, {
-                $addToSet: {
-                  group_roles: {
-                    group: grp_id,
-                    role: default_role,
-                    userType: "user",
-                    createdAt: new Date(),
-                  },
+          if (decisionResult.success === false) {
+            return res
+              .status(decisionResult.status || httpStatus.BAD_REQUEST)
+              .json({
+                success: false,
+                message: decisionResult.message,
+                errors: decisionResult.errors || {
+                  message: decisionResult.message,
                 },
               });
-            }
           }
-
-          // Log the action
-          logger.info(
-            `User ${user.email} processed ${updateResult.nModified} access requests with decision: ${decision}`,
-            { grp_id, decision, reason },
-          );
 
           result = {
             success: true,
-            message: `${updateResult.nModified} access requests ${decision}`,
-            data: {
-              processed_count: updateResult.nModified,
-              decision,
-              auto_assigned_role:
-                decision === "approved" ? !!default_role : false,
-            },
+            message: decisionResult.message,
+            data: decisionResult.data,
           };
           break;
+        }
 
         default:
           return next(

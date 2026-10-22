@@ -6,8 +6,13 @@ const roleValidations = require("@validators/roles.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers, pagination } = require("@validators/common");
 const { requireSystemAdmin } = require("@middleware/adminAccess");
+const { requireRoleManagementAccess } = require("@middleware/roleAccessAuth");
 
 const requireAirQoSuperAdmin = requireSystemAdmin();
+// Role-changing routes: AirQo super admins, or managers/admins of the
+// role's group. See middleware/roleAccessAuth.js.
+const requireRoleAccess = requireRoleManagementAccess();
+const requireRoleCreateAccess = requireRoleManagementAccess({ mode: "create" });
 
 const injectCurrentUserId = (req, res, next) => {
   req.params.user_id = req.user._id;
@@ -40,6 +45,7 @@ router.post(
   roleValidations.create,
   validate,
   enhancedJWTAuth,
+  requireRoleCreateAccess,
   roleController.create,
 );
 
@@ -48,6 +54,7 @@ router.put(
   roleValidations.update,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.update,
 );
 
@@ -56,6 +63,7 @@ router.delete(
   roleValidations.deleteRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.delete,
 );
 
@@ -82,6 +90,7 @@ router.post(
   roleValidations.assignManyUsersToRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.assignManyUsersToRole,
 );
 
@@ -90,6 +99,7 @@ router.post(
   roleValidations.assignUserToRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.assignUserToRole,
 );
 
@@ -107,6 +117,7 @@ router.delete(
   roleValidations.unAssignManyUsersFromRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.unAssignManyUsersFromRole,
 );
 
@@ -114,6 +125,7 @@ router.delete(
   "/:role_id/user/:user_id",
   roleValidations.unAssignUserFromRole,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.unAssignUserFromRole,
 );
 
@@ -140,6 +152,7 @@ router.post(
   roleValidations.assignPermissionToRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.assignPermissionToRole,
 );
 
@@ -147,6 +160,7 @@ router.delete(
   "/:role_id/permissions",
   roleValidations.unAssignManyPermissionsFromRole,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.unAssignManyPermissionsFromRole,
 );
 
@@ -155,6 +169,7 @@ router.put(
   roleValidations.updateRolePermissions,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.updateRolePermissions,
 );
 
@@ -163,6 +178,7 @@ router.delete(
   roleValidations.unAssignPermissionFromRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.unAssignPermissionFromRole,
 );
 
@@ -171,6 +187,7 @@ router.post(
   roleValidations.assignUserToRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.enhancedAssignUserToRole,
 );
 
@@ -179,6 +196,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.enhancedAssignUserToRole,
 );
 
@@ -188,6 +206,7 @@ router.delete(
   roleValidations.unAssignUserFromRole,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.enhancedUnAssignUserFromRole,
 );
 
@@ -395,6 +414,7 @@ router.post(
   roleValidations.bulkRoleOperations,
   validate,
   enhancedJWTAuth,
+  requireRoleAccess,
   roleController.bulkRoleOperations,
 );
 

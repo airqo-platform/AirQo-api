@@ -337,6 +337,121 @@ const isGroupRoleOrNetworkRole = (role) => {
   logObject("role", role);
   return role && role.group_id ? "group" : "none";
 };
+
+// ===== GROUP MANAGER ROLE PERMISSIONS =====
+
+// Created by groupUtil.ensureGroupManagerRole (set-manager).
+const GROUP_MANAGER_ROLE_PATTERN = /_GROUP_MANAGER$/i;
+// migrations/rename-legacy-roles.js renamed older "<ORG>_GROUP_MANAGER"
+// roles to "<ORG>_MANAGER"; both act as manager roles (rbac hasRole matches
+// the "_MANAGER" suffix).
+const ANY_MANAGER_ROLE_PATTERN = /_MANAGER$/i;
+
+const GROUP_MANAGER_PERMISSION_NAMES = [
+  constants.GROUP_MANAGEMENT,
+  constants.USER_MANAGEMENT,
+  constants.ROLE_ASSIGNMENT,
+  constants.ORG_USER_ASSIGN,
+  constants.GROUP_SETTINGS,
+  constants.ANALYTICS_VIEW,
+  constants.MEMBER_INVITE,
+  constants.CONTENT_MODERATION,
+].filter(Boolean);
+
+// A manager role replaces the member role when assigned directly (e.g.
+// PUT /groups/:grp_id/members/:user_id/role or POST /roles/:role_id/users),
+// so it must also carry the basic view permissions the frontend gates the
+// dashboard, members and member-requests pages on.
+const MANAGER_VIEW_PERMISSION_NAMES = [
+  constants.GROUP_VIEW,
+  constants.MEMBER_VIEW,
+  constants.DASHBOARD_VIEW,
+].filter(Boolean);
+
+const isGroupManagerRole = (role) =>
+  Boolean(
+    role &&
+    role.group_id &&
+    typeof role.role_name === "string" &&
+    ANY_MANAGER_ROLE_PATTERN.test(role.role_name),
+  );
+
+/**
+ * Permission ids a group manager role should hold: the basic view set plus
+ * everything the group's default member role grants (whose exact contents
+ * are environment-configured), so a manager never sees less than a member.
+ * With includeManagement, also the manager permission set.
+ */
+const getGroupManagerPermissionIds = async (
+  tenant,
+  groupId,
+  { includeManagement = true } = {},
+) => {
+  const names = includeManagement
+    ? [...GROUP_MANAGER_PERMISSION_NAMES, ...MANAGER_VIEW_PERMISSION_NAMES]
+    : MANAGER_VIEW_PERMISSION_NAMES;
+  const permissions = await PermissionModel(tenant)
+    .find({ permission: { $in: names } })
+    .select("_id")
+    .lean();
+  const ids = new Map(permissions.map((p) => [p._id.toString(), p._id]));
+
+  if (groupId) {
+    const defaultMemberRole = await RoleModel(tenant)
+      .findOne({
+        group_id: groupId,
+        $or: [
+          { role_code: { $regex: /_DEFAULT_MEMBER$/i } },
+          { role_name: { $regex: /_DEFAULT_MEMBER$/i } },
+        ],
+      })
+      .select("role_permissions")
+      .lean();
+    (defaultMemberRole?.role_permissions || []).forEach((id) => {
+      if (id) ids.set(id.toString(), id);
+    });
+  }
+
+  return Array.from(ids.values());
+};
+
+/**
+ * Adds any missing permissions to a group manager role. Only ever adds
+ * ($addToSet), so it is safe to call repeatedly. Non-manager roles are
+ * ignored. Roles named "<ORG>_GROUP_MANAGER" (system-managed) get the full
+ * manager set; other "*_MANAGER" roles only get the member/view permissions,
+ * so a custom role that happens to end in "_MANAGER" never gains
+ * management rights from this. Returns the number of permissions added.
+ */
+const syncGroupManagerRolePermissions = async (tenant, role) => {
+  try {
+    if (!isGroupManagerRole(role)) return 0;
+    const expectedIds = await getGroupManagerPermissionIds(
+      tenant,
+      role.group_id,
+      { includeManagement: GROUP_MANAGER_ROLE_PATTERN.test(role.role_name) },
+    );
+    const current = new Set(
+      (role.role_permissions || []).map((id) => id.toString()),
+    );
+    const missing = expectedIds.filter((id) => !current.has(id.toString()));
+    if (missing.length === 0) return 0;
+
+    await RoleModel(tenant).updateOne(
+      { _id: role._id },
+      { $addToSet: { role_permissions: { $each: missing } } },
+    );
+    logger.info(
+      `Added ${missing.length} missing permission(s) to group manager role ${role.role_name}`,
+    );
+    return missing.length;
+  } catch (error) {
+    logger.error(
+      `Failed to sync group manager role permissions: ${error.message}`,
+    );
+    return 0;
+  }
+};
 const findAssociatedIdForRole = async ({
   role_id,
   tenant = "airqo",
@@ -2380,6 +2495,8 @@ const rolePermissionUtil = {
         );
       }
 
+      await syncGroupManagerRolePermissions(tenant, role);
+
       const roleType = isGroupRoleOrNetworkRole(role);
 
       if (roleType === "none") {
@@ -2517,6 +2634,8 @@ const rolePermissionUtil = {
           }),
         );
       }
+
+      await syncGroupManagerRolePermissions(tenant, roleObject);
 
       const assignUserPromises = [];
 
@@ -4132,6 +4251,8 @@ const rolePermissionUtil = {
         );
       }
 
+      await syncGroupManagerRolePermissions(actualTenant, role);
+
       const roleType = isGroupRoleOrNetworkRole(role);
       if (roleType === "none") {
         return next(
@@ -5687,10 +5808,40 @@ const rolePermissionUtil = {
         }
       }
 
+      // A user can hold more than one role in the same group (e.g. the
+      // default member role plus the group manager role). Clients look up
+      // a single entry per group, so merge them: the first entry keeps its
+      // role_id/role_name for backward compatibility, permissions become the
+      // union across roles, and `roles` lists every role held in the group.
+      const mergedByGroup = new Map();
+      const mergedGroups = [];
+      for (const entry of groupRolesData) {
+        const key = entry.group_id ? entry.group_id.toString() : null;
+        const roleSummary = {
+          role_id: entry.role_id,
+          role_name: entry.role_name,
+        };
+        const existing = key ? mergedByGroup.get(key) : null;
+        if (!existing) {
+          const merged = {
+            ...entry,
+            permissions: [...new Set(entry.permissions || [])],
+            roles: [roleSummary],
+          };
+          if (key) mergedByGroup.set(key, merged);
+          mergedGroups.push(merged);
+          continue;
+        }
+        existing.permissions = [
+          ...new Set([...existing.permissions, ...(entry.permissions || [])]),
+        ];
+        existing.roles.push(roleSummary);
+      }
+
       // Simplified structure
       const responseData = {
         user_id: user._id,
-        groups: groupRolesData,
+        groups: mergedGroups,
       };
 
       return {
@@ -5764,4 +5915,7 @@ module.exports = {
   updateTenantSettingsWithDefaultRoles,
   ensureSuperAdminRole,
   generateRoleCode,
+  isGroupManagerRole,
+  getGroupManagerPermissionIds,
+  syncGroupManagerRolePermissions,
 };

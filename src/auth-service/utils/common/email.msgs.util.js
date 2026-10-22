@@ -1232,14 +1232,22 @@ module.exports = {
     requester_name,
     requester_email,
     entity_title,
+    entity_slug,
     request_id,
   }) => {
-    const reviewLink = `${constants.NEXUS_BASE_URL}/org/member-requests?request_id=${request_id}`;
+    // Nexus serves member requests per organization at
+    // /org/<organization_slug>/member-requests. Without a slug, fall back to
+    // the Nexus home page rather than a route that does not exist.
+    const reviewLink = entity_slug
+      ? `${constants.NEXUS_BASE_URL}/org/${encodeURIComponent(
+          entity_slug,
+        )}/member-requests?request_id=${encodeURIComponent(request_id)}`
+      : constants.NEXUS_BASE_URL;
 
+    // EMAIL_BODY already opens with "Dear <name>," — no second greeting here.
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>Hello ${escapeHtml(contact_name)},</p>
         <p><strong>${escapeHtml(requester_name)}</strong> (${escapeHtml(
           requester_email,
         )}) has requested to join "<strong>${escapeHtml(

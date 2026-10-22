@@ -102,10 +102,18 @@ const adminAccessStub = {
   requireSystemAdmin: () => (req, res, next) => next(),
 };
 
+// requireRoleManagementAccess resolves the role's group and checks the
+// caller's RBAC context, both of which need a real DB/RBACService; it has
+// its own unit tests in middleware/test/ut_roleAccessAuth.js.
+const roleAccessAuthStub = {
+  requireRoleManagementAccess: () => (req, res, next) => next(),
+};
+
 const router = proxyquire("@routes/v2/roles.routes", {
   "@controllers/role.controller": roleControllerStub,
   "@middleware/passport": passportStub,
   "@middleware/adminAccess": adminAccessStub,
+  "@middleware/roleAccessAuth": roleAccessAuthStub,
 });
 
 // Most routes in roles.routes.js run the shared `validate` middleware
