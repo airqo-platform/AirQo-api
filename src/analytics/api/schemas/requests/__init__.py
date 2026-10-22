@@ -300,16 +300,11 @@ class DataExportRequest(BaseFilterRequest):
     )
 
     def validate_frequency(self) -> None:
-        if self.datatype == DataType.CALIBRATED and self.frequency == Frequency.RAW:
+        if self.frequency == Frequency.RAW:
             raise ValueError(
-                "Calibrated data is not available at 'raw' frequency; "
-                "use hourly, daily, weekly, monthly, or yearly."
+                "The 'raw' frequency is available from raw-data; data-download "
+                "takes hourly, daily, weekly, monthly, or yearly."
             )
-        if (
-            self.device_category == DeviceCategory.MOBILE
-            and self.frequency != Frequency.RAW
-        ):
-            raise ValueError("Mobile devices only support frequency='raw'")
         # AQCSV states the duration of each value as a fixed number of
         # minutes, so a CSV in that format covers raw, hourly and daily data.
         if (
@@ -325,14 +320,10 @@ class DataExportRequest(BaseFilterRequest):
 
     def offers_coarser_frequency(self) -> bool:
         """
-        True when the same body is valid at a coarser frequency than the one
-        it sent: the frequency is raw or hourly, and the device category
-        accepts frequencies other than raw.
+        Return True when the frequency is hourly, because the same body is also
+        valid at the daily frequency.
         """
-        return (
-            _is_hourly_frequency(self.frequency)
-            and self.device_category != DeviceCategory.MOBILE
-        )
+        return self.frequency == Frequency.HOURLY
 
 
 # ---------------------------------------------------------------------------

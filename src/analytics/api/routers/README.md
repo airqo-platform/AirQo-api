@@ -160,8 +160,8 @@ Every rule below is enforced server-side and returns **422** with a
   for each month.
 - `startDateTime` must not be in the future; `endDateTime` must be strictly
   after it.
-- `datatype: "calibrated"` is invalid with `frequency: "raw"`.
-- `device_category: "mobile"` requires `frequency: "raw"`.
+- `data-download` takes the `hourly`, `daily`, `weekly`, `monthly` and
+  `yearly` frequencies. The `raw` frequency comes from `raw-data`.
 
 The `?tenant=` selector has been removed.
 
@@ -175,7 +175,7 @@ shared fields plus:
 
 | JSON field     | Type    | Default          | Allowed values                                          |
 | -------------- | ------- | ---------------- | ------------------------------------------------------- |
-| `frequency`    | enum    | `daily`          | `raw`, `hourly`, `daily`, `weekly`, `monthly`, `yearly` |
+| `frequency`    | enum    | `daily`          | `hourly`, `daily`, `weekly`, `monthly`, `yearly`        |
 | `datatype`     | enum    | `calibrated`     | `raw`, `averaged`, `calibrated`, `consolidated`         |
 | `downloadType` | enum    | `json`           | `json`, `csv`                                           |
 | `outputFormat` | enum    | `airqo-standard` | `airqo-standard`, `aqcsv`                               |
@@ -838,10 +838,10 @@ fields that shape the query:
 
 The message names only the fields the request offers. The `data-download` and
 chart bodies offer all three: the site or device list, the date range and, at
-`raw` and `hourly` frequency, a coarser frequency. The `raw-data` body and a
-`data-download` body for `device_category: mobile` accept the raw frequency
-only, so their messages name the site or device list and the date range. The
-`report`, `summary` and `forecast-data` bodies offer the date range alone.
+`raw` and `hourly` frequency, a coarser frequency. The `raw-data` body accepts
+the raw frequency only, so its messages name the site or device list and the
+date range. The `report`, `summary` and `forecast-data` bodies offer the date
+range alone.
 
 A request that carries a cursor reads a stored result and runs no query, so
 the two responses above come only from the first request of a paged export.

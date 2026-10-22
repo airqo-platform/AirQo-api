@@ -1545,8 +1545,8 @@ class TestStoppedQueryHandling:
         assert fixed_query.status_code == 503
 
     def test_coarser_frequency_is_offered_only_when_the_body_accepts_one(self):
-        """The raw-data body and a mobile download accept the raw frequency
-        only, so their levers carry no coarser-frequency option."""
+        """The raw-data body accepts the raw frequency only, so its levers carry
+        no coarser-frequency option."""
         from api.services import QueryLevers
         from constants import Frequency
 
