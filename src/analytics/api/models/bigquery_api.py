@@ -16,7 +16,7 @@ from api.utils.bigquery_jobs import (
     shared_bigquery_client,
 )
 from config import settings as Config
-from api.utils.pollutants.pm_25 import COMMON_POLLUTANT_MAPPING_v2
+from api.utils.pollutants.pm_25 import pollutant_column_map
 
 from api.utils.cursor_utils import CursorUtils, StoredResultCursor
 from api.utils.exceptions import CursorRejected
@@ -909,24 +909,14 @@ class BigQueryApi:
             List[str]: The list contains SQL column expressions for the selected pollutants.
                 May include dummy columns for compatibility in downstream SQL logic.
         """
+        columns_by_pollutant = pollutant_column_map(
+            device_category.value, data_type.value, frequency.value
+        )
         pollutant_columns_ = []
         for pollutant in pollutants:
-            key = (
-                "averaged"
-                if data_type.value == "calibrated"
-                or (device_category.value == "bam" and frequency.value != "raw")
-                else "raw"
-            )
-
-            # The frequency mapper determines which columns are returned
-            pollutant_mapping = (
-                COMMON_POLLUTANT_MAPPING_v2.get(device_category.value, {})
-                .get(key, {})
-                .get(pollutant, [])
-            )
             pollutant_columns_.extend(
                 self.get_averaging_columns(
-                    pollutant_mapping,
+                    columns_by_pollutant.get(pollutant, []),
                     frequency,
                     decimal_places,
                     table_name,

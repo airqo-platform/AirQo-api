@@ -336,6 +336,55 @@ class TestRawDataExportRequest:
         assert req.sites is not None
 
 
+class TestDownloadPollutants:
+    @pytest.mark.parametrize("model", [DataExportRequest, RawDataExportRequest])
+    @pytest.mark.parametrize("pollutants", [None, []])
+    def test_at_least_one_pollutant_required(self, model, pollutants):
+        body = {k: v for k, v in BASE.items() if k not in ("pollutants", "frequency")}
+        if pollutants is not None:
+            body["pollutants"] = pollutants
+        with pytest.raises(ValidationError) as exc:
+            model(**body)
+        assert [error["loc"] for error in exc.value.errors()] == [("pollutants",)]
+
+    @pytest.mark.parametrize(
+        "model,overrides,valid",
+        [
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5"]},
+                True,
+            ),
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5", "pm10"]},
+                False,
+            ),
+            (
+                DataExportRequest,
+                {
+                    "device_category": "bam",
+                    "frequency": "hourly",
+                    "pollutants": ["pm2_5", "pm10"],
+                },
+                True,
+            ),
+        ],
+    )
+    def test_pollutants_follow_the_requested_data(self, model, overrides, valid):
+        """
+        The requested data decides which pollutants a download request accepts.
+        """
+        body = {k: v for k, v in BASE.items() if k != "frequency"}
+        body.update(overrides)
+        if valid:
+            assert model(**body).pollutants == overrides["pollutants"]
+        else:
+            with pytest.raises(ValidationError) as exc:
+                model(**body)
+            assert [error["type"] for error in exc.value.errors()] == ["value_error"]
+
+
 class TestDashboardChartRequest:
     def test_invalid_chart_type_rejected(self):
         with pytest.raises(ValidationError):

@@ -129,7 +129,7 @@ see [Air-Quality Report](#air-quality-report).
 | `cohort_ids`      | string[]          | one filter required | —         | Exactly one cohort                                        |
 | `network`         | enum              | no                  | `airqo`   | `airqo`                                                   |
 | `device_category` | enum              | no                  | `lowcost` | `lowcost`, `bam`, `gas`, `general`, `mobile`, `satellite` |
-| `pollutants`      | string[]          | no                  | `[]`      | Only `pm2_5` and `pm10`                                   |
+| `pollutants`      | string[]          | downloads: **yes**  | —         | `pm2_5`, `pm10`; `pm2_5` only for raw `bam` data          |
 | `metaDataFields`  | string[]          | no                  | —         | Only `latitude`, `longitude`, `site_id`                   |
 | `weatherFields`   | string[]          | no                  | —         | Only `temperature`, `humidity`                            |
 | `cursor`          | string            | no                  | —         | Token from `metadata.next`, see [Pagination](#pagination) |
@@ -162,6 +162,9 @@ Every rule below is enforced server-side and returns **422** with a
   after it.
 - `data-download` takes the `hourly`, `daily`, `weekly`, `monthly` and
   `yearly` frequencies. The `raw` frequency comes from `raw-data`.
+- `data-download` and `raw-data` require at least one pollutant.
+- Raw data for `device_category: "bam"` takes `pm2_5` only. Other data takes
+  `pm2_5` and `pm10`.
 
 The `?tenant=` selector has been removed.
 
@@ -263,6 +266,10 @@ envelope as data-download. It **does** support `"downloadType": "csv"`. The
 route allows 5 exports a minute for each client. The requests for the later
 pages of an export count only against the global limit, as
 [Pagination](#pagination) describes.
+
+A request with `device_category: "bam"` names `pm2_5` in `pollutants`. Each
+record carries the `realtime_conc`, `hourly_conc` and `short_time_conc`
+columns.
 
 ```json
 {
