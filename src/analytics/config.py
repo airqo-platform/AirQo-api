@@ -505,7 +505,7 @@ class BaseConfig(BaseSettings):
                 DeviceCategory.BAM: {
                     Frequency.RAW: self.bigquery_raw_bam_data_table,
                     Frequency.HOURLY: self.bigquery_bam_hourly_data,
-                    Frequency.DAILY: self.bigquery_daily_data,
+                    Frequency.DAILY: self.bigquery_bam_hourly_data,
                 },
                 DeviceCategory.SATELLITE: {
                     Frequency.RAW: self.bigquery_satellite_data_table,
@@ -519,7 +519,7 @@ class BaseConfig(BaseSettings):
                 },
                 DeviceCategory.BAM: {
                     Frequency.HOURLY: self.bigquery_bam_hourly_data,
-                    Frequency.DAILY: self.bigquery_daily_data,
+                    Frequency.DAILY: self.bigquery_bam_hourly_data,
                 },
             },
         }
