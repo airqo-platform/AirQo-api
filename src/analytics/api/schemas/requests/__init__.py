@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 
 from config import settings
+from api.utils.pollutants.pm_25 import pollutant_column_map
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +81,6 @@ class BaseRequest(BaseModel):
 # Shared filter base — inherited by DataExportRequest & DashboardChartRequest
 # ---------------------------------------------------------------------------
 
-_VALID_POLLUTANTS = {"pm2_5", "pm10"}
-_VALID_META_FIELDS = {"latitude", "longitude", "site_id"}
-_VALID_WEATHER_FIELDS = {"temperature", "humidity"}
 _FILTER_KEYS = ("sites", "device_ids", "device_names", "grid_ids", "cohort_ids")
 
 # Frequencies whose rows are raw or hourly measurements.
@@ -277,7 +275,35 @@ class BaseFilterRequest(BaseRequest):
 # ---------------------------------------------------------------------------
 
 
-class DataExportRequest(BaseFilterRequest):
+class _DownloadRequest(BaseFilterRequest):
+    """
+    This class holds the pollutant rules that the data-download and raw-data
+    requests share.
+    """
+
+    pollutants: List[str] = Field(
+        ..., min_length=1, description="Pollutants to include"
+    )
+
+    @model_validator(mode="after")
+    def pollutants_have_columns(self) -> "_DownloadRequest":
+        """Accept a pollutant only when the requested data holds a column for it."""
+        columns = pollutant_column_map(
+            getattr(self.device_category, "value", self.device_category),
+            getattr(self.datatype, "value", self.datatype),
+            getattr(self.frequency, "value", self.frequency),
+        )
+        unavailable = [p for p in self.pollutants if not columns.get(p)]
+        if unavailable:
+            available = [p for p, names in columns.items() if names]
+            raise ValueError(
+                f"This request takes the pollutants {available}; "
+                f"received: {unavailable}"
+            )
+        return self
+
+
+class DataExportRequest(_DownloadRequest):
     """
     Request model for data export and download operations.
 
@@ -300,16 +326,11 @@ class DataExportRequest(BaseFilterRequest):
     )
 
     def validate_frequency(self) -> None:
-        if self.datatype == DataType.CALIBRATED and self.frequency == Frequency.RAW:
+        if self.frequency == Frequency.RAW:
             raise ValueError(
-                "Calibrated data is not available at 'raw' frequency; "
-                "use hourly, daily, weekly, monthly, or yearly."
+                "The 'raw' frequency is available from raw-data; data-download "
+                "takes hourly, daily, weekly, monthly, or yearly."
             )
-        if (
-            self.device_category == DeviceCategory.MOBILE
-            and self.frequency != Frequency.RAW
-        ):
-            raise ValueError("Mobile devices only support frequency='raw'")
         # AQCSV states the duration of each value as a fixed number of
         # minutes, so a CSV in that format covers raw, hourly and daily data.
         if (
@@ -325,14 +346,10 @@ class DataExportRequest(BaseFilterRequest):
 
     def offers_coarser_frequency(self) -> bool:
         """
-        True when the same body is valid at a coarser frequency than the one
-        it sent: the frequency is raw or hourly, and the device category
-        accepts frequencies other than raw.
+        Return True when the frequency is hourly, because the same body is also
+        valid at the daily frequency.
         """
-        return (
-            _is_hourly_frequency(self.frequency)
-            and self.device_category != DeviceCategory.MOBILE
-        )
+        return self.frequency == Frequency.HOURLY
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +357,7 @@ class DataExportRequest(BaseFilterRequest):
 # ---------------------------------------------------------------------------
 
 
-class RawDataExportRequest(BaseFilterRequest):
+class RawDataExportRequest(_DownloadRequest):
     """
     Request model for raw (unprocessed) data downloads.
 

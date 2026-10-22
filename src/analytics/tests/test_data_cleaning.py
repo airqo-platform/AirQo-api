@@ -103,6 +103,20 @@ class TestCoerceNumericAndDropZeroColumns:
         out = CoerceNumericAndDropZeroColumns().apply(df, _ctx(datatype=DataType.RAW))
         assert "pm10" in out.columns
 
+    def test_raw_bam_outside_airqo_requires_the_mapped_columns(self):
+        """BAM raw data holds pm2_5 in its three concentration columns."""
+        concentrations = ["realtime_conc", "hourly_conc", "short_time_conc"]
+        df = pd.DataFrame({name: [21.4, 19.8] for name in concentrations})
+        df["network"] = "metone"
+        ctx = _ctx(
+            datatype=DataType.RAW,
+            frequency=Frequency.RAW,
+            device_category=DeviceCategory.BAM,
+            pollutants=["pm2_5"],
+        )
+        out = CoerceNumericAndDropZeroColumns().apply(df, ctx)
+        assert set(concentrations) <= set(out.columns)
+
 
 class TestDropOptionalColumns:
     def test_keeps_requested_extra_columns(self):

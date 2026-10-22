@@ -564,6 +564,35 @@ class TestStoredResultPaging:
         assert fake_bigquery.reads[0].bqstorage is False
 
 
+class TestQueryByteCeiling:
+    @pytest.mark.parametrize(
+        "overrides,ceiling",
+        [
+            (
+                {
+                    "table": test_settings.bigquery_raw_data,
+                    "frequency": Frequency.RAW,
+                    "data_type": DataType.RAW,
+                    "dynamic_query": False,
+                },
+                200_000_000,
+            ),
+            ({}, 100_000_000),
+        ],
+        ids=["raw-data", "data-download"],
+    )
+    def test_raw_data_query_runs_under_its_own_ceiling(
+        self, fake_bigquery, cursor_clock, paging_api, overrides, ceiling
+    ):
+        """
+        The raw-data query runs under a ceiling of 200 MB. The data-download
+        query keeps the default ceiling of 100 MB.
+        """
+        fake_bigquery.result_frame = device_frame(2)
+        paging_api.query_data(**_request(**overrides))
+        assert fake_bigquery.queries[0].job_config.maximum_bytes_billed == ceiling
+
+
 # ---------------------------------------------------------------------------
 # Async delegation contract — AsyncBigQueryApi must inherit ALL filter types
 # from BigQueryApi automatically (no query logic of its own to keep in sync)
