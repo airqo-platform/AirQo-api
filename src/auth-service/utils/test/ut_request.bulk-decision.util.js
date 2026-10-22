@@ -15,6 +15,7 @@ describe("processBulkAccessRequestDecision — per-request failure containment",
   const roleId = oid();
   const requests = { ok: oid(), rereadFails: oid(), roleFails: oid() };
   const users = { ok: oid(), rereadFails: oid(), roleFails: oid() };
+  const memberRoleId = oid();
 
   beforeEach(async () => {
     await RoleModel(TENANT).collection.insertOne({
@@ -25,6 +26,20 @@ describe("processBulkAccessRequestDecision — per-request failure containment",
       role_status: "ACTIVE",
       role_permissions: [],
     });
+    // Already members (as approveAccessRequest would leave them), holding the
+    // default member role that default_role should replace.
+    await UserModel(TENANT).collection.insertMany(
+      Object.keys(users).map((k) => ({
+        _id: users[k],
+        email: `${k}@example.test`,
+        userName: `bulk-${users[k]}`,
+        firstName: k,
+        lastName: "Tester",
+        group_roles: [
+          { group: grpId, role: memberRoleId, userType: "user" },
+        ],
+      })),
+    );
     await AccessRequestModel(TENANT).collection.insertMany(
       Object.keys(requests).map((k) => ({
         _id: requests[k],
@@ -54,12 +69,14 @@ describe("processBulkAccessRequestDecision — per-request failure containment",
       return realFindById(id);
     });
 
+    // Only users.roleFails hits a write conflict; every other update persists.
     const usersModel = UserModel(TENANT);
-    sinon.stub(usersModel, "updateOne").callsFake(async (filter) => {
+    const realUpdateOne = usersModel.updateOne.bind(usersModel);
+    sinon.stub(usersModel, "updateOne").callsFake((filter, ...rest) => {
       if (filter._id.toString() === users.roleFails.toString()) {
-        throw new Error("write conflict");
+        return Promise.reject(new Error("write conflict"));
       }
-      return { nModified: 1 };
+      return realUpdateOne(filter, ...rest);
     });
   });
 
@@ -69,7 +86,18 @@ describe("processBulkAccessRequestDecision — per-request failure containment",
     await AccessRequestModel(TENANT).collection.deleteMany({
       _id: { $in: Object.values(requests) },
     });
+    await UserModel(TENANT).collection.deleteMany({
+      _id: { $in: Object.values(users) },
+    });
   });
+
+  const storedRole = async (userId) => {
+    const user = await UserModel(TENANT).collection.findOne({ _id: userId });
+    const membership = user.group_roles.find(
+      (gr) => gr.group.toString() === grpId.toString(),
+    );
+    return membership.role.toString();
+  };
 
   it("records re-read and role failures per request and still processes the rest", async () => {
     const result = await createAccessRequest.processBulkAccessRequestDecision({
@@ -100,6 +128,13 @@ describe("processBulkAccessRequestDecision — per-request failure containment",
     const ok = byId[requests.ok.toString()];
     expect(ok.outcome).to.equal("approved");
     expect(ok.role_assignment).to.equal("applied");
+    expect(await storedRole(users.ok)).to.equal(roleId.toString());
+
+    // Failed and unresolved role assignments leave the membership untouched.
+    expect(await storedRole(users.roleFails)).to.equal(memberRoleId.toString());
+    expect(await storedRole(users.rereadFails)).to.equal(
+      memberRoleId.toString(),
+    );
 
     expect(result.data.processed_count).to.equal(3);
   });
