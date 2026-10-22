@@ -17,12 +17,64 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
-from api.services import DataExportService, DashboardService, MonitoringService
+from api.services import (
+    DataExportService,
+    DashboardService,
+    MonitoringService,
+    _resolve_table,
+)
 from api.schemas.requests import DataExportRequest
 from api.schemas.responses import (
     DashboardChartResponse,
     MonitoringSiteResponse,
 )
+from tests.test_config import test_settings
+
+DAILY_TABLE_BY_DEVICE_CATEGORY = [
+    ("lowcost", test_settings.bigquery_daily_data),
+    ("bam", test_settings.bigquery_bam_hourly_data),
+]
+
+
+# ---------------------------------------------------------------------------
+# Table resolution
+# ---------------------------------------------------------------------------
+
+
+class TestResolveTable:
+    @pytest.mark.parametrize("datatype", ["raw", "calibrated"])
+    @pytest.mark.parametrize(
+        "device_category,frequency,table",
+        [
+            ("lowcost", "hourly", test_settings.bigquery_hourly_data),
+            ("lowcost", "daily", test_settings.bigquery_daily_data),
+            ("lowcost", "weekly", test_settings.bigquery_daily_data),
+            ("lowcost", "monthly", test_settings.bigquery_daily_data),
+            ("lowcost", "yearly", test_settings.bigquery_daily_data),
+            ("bam", "hourly", test_settings.bigquery_bam_hourly_data),
+            ("bam", "daily", test_settings.bigquery_bam_hourly_data),
+            ("bam", "weekly", test_settings.bigquery_bam_hourly_data),
+            ("bam", "monthly", test_settings.bigquery_bam_hourly_data),
+            ("bam", "yearly", test_settings.bigquery_bam_hourly_data),
+        ],
+    )
+    def test_each_device_category_reads_its_own_table(
+        self, datatype, device_category, frequency, table
+    ):
+        """Each device category reads its own table from hourly to yearly."""
+        assert _resolve_table(datatype, device_category, frequency) == table
+
+    @pytest.mark.parametrize(
+        "device_category,table",
+        [
+            ("lowcost", test_settings.bigquery_raw_data),
+            ("bam", test_settings.bigquery_raw_bam_data_table),
+        ],
+    )
+    def test_the_raw_frequency_reads_the_raw_table_of_the_device_category(
+        self, device_category, table
+    ):
+        assert _resolve_table("raw", device_category, "raw") == table
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +121,29 @@ class TestDataExportService:
 
         _, kwargs = mock_bq.call_args
         assert kwargs["data_type"] == DataType.RAW
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("device_category,table", DAILY_TABLE_BY_DEVICE_CATEGORY)
+    async def test_export_data_queries_the_table_of_the_device_category(
+        self, sample_df, device_category, table
+    ):
+        from tests.paging_support import DOWNLOAD
+
+        request = DataExportRequest(
+            **{**DOWNLOAD, "device_category": device_category, "frequency": "daily"}
+        )
+        svc = DataExportService()
+        meta = {"total_count": 2, "has_more": False, "next": None}
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            await svc.export_data(request)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["table"] == table
 
     @pytest.mark.asyncio
     async def test_export_data_applies_cleaning_pipeline(self, export_request):
@@ -372,6 +447,34 @@ class TestDashboardService:
         assert resp.status == "success"
         assert resp.chart_type == "line"
         assert len(resp.data) == 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("device_category,table", DAILY_TABLE_BY_DEVICE_CATEGORY)
+    async def test_get_chart_data_queries_the_table_of_the_device_category(
+        self, sample_df, device_category, table
+    ):
+        from api.schemas.requests import DashboardChartRequest
+        from tests.paging_support import chart_body
+
+        request = DashboardChartRequest(
+            **{
+                **chart_body("line"),
+                "device_category": device_category,
+                "frequency": "daily",
+            }
+        )
+        svc = DashboardService()
+        meta = {"total_count": 2, "has_more": False, "next": None}
+
+        with patch(
+            "api.services.AsyncBigQueryApi.query_data_async",
+            new_callable=AsyncMock,
+            return_value=(sample_df, meta),
+        ) as mock_bq:
+            await svc.get_chart_data(request)
+
+        _, kwargs = mock_bq.call_args
+        assert kwargs["table"] == table
 
     @pytest.mark.asyncio
     async def test_get_chart_data_empty_returns_success(
