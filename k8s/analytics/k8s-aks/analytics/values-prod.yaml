@@ -3,7 +3,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: airqoacr.azurecr.io/airqo-analytics-api
-  tag: prod-b38e0d6a-1791975362
+  tag: prod-29e3f03c-1792689607
 externalSecret:
   enabled: true
 api:
