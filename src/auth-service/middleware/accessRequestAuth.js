@@ -5,6 +5,8 @@ const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const AccessRequestModel = require("@models/AccessRequest");
 const { requireGroupManagerAccess } = require("@middleware/groupNetworkAuth");
+const { requireGroupAccess } = require("@middleware/adminAccess");
+const RBACService = require("@services/rbac.service");
 
 /**
  * Resolves :request_id to its underlying AccessRequest, then authorizes the
@@ -78,4 +80,60 @@ const requireAccessRequestManagerAccess = (requestIdParam = "request_id") => {
   };
 };
 
-module.exports = { requireAccessRequestManagerAccess };
+/**
+ * For the cross-group listings (GET /requests, /requests/pending): AirQo
+ * system super admins see every request; everyone else only sees requests
+ * they made themselves. Previously any logged-in user could list every
+ * group's requests, including requester emails.
+ * Sets req.isSystemSuperAdmin for downstream handlers.
+ * @returns {Function} Express middleware
+ */
+const scopeAccessRequestListToCaller = () => {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      const tenant = req.query.tenant || constants.DEFAULT_TENANT;
+
+      if (!user || !user._id) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            message: "You must be logged in to access this resource",
+          }),
+        );
+      }
+
+      const isSystemSuperAdmin =
+        await RBACService.getInstance(tenant).isSystemSuperAdmin(user._id);
+      req.isSystemSuperAdmin = isSystemSuperAdmin;
+
+      if (!isSystemSuperAdmin) {
+        // Query params override body values in generateFilter.requests, so
+        // this cannot be widened by the caller.
+        req.query.user_id = user._id.toString();
+      }
+      return next();
+    } catch (error) {
+      return next(
+        new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+          message: error.message,
+        }),
+      );
+    }
+  };
+};
+
+/**
+ * For per-group listings (GET /requests/groups/:grp_id, /requests/groups?grp_id=):
+ * requires MEMBER_VIEW (or a manager/admin role) in that group, matching
+ * the permission Nexus gates its member-requests page on. System super
+ * admins always pass.
+ * @returns {Function} Express middleware
+ */
+const requireGroupAccessRequestViewAccess = () =>
+  requireGroupAccess([constants.MEMBER_VIEW]);
+
+module.exports = {
+  requireAccessRequestManagerAccess,
+  scopeAccessRequestListToCaller,
+  requireGroupAccessRequestViewAccess,
+};

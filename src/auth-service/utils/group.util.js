@@ -2656,16 +2656,16 @@ const groupUtil = {
         const createRoleResult = await RoleModel(tenant).register(roleData);
         if (createRoleResult.success) {
           managerRole = createRoleResult.data;
-
-          // Assign manager permissions
-          const managerPermissions =
-            await groupUtil.getManagerPermissions(tenant);
-          if (managerPermissions.length > 0) {
-            await RoleModel(tenant).findByIdAndUpdate(managerRole._id, {
-              $addToSet: { role_permissions: { $each: managerPermissions } },
-            });
-          }
         }
+      }
+
+      // Runs for new and existing roles alike, so manager roles created
+      // before the manager permission set was extended get topped up.
+      if (managerRole) {
+        await rolePermissionsUtil.syncGroupManagerRolePermissions(
+          tenant,
+          managerRole,
+        );
       }
 
       return managerRole;
@@ -2678,25 +2678,12 @@ const groupUtil = {
   /**
    * Get permissions that should be assigned to group managers
    */
-  getManagerPermissions: async (tenant) => {
+  getManagerPermissions: async (tenant, grp_id) => {
     try {
-      const managerPermissionNames = [
-        constants.GROUP_MANAGEMENT,
-        constants.USER_MANAGEMENT,
-        constants.ROLE_ASSIGNMENT,
-        constants.ORG_USER_ASSIGN,
-        constants.GROUP_SETTINGS,
-        constants.ANALYTICS_VIEW,
-        constants.MEMBER_INVITE,
-        constants.CONTENT_MODERATION,
-      ];
-
-      const permissions = await PermissionModel(tenant)
-        .find({ permission: { $in: managerPermissionNames } })
-        .select("_id")
-        .lean();
-
-      return permissions.map((p) => p._id);
+      return await rolePermissionsUtil.getGroupManagerPermissionIds(
+        tenant,
+        grp_id,
+      );
     } catch (error) {
       logger.error(`Error getting manager permissions: ${error.message}`);
       return [];
@@ -3368,6 +3355,8 @@ const groupUtil = {
         );
         return;
       }
+
+      await rolePermissionsUtil.syncGroupManagerRolePermissions(tenant, role);
 
       // Update user's role in the group
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
@@ -4834,23 +4823,49 @@ const groupUtil = {
       .lean();
 
     const recipients = new Map();
+    const grpIdStr = grp_id.toString();
 
     if (group && group.grp_manager) {
       const manager = await UserModel(tenant)
         .findById(group.grp_manager)
-        .select("email firstName lastName")
+        .select("email firstName lastName isActive group_roles.group")
         .lean();
-      if (manager && manager.email) {
+      // Skip a deactivated manager, or one who has since left the group —
+      // grp_manager is not cleared when that happens.
+      const isStillActiveMember =
+        manager &&
+        manager.isActive !== false &&
+        (manager.group_roles || []).some(
+          (gr) => gr.group && gr.group.toString() === grpIdStr,
+        );
+      if (isStillActiveMember && manager.email) {
         recipients.set(manager.email, manager);
       }
     }
 
+    // Co-managers hold a manager/admin role in the group (assigned via
+    // /roles or /members/:user_id/role) rather than an admin userType.
+    const managerRoles = await RoleModel(tenant)
+      .find({
+        group_id: grp_id,
+        role_name: { $regex: /_(GROUP_MANAGER|MANAGER|ADMIN|SUPER_ADMIN)$/i },
+      })
+      .select("_id")
+      .lean();
+    const managerRoleIds = managerRoles.map((role) => role._id);
+
     const admins = await UserModel(tenant)
       .find({
+        isActive: { $ne: false },
         group_roles: {
           $elemMatch: {
             group: grp_id,
-            userType: { $in: ["admin", "manager", "super_admin"] },
+            $or: [
+              { userType: { $in: ["admin", "manager", "super_admin"] } },
+              ...(managerRoleIds.length > 0
+                ? [{ role: { $in: managerRoleIds } }]
+                : []),
+            ],
           },
         },
       })

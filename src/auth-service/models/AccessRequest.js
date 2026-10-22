@@ -149,6 +149,22 @@ AccessRequestSchema.statics = {
           foreignField: "email",
           as: "user",
         })
+        .lookup({
+          from: "groups",
+          let: { targetId: "$targetId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$targetId"] } } },
+            {
+              $project: {
+                _id: 1,
+                grp_title: 1,
+                organization_slug: 1,
+                grp_profile_picture: 1,
+              },
+            },
+          ],
+          as: "group",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)

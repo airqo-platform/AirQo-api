@@ -7,6 +7,8 @@ const { enhancedJWTAuth, optionalJWTAuth } = require("@middleware/passport");
 const { requirePermissions } = require("@middleware/permissionAuth");
 const {
   requireAccessRequestManagerAccess,
+  scopeAccessRequestListToCaller,
+  requireGroupAccessRequestViewAccess,
 } = require("@middleware/accessRequestAuth");
 const constants = require("@config/constants");
 const { validate, headers, pagination } = require("@validators/common");
@@ -38,6 +40,7 @@ router.get(
   "/",
   requestValidations.list,
   enhancedJWTAuth,
+  scopeAccessRequestListToCaller(),
   pagination(),
   createRequestController.list,
 );
@@ -46,6 +49,7 @@ router.get(
   "/pending",
   requestValidations.listPending,
   enhancedJWTAuth,
+  scopeAccessRequestListToCaller(),
   pagination(),
   createRequestController.listPendingAccessRequests,
 );
@@ -78,6 +82,7 @@ router.get(
   "/groups",
   requestValidations.listForGroup,
   enhancedJWTAuth,
+  requireGroupAccessRequestViewAccess(),
   pagination(),
   createRequestController.listAccessRequestsForGroup,
 );
@@ -135,6 +140,7 @@ router.get(
   "/groups/:grp_id",
   requestValidations.listAccessRequestsForGroup,
   enhancedJWTAuth,
+  requireGroupAccessRequestViewAccess(),
   pagination(),
   createRequestController.listAccessRequestsForGroup,
 );
@@ -143,6 +149,7 @@ router.get(
   "/request_id",
   requestValidations.getRequestId,
   enhancedJWTAuth,
+  scopeAccessRequestListToCaller(),
   createRequestController.list,
 );
 

@@ -1745,6 +1745,7 @@ const mailer = {
         requester_name: params.requester_name,
         requester_email: params.requester_email,
         entity_title: params.entity_title,
+        entity_slug: params.entity_slug,
         request_id: params.request_id,
       }),
   ),

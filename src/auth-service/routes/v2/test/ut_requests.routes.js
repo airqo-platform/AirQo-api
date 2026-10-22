@@ -81,6 +81,8 @@ const permissionAuthStub = {
 const accessRequestAuthStub = {
   requireAccessRequestManagerAccess: (requestIdParam) => (req, res, next) =>
     next(),
+  scopeAccessRequestListToCaller: () => (req, res, next) => next(),
+  requireGroupAccessRequestViewAccess: () => (req, res, next) => next(),
 };
 
 const router = proxyquire("@routes/v2/requests.routes", {

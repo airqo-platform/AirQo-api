@@ -175,6 +175,7 @@ const dbProjections = {
     },
     updatedAt: 1,
     user: { $arrayElemAt: ["$user", 0] },
+    group: { $arrayElemAt: ["$group", 0] },
   },
   ACCESS_REQUESTS_EXCLUSION_PROJECTION: function (category) {
     const initialProjection = {
@@ -220,6 +221,23 @@ const dbProjections = {
       "user.email": 0,
       "user.country": 0,
       "user.is_email_verified": 0,
+      // Credentials, third-party account ids and device fingerprints.
+      "user.signInToken": 0,
+      "user.signInTokenExpires": 0,
+      "user.deletionToken": 0,
+      "user.deletionTokenExpires": 0,
+      "user.google_id": 0,
+      "user.apple_id": 0,
+      "user.facebook_id": 0,
+      "user.github_id": 0,
+      "user.linkedin_id": 0,
+      "user.microsoft_id": 0,
+      "user.twitter_id": 0,
+      "user.firebase_uid": 0,
+      "user.paddle_customer_id": 0,
+      "user.currentSubscriptionId": 0,
+      "user.currentPlanDetails": 0,
+      "user.knownDevices": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
