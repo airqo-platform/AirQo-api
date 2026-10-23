@@ -13,7 +13,9 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.session import Base
+from fastapi.testclient import TestClient
+
+from app.db.session import Base, get_db
 from app.models.device_data import SyncDailyDeviceData, SyncRawDeviceData
 from app.models.device_schema import ComponentDefinition, DeviceProfile
 from app.models.health import DeviceDailyDiagnostic, DeviceDailyIssue
@@ -21,6 +23,7 @@ from app.models.sync import SyncDevice
 from app.services import manufacturer_profiles as mp
 from app.services.diagnostics import daily
 from app.services.diagnostics.profile_model import build_model
+from main import app
 
 
 @compiles(JSONB, "sqlite")
@@ -214,3 +217,61 @@ class TestDailyDiagnosticsForExternalDevice(_DbTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOnDemandEvaluationUsesStoredReadings(_DbTestCase):
+    """POST /diagnostics/evaluate/{id} without a telemetry window evaluates the device's own stored readings."""
+
+    def setUp(self):
+        super().setUp()
+        mp.ensure_manufacturer_profiles(self.db)
+        self.db.add(SyncDevice(
+            device_id=DEVICE_ID, device_name="ag_201560", network_id="airgradient", category="lowcost",
+            serial_number="201560", device_number=201560, status="deployed",   # vendor id, not a ThingSpeak channel
+        ))
+        self.db.commit()
+        mp.assign_profiles_to_external_devices(self.db)
+        now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        rows = []
+        for i in range(120):   # last 20 hours at 10-minute cadence, weak WiFi all along
+            rows.append(SyncRawDeviceData(
+                id=uuid.uuid4(), channel_id=DEVICE_ID, device_id=DEVICE_ID, entry_id=i,
+                created_at_ts=now - timedelta(minutes=10 * i),
+                field1=8.0 + (i % 7), field2=11.0 + (i % 5), field9=450.0 + (i % 30), field12=-91.0,
+                field16=24.0 + (i % 3), field17=55.0 + (i % 10),
+            ))
+        self.db.add_all(rows)
+        self.db.commit()
+
+        def override_get_db():
+            db = self.Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = override_get_db
+        self.client = TestClient(app)
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+        super().tearDown()
+
+    def test_stored_readings_are_loaded_by_source_key(self):
+        from app.api.v1.diagnostics import load_stored_telemetry
+
+        records = load_stored_telemetry(self.db, DEVICE_ID, 24)
+        self.assertEqual(len(records), 120)
+        self.assertEqual(records[0]["field12"], -91.0)
+        self.assertEqual(load_stored_telemetry(self.db, "unknown", 24), [])
+
+    def test_evaluation_without_window_scores_the_device(self):
+        response = self.client.post(f"/api/v1/diagnostics/evaluate/{DEVICE_ID}?save_snapshot=false", json={"window_hours": 24})
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["profile_name"], "airgradient_lowcost")
+        self.assertTrue(body["subsystem_scores"], body)
+        self.assertIn("wifi_modem", body["subsystem_scores"])
+        codes = {e["code"] for e in body.get("active_evidences", [])}
+        self.assertIn("METRIC_BELOW_MIN:wifi_modem.wifi_rssi", codes)
+        self.assertLess(body["overall_health_score"], 100.0)
