@@ -150,6 +150,7 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 | `POST` | `/api/v1/data-sync/poll-external-feeds` | Store the latest reading of every non-AirQo device from the registry's live feed |
 
 See [docs/MULTI_MANUFACTURER_DEVICES.md](docs/MULTI_MANUFACTURER_DEVICES.md) for how devices from other manufacturers are represented.
+Readings for those devices are keyed by registry device id rather than a ThingSpeak channel, so use the device `_id` with `/data-sync/raw?channel_id=` when inspecting them.
 
 #### AirQlouds (`/api/v1/airqlouds`)
 | Method | Endpoint | Description |
