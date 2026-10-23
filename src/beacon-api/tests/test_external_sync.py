@@ -126,6 +126,29 @@ class TestManufacturerProfiles(_DbTestCase):
         self.assertEqual(self.db.get(DeviceProfile, ag.profile_id).name, "airgradient_lowcost")
         self.assertEqual(self.db.get(DeviceProfile, mo.profile_id).name, "metone_bam")
         self.assertIsNone(aq.profile_id)  # airqo devices are not touched
+        # Running again changes nothing
+        self.assertEqual(mp.assign_profiles_to_external_devices(self.db), 0)
+
+    def test_assignment_replaces_stale_airqo_profile_but_keeps_deliberate_ones(self):
+        lowcost = DeviceProfile(id=uuid.uuid4(), name="lowcost", category="air_quality")
+        custom = DeviceProfile(id=uuid.uuid4(), name="my_custom_profile", category="air_quality")
+        self.db.add_all([lowcost, custom])
+        self.db.add_all([
+            # synced before manufacturer profiles existed: carries the AirQo lowcost profile
+            SyncDevice(**{**AIRGRADIENT, "profile_id": lowcost.id}),
+            # an operator pointed this one at a profile of their own
+            SyncDevice(**{**IQAIR, "profile_id": custom.id}),
+            SyncDevice(**{**AIRQO, "profile_id": lowcost.id}),
+        ])
+        self.db.commit()
+        mp.ensure_manufacturer_profiles(self.db)
+        self.assertEqual(mp.assign_profiles_to_external_devices(self.db), 1)
+        ag = self.db.query(SyncDevice).filter(SyncDevice.device_id == "ag_1").one()
+        iq = self.db.query(SyncDevice).filter(SyncDevice.device_id == "iq_1").one()
+        aq = self.db.query(SyncDevice).filter(SyncDevice.device_id == "aq_1").one()
+        self.assertEqual(self.db.get(DeviceProfile, ag.profile_id).name, "airgradient_lowcost")
+        self.assertEqual(iq.profile_id, custom.id)
+        self.assertEqual(aq.profile_id, lowcost.id)
 
 
 class TestPlanning(_DbTestCase):

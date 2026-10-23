@@ -492,21 +492,30 @@ def ensure_manufacturer_profiles(db: Session) -> Dict[str, Any]:
     return {"created": created, "existing": existing, "components_added": components_added}
 
 
+# The AirQo profiles describe ThingSpeak hardware; a non-airqo device carrying
+# one of them was synced before manufacturer profiles existed.
+AIRQO_CATEGORY_PROFILES = {"lowcost", "lowcost_gas", "bam", "airqo-v5-dualpm"}
+
+
 def assign_profiles_to_external_devices(db: Session) -> int:
-    """Give every non-airqo device without a profile its ``<network>_<category>`` profile, if one exists."""
+    """
+    Give every non-airqo device its ``<network>_<category>`` profile, if one
+    exists. Covers devices with no profile and devices still carrying one of
+    the AirQo category profiles from before manufacturer profiles existed;
+    any other assignment is treated as deliberate and left alone.
+    """
     profiles = {p.name.lower(): p.id for p in db.query(DeviceProfile).all()}
+    airqo_profile_ids = {pid for name, pid in profiles.items() if name in AIRQO_CATEGORY_PROFILES}
     assigned = 0
-    rows = (
-        db.query(SyncDevice)
-        .filter(SyncDevice.profile_id.is_(None), SyncDevice.network_id.isnot(None))
-        .all()
-    )
+    rows = db.query(SyncDevice).filter(SyncDevice.network_id.isnot(None)).all()
     for dev in rows:
+        if dev.profile_id is not None and dev.profile_id not in airqo_profile_ids:
+            continue
         name = profile_name_for(dev.network_id, dev.category)
         if not name:
             continue
         profile_id = profiles.get(name)
-        if profile_id is None:
+        if profile_id is None or dev.profile_id == profile_id:
             continue
         dev.profile_id = profile_id
         db.add(dev)
