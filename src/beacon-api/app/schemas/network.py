@@ -29,6 +29,7 @@ class NetworkListResponse(BaseModel):
     success: bool
     message: str
     total: int = 0
+    scoped_to_group: bool = False   # counts limited to the requested organisation's devices
     networks: List[NetworkResponse] = []
 
 

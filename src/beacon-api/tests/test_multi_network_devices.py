@@ -346,6 +346,35 @@ class TestNetworksEndpoint(_DbTestCase):
         self.assertEqual(metone["total_devices"], 1)
         self.assertTrue(metone["enabled"])
 
+    def test_counts_scoped_to_an_organisation(self):
+        # Organisation "ministry" owns only the airgradient device
+        self.db.add_all([
+            SyncGroup(group_id="grp_m", grp_title="ministry"),
+            SyncCohort(cohort_id="coh_m", name="ministry_cohort"),
+            SyncGroupCohort(group_id="grp_m", cohort_id="coh_m"),
+            SyncCohortDevice(cohort_id="coh_m", device_id="ag_1", is_active=True),
+        ])
+        self.db.commit()
+
+        response = self.client.get("/api/v1/networks/", params={"group": "ministry"})
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertTrue(body["scoped_to_group"])
+        by_name = {n["name"]: n for n in body["networks"]}
+        self.assertEqual(by_name["airgradient"]["total_devices"], 1)
+        self.assertEqual(by_name["airqo"]["total_devices"], 0)
+        self.assertEqual(by_name["airqo"]["online_devices"], 0)
+
+        response = self.client.get("/api/v1/networks/", params={"group": "ministry", "only_with_devices": "true"})
+        self.assertEqual([n["name"] for n in response.json()["networks"]], ["airgradient"])
+
+        # the supergroup is unrestricted and the fleet-wide default is unchanged
+        fleet = self.client.get("/api/v1/networks/", params={"group": "airqo"}).json()
+        self.assertFalse(fleet["scoped_to_group"])
+        self.assertEqual({n["name"]: n["total_devices"] for n in fleet["networks"]},
+                         {"airqo": 2, "airgradient": 1, "metone": 1})
+        self.assertEqual(self.client.get("/api/v1/networks/", params={"group": "nope"}).status_code, 404)
+
     def test_enabled_flag_reflects_allow_list(self):
         with patch.object(settings, "ENABLED_NETWORKS", "airqo"):
             body = network_sync_service.list_networks(self.db)

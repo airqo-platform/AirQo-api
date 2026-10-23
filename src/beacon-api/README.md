@@ -142,7 +142,7 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 #### Networks / Sensor Manufacturers (`/api/v1/networks`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts |
+| `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts; `group=` scopes counts to an organisation, `only_with_devices=true` drops empty ones |
 | `POST` | `/api/v1/networks/sync` | Mirror the platform's networks list into `sync_network` |
 | `POST` | `/api/v1/networks/profiles/seed` | Seed per-manufacturer device profiles (with diagnostic component models) and assign them to devices |
 | `GET` | `/api/v1/networks/profiles` | Manufacturer profiles and their diagnostic readiness |

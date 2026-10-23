@@ -6,6 +6,7 @@ Mirrors the platform's ``GET /devices/networks`` list, which Vertex shows as
 """
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -64,10 +65,33 @@ async def sync_networks(
 def list_networks(
     db: Session = Depends(get_db),
     include_counts: bool = Query(default=True, description="Attach per-network device counts"),
+    group: Optional[str] = Query(
+        default=None,
+        description=(
+            "Comma-separated group title(s) (organisation). Scopes the device counts to that "
+            "organisation's devices; omit for the whole fleet."
+        ),
+    ),
+    only_with_devices: bool = Query(
+        default=False, description="Drop networks with no device in scope (for a manufacturer filter)",
+    ),
 ):
-    """List networks with the number of mirrored, deployed and online devices each."""
+    """
+    List networks (sensor manufacturers) with the number of mirrored, deployed
+    and online devices each, optionally scoped to an organisation.
+    """
+    group_device_ids = None
+    if group:
+        from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids  # noqa: WPS433
+
+        group_device_ids = resolve_group_device_ids(db, resolve_group_cohort_ids(db, group))
     try:
-        return network_sync_service.list_networks(db, include_counts=include_counts)
+        return network_sync_service.list_networks(
+            db,
+            include_counts=include_counts,
+            group_device_ids=group_device_ids,
+            only_with_devices=only_with_devices,
+        )
     except Exception as e:
         logger.exception(f"Unexpected error listing networks: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

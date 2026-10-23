@@ -153,14 +153,21 @@ async def sync_networks(db: Session, token: str) -> Dict[str, Any]:
 # Listing with per-network device counts
 # ---------------------------------------------------------------------------
 
-def _device_counts_by_network(db: Session) -> Dict[str, Dict[str, int]]:
+def _device_counts_by_network(
+    db: Session, device_ids: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, int]]:
     """
     Per network (lower-cased) counts of mirrored devices: total, deployed,
     online, and how many have a readable data source.
+
+    ``device_ids`` scopes the counts to those devices (an organisation's
+    devices); ``None`` means the whole fleet, an empty list means nothing.
     """
     from app.services.device_service import online_threshold_utc  # noqa: WPS433
 
     counts: Dict[str, Dict[str, int]] = {}
+    if device_ids is not None and not device_ids:
+        return counts
 
     def bucket(name: Optional[str]) -> Dict[str, int]:
         key = normalize_network(name) or ""
@@ -172,7 +179,10 @@ def _device_counts_by_network(db: Session) -> Dict[str, Dict[str, int]]:
             "external_api_devices": 0,
         })
 
-    for dev in db.query(SyncDevice).all():
+    device_query = db.query(SyncDevice)
+    if device_ids is not None:
+        device_query = device_query.filter(SyncDevice.device_id.in_(device_ids))
+    for dev in device_query.all():
         b = bucket(dev.network_id)
         b["total_devices"] += 1
         if (dev.status or "").lower() == "deployed":
@@ -193,14 +203,15 @@ def _device_counts_by_network(db: Session) -> Dict[str, Dict[str, int]]:
         .group_by(SyncRawDeviceData.device_id)
         .subquery()
     )
-    online_rows = (
+    online_query = (
         db.query(SyncDevice.network_id, func.count(func.distinct(SyncDevice.device_id)))
         .join(latest_seen, SyncDevice.device_id == latest_seen.c.device_id)
         .filter(func.lower(SyncDevice.status) == "deployed")
         .filter(latest_seen.c.last_seen_at >= online_threshold_utc())
-        .group_by(SyncDevice.network_id)
-        .all()
     )
+    if device_ids is not None:
+        online_query = online_query.filter(SyncDevice.device_id.in_(device_ids))
+    online_rows = online_query.group_by(SyncDevice.network_id).all()
     for network_id, online in online_rows:
         bucket(network_id)["online_devices"] = int(online or 0)
 
@@ -226,14 +237,23 @@ def _serialize_network(row: Optional[SyncNetwork], name: str, counts: Dict[str, 
     return base
 
 
-def list_networks(db: Session, include_counts: bool = True) -> Dict[str, Any]:
+def list_networks(
+    db: Session,
+    include_counts: bool = True,
+    group_device_ids: Optional[List[str]] = None,
+    only_with_devices: bool = False,
+) -> Dict[str, Any]:
     """
     Networks known to beacon: every synced ``sync_network`` row plus any
     network name that appears on a mirrored device but has not been synced
     yet (so counts never hide devices).
+
+    ``group_device_ids`` scopes the counts to an organisation's devices
+    (``None`` = whole fleet). ``only_with_devices`` drops networks that have
+    no device in that scope, which is what a manufacturer filter wants.
     """
     rows = {r.name: r for r in db.query(SyncNetwork).order_by(SyncNetwork.name).all()}
-    counts = _device_counts_by_network(db) if include_counts else {}
+    counts = _device_counts_by_network(db, group_device_ids) if include_counts else {}
 
     names = set(rows.keys()) | {n for n in counts.keys() if n}
     empty_counts = {
@@ -244,9 +264,12 @@ def list_networks(db: Session, include_counts: bool = True) -> Dict[str, Any]:
         _serialize_network(rows.get(name), name, counts.get(name, empty_counts))
         for name in sorted(names)
     ]
+    if only_with_devices:
+        networks = [n for n in networks if n["total_devices"] > 0]
     return {
         "success": True,
         "message": "Networks fetched successfully",
         "total": len(networks),
+        "scoped_to_group": group_device_ids is not None,
         "networks": networks,
     }

@@ -10,7 +10,7 @@
 
 Beacon no longer drops platform devices whose network is not `airqo`. Devices from every manufacturer the device registry holds (airgradient, iqair, metone, clarity/kcca, airbeam, ...) are mirrored with their manufacturer identity, and the networks list itself is mirrored so devices can be filtered and counted per manufacturer. See `docs/MULTI_MANUFACTURER_DEVICES.md` for the research behind this and the follow-up phases (readings for external devices).
 
-- **New `sync_network` table + `GET /api/v1/networks/`, `POST /api/v1/networks/sync`** — mirror of the platform's networks ("Sensor Manufacturers" in Vertex) with per-network device counts.
+- **New `sync_network` table + `GET /api/v1/networks/`, `POST /api/v1/networks/sync`** — mirror of the platform's networks ("Sensor Manufacturers" in Vertex) with per-network device counts. `group=<titles>` scopes the counts to an organisation's devices (same group → cohort → device resolution as the device list) and `only_with_devices=true` drops networks without a device in scope, so a manufacturer filter only offers what the organisation actually has.
 - **`sync_device`** gains `serial_number`, `api_code`, `auth_required`; `network_id` is indexed. Device payloads expose them plus a derived `data_source` (`thingspeak` | `external_api` | `none`).
 - **`ENABLED_NETWORKS`** setting replaces the hard-coded airqo-only filter (empty = every network). Applied at device sync, device list, single device, cohorts and grid performance.
 - **`network` query param** on `GET /api/v1/devices/synced` and `GET /api/v1/devices/`.
