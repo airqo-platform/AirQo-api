@@ -11,9 +11,12 @@ three complementary sources, closest to the device first:
    credentials server-side and returns the latest reading with AirQo field
    names. Polled on an interval for near real-time latest readings and online
    status. No vendor secrets live in beacon.
-2. **Direct history** (``DIRECT_SOURCES``): manufacturer APIs that offer
-   per-device history by date range, read with beacon's own credentials.
-   AirGradient's authenticated raw endpoint is the first one.
+2. **Direct manufacturer sources**: ``DIRECT_LIVE_SOURCES`` read a device's
+   current reading straight from the manufacturer with no credential at all
+   (AirGradient's public "world" endpoint), and are preferred over the
+   registry feed when they apply. ``DIRECT_SOURCES`` read per-device history
+   by date range with beacon's own credentials (AirGradient's authenticated
+   raw endpoint).
 3. **Analytics raw-data** (fallback): the platform's ``/analytics/raw-data``
    endpoint, backed by the ETL pipelines' BigQuery raw table. Used for
    devices without a direct source and when a direct fetch fails.
@@ -109,6 +112,7 @@ class SyncSummary:
 class FeedPollSummary:
     devices: int = 0
     polled: int = 0
+    direct: int = 0            # readings fetched straight from the manufacturer, no platform call
     readings: int = 0
     not_found: int = 0
     failed: int = 0
@@ -141,12 +145,31 @@ def feed_networks() -> Set[str]:
 
 
 def select_feed_devices(db: Session) -> List[SyncDevice]:
-    """External devices on a network with a live-feed adapter and a serial number."""
+    """
+    External devices whose latest reading can be fetched: through a direct
+    manufacturer source, or through the registry feed for networks with a
+    working adapter (which needs the device's serial number).
+    """
     allowed = feed_networks()
-    return [
-        d for d in select_external_devices(db)
-        if d.serial_number and normalize_network(d.network_id) in allowed
-    ]
+    rows = (
+        db.query(SyncDevice)
+        .filter(SyncDevice.network_id.isnot(None), SyncDevice.device_name.isnot(None))
+        .all()
+    )
+    selected = []
+    for d in rows:
+        network = normalize_network(d.network_id)
+        if network in (None, AIRQO_NETWORK) or not is_network_enabled(network):
+            continue
+        # A direct manufacturer source only needs to recognise the device (an
+        # AirGradient device is identified by its registry name alone).
+        if direct_live_source_for(d) is not None:
+            selected.append(d)
+            continue
+        source = device_data_source(d.network_id, d.device_number, d.readKey, d.serial_number, d.api_code)
+        if source == DATA_SOURCE_EXTERNAL_API and d.serial_number and network in allowed:
+            selected.append(d)
+    return selected
 
 
 def _platform_auth() -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -352,20 +375,118 @@ async def fetch_raw_data(
 
 # ── Source 2: direct manufacturer history ─────────────────────────────────────
 
-class AirGradientRawSource:
-    """
-    AirGradient's authenticated history endpoint
-    ``GET {base}/locations/{location_id}/measures/raw?token=&from=&to=``.
+_AIRGRADIENT_LOCATION_RE = re.compile(r"/locations/([^/?#]+)/")
+# The registry names AirGradient devices after their location id (ag_201560).
+_AIRGRADIENT_NAME_RE = re.compile(r"^ag_(\d+)$", re.IGNORECASE)
 
-    Only devices shared privately with the account (``authRequired`` true in
-    the registry) have history there; public "world" devices expose a current
-    snapshot only and are left to the live feed and analytics fallback.
+
+def airgradient_location_id(dev: SyncDevice) -> Optional[str]:
+    """The AirGradient location id: the registry serial number, else parsed from the API URL or the device name."""
+    if dev.serial_number:
+        return str(dev.serial_number).strip()
+    match = _AIRGRADIENT_LOCATION_RE.search(dev.api_code or "")
+    if match:
+        return match.group(1)
+    match = _AIRGRADIENT_NAME_RE.match((dev.device_name or "").strip())
+    return match.group(1) if match else None
+
+
+def _airgradient_base_url() -> str:
+    return (getattr(settings, "AIRGRADIENT_BASE_URL", "") or "").rstrip("/")
+
+
+class AirGradientWorldSource:
+    """
+    AirGradient's public "world" endpoint
+    ``GET {base}/world/locations/{location_id}/measures/current``.
+
+    Devices shared to the AirGradient world map answer here with no token at
+    all, so their latest reading needs neither the platform nor a vendor
+    credential. Devices shared privately (``authRequired`` true) answer 404
+    and go through the registry feed instead. There is no public history
+    endpoint; history comes from ``AirGradientRawSource`` or analytics.
     """
 
     network = "airgradient"
-    # The API serves a limited window per call; the pipeline uses 12-hour chunks.
-    chunk_hours = 12
-    _location_re = re.compile(r"/locations/([^/?#]+)/")
+
+    def supports(self, dev: SyncDevice) -> bool:
+        return (
+            bool(_airgradient_base_url())
+            and normalize_network(dev.network_id) == self.network
+            and not dev.auth_required
+            and airgradient_location_id(dev) is not None
+        )
+
+    def url(self, dev: SyncDevice) -> str:
+        return f"{_airgradient_base_url()}/world/locations/{airgradient_location_id(dev)}/measures/current"
+
+    @property
+    def bulk_url(self) -> str:
+        return f"{_airgradient_base_url()}/world/locations/measures/current"
+
+    async def fetch_all_current(self, client: httpx.AsyncClient) -> Optional[Dict[str, Dict[str, Any]]]:
+        """
+        Current readings of every public location worldwide, keyed by location
+        id, from one tokenless call. None when the call fails.
+        """
+        response = await _request_with_retries(client, "GET", self.bulk_url, headers={"accept": "application/json"})
+        if response is None or response.status_code != 200:
+            status = response.status_code if response is not None else "no response"
+            logger.warning(f"[External Feed] AirGradient world bulk endpoint HTTP {status}")
+            return None
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        if not isinstance(payload, list):
+            return None
+        return {str(item.get("locationId")): item for item in payload if isinstance(item, dict) and item.get("locationId") is not None}
+
+    async def fetch_current(self, client: httpx.AsyncClient, dev: SyncDevice) -> Tuple[Optional[Dict[str, Any]], str]:
+        """``(reading, outcome)`` with outcome ``ok`` / ``not_found`` / ``failed``, like ``fetch_live_feed``."""
+        response = await _request_with_retries(client, "GET", self.url(dev), headers={"accept": "application/json"})
+        if response is None:
+            return None, "failed"
+        if response.status_code == 404:
+            return None, "not_found"
+        if response.status_code != 200:
+            logger.warning(f"[External Feed] AirGradient world HTTP {response.status_code} for {dev.device_name}")
+            return None, "failed"
+        try:
+            payload = response.json()
+        except ValueError:
+            return None, "failed"
+        if isinstance(payload, list):
+            payload = payload[0] if payload else None
+        if not isinstance(payload, dict):
+            return None, "failed"
+        return payload, "ok"
+
+
+DIRECT_LIVE_SOURCES = [AirGradientWorldSource()]
+
+
+def direct_live_source_for(dev: SyncDevice):
+    for source in DIRECT_LIVE_SOURCES:
+        if source.supports(dev):
+            return source
+    return None
+
+
+class AirGradientRawSource:
+    """
+    AirGradient's authenticated history endpoint
+    ``GET {base}/locations/{location_id}/measures/past?token=&from=&to=``,
+    which returns 5-minute (or, for older data, 60-minute) buckets for any
+    date window. It serves only locations that belong to or are shared with
+    the account that owns the token; public "world" locations expose a
+    current snapshot only (``AirGradientWorldSource``), so their history can
+    only be accumulated by polling or taken from the analytics fallback.
+    """
+
+    network = "airgradient"
+    # Fetched in day-sized chunks to keep each response small.
+    chunk_hours = 24
 
     @property
     def token(self) -> str:
@@ -373,16 +494,13 @@ class AirGradientRawSource:
 
     @property
     def base_url(self) -> str:
-        return (getattr(settings, "AIRGRADIENT_BASE_URL", "") or "").rstrip("/")
+        return _airgradient_base_url()
 
     def available(self) -> bool:
         return bool(self.token and self.base_url)
 
     def location_id(self, dev: SyncDevice) -> Optional[str]:
-        if dev.serial_number:
-            return str(dev.serial_number).strip()
-        match = self._location_re.search(dev.api_code or "")
-        return match.group(1) if match else None
+        return airgradient_location_id(dev)
 
     def supports(self, dev: SyncDevice) -> bool:
         return (
@@ -393,7 +511,7 @@ class AirGradientRawSource:
         )
 
     def url(self, dev: SyncDevice) -> str:
-        return f"{self.base_url}/locations/{self.location_id(dev)}/measures/raw"
+        return f"{self.base_url}/locations/{self.location_id(dev)}/measures/past"
 
     @staticmethod
     def _window_params(start: datetime, end: datetime) -> Dict[str, str]:
@@ -422,7 +540,7 @@ class AirGradientRawSource:
             if response is None or response.status_code != 200:
                 status = response.status_code if response is not None else "no response"
                 logger.warning(
-                    f"[External Sync] AirGradient raw history HTTP {status} for {dev.device_name} "
+                    f"[External Sync] AirGradient past-measures HTTP {status} for {dev.device_name} "
                     f"({cursor:%Y-%m-%d %H:%M} → {chunk_end:%Y-%m-%d %H:%M})"
                 )
                 ok = False
@@ -681,9 +799,27 @@ async def poll_external_feeds() -> Dict[str, Any]:
         return {"success": True, "message": "No eligible devices", **summary.__dict__}
 
     params, headers = _platform_auth()
+    world = AirGradientWorldSource()
     async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        # One tokenless call covers every public AirGradient device.
+        world_readings = None
+        if any(isinstance(direct_live_source_for(d), AirGradientWorldSource) for d in devices):
+            world_readings = await world.fetch_all_current(client)
+
         for dev in devices:
-            payload, outcome = await fetch_live_feed(client, dev, params, headers)
+            direct = direct_live_source_for(dev)
+            if direct is not None:
+                if isinstance(direct, AirGradientWorldSource) and world_readings is not None:
+                    item = world_readings.get(airgradient_location_id(dev))
+                    payload, outcome = (item, "ok") if item else (None, "not_found")
+                else:
+                    payload, outcome = await direct.fetch_current(client, dev)
+                summary.direct += 1
+                if outcome == "not_found" and dev.serial_number and normalize_network(dev.network_id) in feed_networks():
+                    # Not on the public map after all; the registry adapter may still reach it.
+                    payload, outcome = await fetch_live_feed(client, dev, params, headers)
+            else:
+                payload, outcome = await fetch_live_feed(client, dev, params, headers)
             summary.polled += 1
             if outcome == "not_found":
                 summary.not_found += 1
@@ -710,8 +846,9 @@ async def poll_external_feeds() -> Dict[str, Any]:
                 db.close()
 
     message = (
-        f"Polled {summary.polled} devices: {summary.readings} readings stored, "
-        f"{summary.not_found} unknown to the manufacturer, {summary.failed} failed"
+        f"Polled {summary.polled} devices ({summary.direct} straight from the manufacturer): "
+        f"{summary.readings} readings stored, {summary.not_found} unknown to the manufacturer, "
+        f"{summary.failed} failed"
     )
     logger.info(f"[External Feed] {message}")
     return {"success": True, "message": message, **summary.__dict__}

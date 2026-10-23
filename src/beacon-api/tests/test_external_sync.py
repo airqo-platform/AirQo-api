@@ -411,7 +411,10 @@ class TestAirGradientDirectSource(unittest.TestCase):
     def test_location_id_falls_back_to_api_code(self):
         dev = SyncDevice(**{**AIRGRADIENT_PRIVATE, "serial_number": None})
         self.assertEqual(self.source.location_id(dev), "88123")
-        self.assertEqual(self.source.url(dev), "https://api.airgradient.com/public/api/v1/locations/88123/measures/raw")
+        self.assertEqual(self.source.url(dev), "https://api.airgradient.com/public/api/v1/locations/88123/measures/past")
+        # the registry name encodes the location id when nothing else does
+        named = SyncDevice(device_id="ag_9", device_name="ag_170157", network_id="airgradient", category="lowcost")
+        self.assertEqual(ext.airgradient_location_id(named), "170157")
 
     def test_fetch_chunks_window_and_tags_records(self):
         dev = SyncDevice(**AIRGRADIENT_PRIVATE)
@@ -422,13 +425,14 @@ class TestAirGradientDirectSource(unittest.TestCase):
         with patch.object(ext.settings, "AIRGRADIENT_API_TOKEN", "tok"):
             records, ok = asyncio.run(self.source.fetch(client, dev, date(2026, 10, 11), date(2026, 10, 11)))
         self.assertTrue(ok)
-        # one day → two 12-hour chunks
-        self.assertEqual(client.get.await_count, 2)
+        # one day → one day-sized chunk against the past-measures endpoint
+        self.assertEqual(client.get.await_count, 1)
+        self.assertIn("/measures/past", client.get.call_args_list[0].args[0])
         first_params = client.get.call_args_list[0].kwargs["params"]
         self.assertEqual(first_params["token"], "tok")
         self.assertEqual(first_params["from"], "20261011000000Z")
-        self.assertEqual(first_params["to"], "20261011120000Z")
-        self.assertEqual(len(records), 2)
+        self.assertEqual(first_params["to"], "20261012000000Z")
+        self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["device_name"], "ag_private")
         self.assertEqual(records[0]["datetime"], "2026-10-11T10:00:00.000Z")
 
@@ -476,7 +480,7 @@ class TestOrchestratorWithDirectSource(_DbTestCase):
 
         async def fake_get(url, **kwargs):
             # Only the AirGradient raw endpoint is reached through client.get
-            self.assertIn("/locations/88123/measures/raw", url)
+            self.assertIn("/locations/88123/measures/past", url)
             return _response(200, [{"timestamp": "2026-10-11T10:00:00.000Z", "pm02": 9.0, "pm10": 11.0}])
 
         async def fake_post(url, json=None, params=None, headers=None):
@@ -568,6 +572,8 @@ class TestLiveFeedPoll(_DbTestCase):
         }
 
         async def fake_get(url, params=None, headers=None, **kwargs):
+            if url.endswith("/world/locations/measures/current"):
+                return _response(200, [])   # not on the public map → falls back to the registry feed
             self.assertTrue(url.endswith("/devices/feeds/transform/recent"))
             self.assertEqual(params["token"], "api-token")
             return feeds[params["serial_number"]]
@@ -618,3 +624,91 @@ class TestLiveFeedPoll(_DbTestCase):
         self.assertEqual(stored["hourly"][0]["field1_avg"], 10.0)
         self.assertEqual(stored["hourly"][0]["record_count"], 2)
         self.assertEqual(stored["daily"][0]["data_date"], date(2026, 10, 12))
+
+
+
+class TestAirGradientWorldSource(_DbTestCase):
+    """Public AirGradient devices are read straight from the manufacturer with no credential."""
+
+    def setUp(self):
+        super().setUp()
+        self.db.add_all([
+            SyncDevice(**AIRGRADIENT),                       # public, serial 201560
+            SyncDevice(**AIRGRADIENT_PRIVATE),               # authRequired → not public
+            SyncDevice(device_id="ag_n", device_name="ag_170157", network_id="airgradient", category="lowcost", status="deployed"),
+            SyncDevice(**IQAIR),
+        ])
+        self.db.commit()
+
+    def test_supports_public_devices_only_and_resolves_ids(self):
+        world = ext.AirGradientWorldSource()
+        self.assertTrue(world.supports(SyncDevice(**AIRGRADIENT)))
+        self.assertFalse(world.supports(SyncDevice(**AIRGRADIENT_PRIVATE)))
+        self.assertFalse(world.supports(SyncDevice(**IQAIR)))
+        named = self.db.query(SyncDevice).filter(SyncDevice.device_id == "ag_n").one()
+        self.assertTrue(world.supports(named))   # location id parsed from the name
+        self.assertEqual(world.url(named), "https://api.airgradient.com/public/api/v1/world/locations/170157/measures/current")
+        self.assertIsInstance(ext.direct_live_source_for(SyncDevice(**AIRGRADIENT)), ext.AirGradientWorldSource)
+
+    def test_feed_devices_include_public_airgradient_without_serial(self):
+        with patch.object(ext.settings, "EXTERNAL_FEED_NETWORKS", "iqair"):
+            names = {d.device_name for d in ext.select_feed_devices(self.db)}
+        # ag_201560 and ag_170157 qualify through the world source; the private one needs the registry feed
+        self.assertEqual(names, {"ag_201560", "ag_170157", "phli_21"})
+
+    def test_poll_uses_one_bulk_call_and_no_platform_auth_for_public_devices(self):
+        world_payload = [
+            {"locationId": 201560, "pm02": 9.5, "pm10": 12.0, "rco2": 455, "atmp": 24.0, "rhum": 65, "wifi": -60,
+             "timestamp": "2026-10-23T08:43:00.000Z"},
+            {"locationId": 170157, "pm02": 0.0, "pm10": 0.0, "rco2": 401, "atmp": 24.4, "rhum": 54, "wifi": -63,
+             "timestamp": "2026-10-23T08:43:11.000Z"},
+            {"locationId": 999, "pm02": 1.0},
+        ]
+        calls = []
+
+        async def fake_get(url, params=None, headers=None, **kwargs):
+            calls.append((url, params))
+            if url.endswith("/world/locations/measures/current"):
+                return _response(200, world_payload)
+            if "/feeds/transform/recent" in url:
+                return _response(200, {"isCache": False, "pm2_5": 7.0, "pm10": 9.0, "timestamp": "2026-10-23T08:40:00Z"})
+            return _response(404, {})
+
+        stored = []
+
+        def fake_upsert_raw(db, records, batch_size=2000):
+            stored.extend(records)
+            for r in records:
+                db.add(SyncRawDeviceData(id=uuid.uuid4(), **r))
+            db.commit()
+            return len(records)
+
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=fake_get)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(ext, "SessionLocal", self.Session), \
+             patch.object(ext.httpx, "AsyncClient", return_value=client), \
+             patch.object(ext.crud_device_data, "upsert_raw_data", fake_upsert_raw), \
+             patch.object(ext.crud_device_data, "upsert_hourly_data", lambda db, r, batch_size=2000: len(r)), \
+             patch.object(ext.crud_device_data, "upsert_daily_data", lambda db, r, batch_size=2000: len(r)), \
+             patch.object(ext.settings, "EXTERNAL_FEED_NETWORKS", "airgradient,iqair"), \
+             patch.object(ext.settings, "PLATFORM_API_TOKEN", ""), patch.object(ext.settings, "TOKEN", ""):
+            summary = asyncio.run(ext.poll_external_feeds())
+
+        self.assertEqual(summary["direct"], 2)           # both public AirGradient devices, from the one bulk call
+        # + the private AirGradient device and the IQAir device through the registry feed
+        self.assertEqual(summary["readings"], 4)
+        bulk_calls = [c for c in calls if c[0].endswith("/world/locations/measures/current")]
+        self.assertEqual(len(bulk_calls), 1)
+        self.assertNotIn("token", bulk_calls[0][1] or {})
+        per_location = [c for c in calls if "/world/locations/" in c[0] and not c[0].endswith("/measures/current") or "/world/locations/2" in c[0]]
+        self.assertEqual(per_location, [])
+        by_key = {r["channel_id"]: r for r in stored}
+        self.assertEqual(by_key["ag_1"]["field1"], 9.5)      # pm02 → pm2_5
+        self.assertEqual(by_key["ag_1"]["field9"], 455.0)    # rco2 → co2
+        self.assertEqual(by_key["ag_1"]["field12"], -60.0)   # wifi → wifi_rssi
+        self.assertEqual(by_key["ag_1"]["created_at_ts"], datetime(2026, 10, 23, 8, 43, tzinfo=timezone.utc))
+        self.assertEqual(by_key["ag_n"]["field1"], 0.0)
+        self.assertEqual(by_key["iq_1"]["field1"], 7.0)

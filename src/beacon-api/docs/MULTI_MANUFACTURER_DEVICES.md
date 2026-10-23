@@ -151,12 +151,25 @@ with a per-device key. Manufacturer APIs differ, so external devices combine:
    latest readings and online status, no vendor secrets in beacon. Limited to
    networks with a working adapter (`EXTERNAL_FEED_NETWORKS`, default
    airgradient and iqair).
-2. *Direct history* (`DIRECT_SOURCES`). Manufacturer APIs with per-device
-   history by date range, read with beacon's own credentials. The first is
-   AirGradient's authenticated raw endpoint (`AIRGRADIENT_API_TOKEN`,
-   `AIRGRADIENT_BASE_URL`), in 12-hour chunks, for devices shared privately
-   with the account (`authRequired` true in the registry). Public "world"
-   devices expose a snapshot only and fall through to the next source.
+2. *Direct manufacturer sources.* Two kinds, per what AirGradient's public
+   API spec (`/public/docs/api/v1/swagger.json`) actually offers:
+   - *Public current readings, no credential at all* (`DIRECT_LIVE_SOURCES`).
+     `GET /world/locations/measures/current` returns the current reading of
+     every device shared to the AirGradient world map in one tokenless call
+     (about 2,900 locations worldwide); `/world/locations/{id}/measures/current`
+     does the same per device. The poll fetches the bulk payload once and
+     serves every public AirGradient device from it, so their latest readings
+     need neither the platform nor a vendor token. A device that is not on
+     the public map falls back to the registry feed. The location id is the
+     registry serial number, else parsed from the API URL or the `ag_<id>`
+     device name.
+   - *History with beacon's own credential* (`DIRECT_SOURCES`). AirGradient's
+     `GET /locations/{id}/measures/past?token=&from=&to=` returns 5-minute (or
+     60-minute, for older data) buckets for any window, but only for locations
+     that belong to or are shared with the token's account
+     (`AIRGRADIENT_API_TOKEN`; `authRequired` true in the registry). There is
+     no public history endpoint: a public device's history can only be
+     accumulated by polling or taken from the analytics fallback.
    IQAir's device URL returns a fixed historical block with no window
    control, and Met One is only reachable through AirNow by bounding box, so
    neither has a direct source yet.
