@@ -104,6 +104,11 @@ class BigQueryApi:
             f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_table}.id "
         )
 
+    @staticmethod
+    def _datetime_column(timestamp: str) -> str:
+        """Return the select item that labels a row with the time of ``timestamp``."""
+        return f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {timestamp}) AS datetime"
+
     def get_time_grouping(self, frequency: str):
         """
         Determines the appropriate time grouping fields based on the frequency.
@@ -115,6 +120,7 @@ class BigQueryApi:
             str: The time grouping clause for the SQL query.
         """
         grouping_map = {
+            "daily": self._datetime_column("TIMESTAMP_TRUNC(timestamp, DAY)"),
             "weekly": "TIMESTAMP_TRUNC(timestamp, WEEK(MONDAY)) AS week",
             "monthly": "TIMESTAMP_TRUNC(timestamp, MONTH) AS month",
             "yearly": "EXTRACT(YEAR FROM timestamp) AS year",
@@ -327,7 +333,8 @@ class BigQueryApi:
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime "
+            + self._datetime_column(f"{table_name}.timestamp")
+            + " "
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
@@ -659,7 +666,7 @@ class BigQueryApi:
         result of that query by row offset.
 
         Args:
-            cursor_field (str): The time column of the result (timestamp, week, month or year).
+            cursor_field (str): The time column of the result (timestamp, datetime, week, month or year).
             filter_type (str): The type of the filter.
             table (str): The table being queried.
 
@@ -742,12 +749,10 @@ class BigQueryApi:
         table_name = Utils.table_name(table)
 
         # TODO Find a better way to do this.
-        if frequency.value in (self.extra_time_grouping - {"daily"}):
+        if frequency.value in self.extra_time_grouping:
             # Drop datetime alias
-            pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime ",
-                "",
-            )
+            datetime_column = self._datetime_column(f"{table_name}.timestamp")
+            pollutants_query = pollutants_query.replace(f", {datetime_column} ", "")
 
         if filter_type in {
             "devices",
@@ -870,7 +875,8 @@ class BigQueryApi:
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime "
+            + self._datetime_column(f"{table_name}.timestamp")
+            + " "
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
@@ -928,7 +934,7 @@ class BigQueryApi:
             )
 
         pollutant_columns = self._add_extra_columns(
-            device_category, pollutant_columns_, table_name=table_name
+            device_category, pollutant_columns_, frequency, table_name=table_name
         )
         return pollutant_columns
 
@@ -936,34 +942,31 @@ class BigQueryApi:
         self,
         device_category: DeviceCategory,
         pollutant_columns: List[str],
+        frequency: Frequency,
         table_name: Optional[str] = None,
-    ) -> Tuple[List[str], List[str]]:
+    ) -> List[str]:
         """
-        Appends latitude and longitude columns to the given lists of pollutant columns for both low-cost sensor and BAM data sources, based on the provided table names.
-        This ensures that both result sets include geospatial coordinates for downstream use (e.g., mapping, grouping, or display).
-
-        Args:
-            pollutant_columns(List[str]): List of SQL column expressions for low-cost sensor data.
-            bam_pollutant_columns(List[str]): List of SQL column expressions for BAM device data.
-            table_name(Optional[str]): Name of the table containing low-cost sensor data.
-            bam_table_name(Optional[str]): Name of the table containing BAM data.
-
-        Returns:
-            Tuple[List[str], List[str]]:
-                - Updated `pollutant_columns` with latitude and longitude (if applicable).
-                - Updated `bam_pollutant_columns` with latitude and longitude (if applicable).
-
-        Notes:
-            - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
-            - This function modifies the input lists in-place and also returns them.
+        Appends the optional columns of the device category to the pollutant columns.
+        The grouped frequencies average and round these columns, so the grouping keys
+        stay the identity and the period.
         """
         extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category).copy()
         extra_columns.discard("site_id")
         if pollutant_columns:
             # The optional fields are a set, so sorting them gives one column
             # order in every process.
-            pollutant_columns.extend(
-                [f"{table_name}.{field}" for field in sorted(extra_columns)]
-            )
+            fields = sorted(extra_columns)
+            if frequency.value in self.extra_time_grouping:
+                pollutant_columns.extend(
+                    self.get_averaging_columns(
+                        fields,
+                        frequency,
+                        Config.OPTIONAL_FIELDS_DECIMAL_PLACES,
+                        table_name,
+                        device_category,
+                    )
+                )
+            else:
+                pollutant_columns.extend(f"{table_name}.{field}" for field in fields)
 
         return pollutant_columns

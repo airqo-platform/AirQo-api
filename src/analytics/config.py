@@ -456,6 +456,9 @@ class BaseConfig(BaseSettings):
         },
     }
 
+    # Five decimal places resolve a coordinate to about one metre.
+    OPTIONAL_FIELDS_DECIMAL_PLACES: int = 5
+
     # Schema file mapping — resolved dynamically using table name fields above
     @property
     def SCHEMA_FILE_MAPPING(self) -> Dict[str, str]:
@@ -477,7 +480,7 @@ class BaseConfig(BaseSettings):
     all_time_grouping: Set[str] = {"hourly", "daily", "weekly", "monthly", "yearly"}
     cursor_field: Dict[str, str] = {
         "hourly": "timestamp",
-        "daily": "timestamp",
+        "daily": "datetime",
         "weekly": "week",
         "monthly": "month",
         "yearly": "year",
