@@ -1296,11 +1296,19 @@ const groupUtil = {
   },
   delete: async (request, next) => {
     try {
+      // Deletion has been switched off since 2023. The code below only
+      // removes the group document, so it would leave members' group_roles,
+      // the group's roles and access requests, and device-registry
+      // cohorts/devices pointing at a group that no longer exists. Retire
+      // groups with PATCH /:grp_id/status (e.g. ARCHIVED) instead.
       return {
         success: false,
         message: "Group deletion temporarily disabled",
         status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "Group deletion temporarily disabled" },
+        errors: {
+          message:
+            "Group deletion has been disabled since 2023 because it would leave members, roles and linked devices pointing at an organization that no longer exists. Archive the organization instead via PATCH /api/v2/users/groups/:grp_id/status with status ARCHIVED.",
+        },
       };
       const { query, params } = request;
       const { tenant } = query;
