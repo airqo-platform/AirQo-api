@@ -104,7 +104,9 @@ pretending to have ThingSpeak data.
 - **Devices keep their manufacturer identity.** `sync_device` gains
   `serial_number`, `api_code` and `auth_required`; `network_id` is indexed.
   Device payloads expose them plus a derived `data_source`:
-  `thingspeak`, `external_api` or `none`.
+  `thingspeak`, `external_api` or `none`. `none` means beacon has no live
+  path to the device (no channel, serial number or connection URL); such a
+  device can still be backfilled from the analytics fallback by name.
 - **The airqo-only filter became an allow-list.** `ENABLED_NETWORKS`
   (comma-separated) limits which networks are mirrored; empty (the default)
   mirrors every network. The same rule is applied at every former airqo-only

@@ -71,8 +71,11 @@ CHUNK_SIZE = 50
 # The analytics API caps raw windows to a few days per request.
 SEGMENT_DAYS = 7
 MAX_RETRIES = 3
-# raw-data is rate limited (5 requests per minute per IP), so back off generously.
+# Transient transport errors and 5xx: short backoff.
 RETRY_BACKOFF_SECONDS = 15
+# raw-data is rate limited to 5 requests per minute per IP; a 429 means wait
+# out the window (the server's Retry-After wins when it sends one).
+RATE_LIMIT_BACKOFF_SECONDS = 60
 # Analytics validates ``network`` against its enum but does not use it to
 # filter rows (device names decide). Deployments that predate the wider enum
 # reject unknown networks with 422; we then retry with the historic default.
@@ -124,7 +127,13 @@ class FeedPollSummary:
 # ── Device selection ──────────────────────────────────────────────────────────
 
 def select_external_devices(db: Session) -> List[SyncDevice]:
-    """Mirrored devices whose readings come from a manufacturer API rather than ThingSpeak."""
+    """
+    Every mirrored device from a manufacturer other than AirQo, on an enabled
+    network, with a name. The analytics fallback finds a device's rows by
+    name alone, so a device without a serial number or connection URL
+    (``data_source`` ``none``: nothing beacon can read live) can still be
+    backfilled from the pipeline's data.
+    """
     rows = (
         db.query(SyncDevice)
         .filter(SyncDevice.network_id.isnot(None), SyncDevice.device_name.isnot(None))
@@ -132,9 +141,7 @@ def select_external_devices(db: Session) -> List[SyncDevice]:
     )
     return [
         d for d in rows
-        if is_network_enabled(d.network_id)
-        and device_data_source(d.network_id, d.device_number, d.readKey, d.serial_number, d.api_code)
-        == DATA_SOURCE_EXTERNAL_API
+        if normalize_network(d.network_id) not in (None, AIRQO_NETWORK) and is_network_enabled(d.network_id)
     ]
 
 
@@ -258,22 +265,37 @@ def build_raw_data_payload(
     end_date: date,
 ) -> Dict[str, Any]:
     """Body for ``POST /analytics/raw-data`` covering one group and date segment."""
+    is_bam = category == "bam"
     return {
         "network": network,
-        "device_category": "bam" if category == "bam" else "lowcost",
+        "device_category": "bam" if is_bam else "lowcost",
         "device_names": list(device_names),
         "startDateTime": f"{start_date.isoformat()}T00:00:00Z",
         "endDateTime": f"{end_date.isoformat()}T23:59:59Z",
         "frequency": "raw",
         "datatype": "raw",
         "downloadType": "json",
-        "pollutants": ["pm2_5", "pm10"],
+        # the analytics API accepts pm2_5 only for reference monitors
+        "pollutants": ["pm2_5"] if is_bam else ["pm2_5", "pm10"],
         "metaDataFields": ["latitude", "longitude"],
         "weatherFields": ["temperature", "humidity"],
     }
 
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
+
+def _retry_delay(response: httpx.Response, attempt: int) -> float:
+    """Seconds to wait before retrying ``response``: Retry-After if sent, else by status."""
+    retry_after = (response.headers or {}).get("Retry-After") if hasattr(response, "headers") else None
+    if retry_after:
+        try:
+            return max(1.0, float(retry_after))
+        except (TypeError, ValueError):
+            pass
+    if response.status_code == 429:
+        return float(RATE_LIMIT_BACKOFF_SECONDS * attempt)
+    return float(RETRY_BACKOFF_SECONDS * attempt)
+
 
 async def _request_with_retries(
     client: httpx.AsyncClient,
@@ -300,10 +322,10 @@ async def _request_with_retries(
             logger.error(f"[External Sync] {method} {url.split('?')[0]} failed after {max_retries} attempts: {e}")
             return None
         if response.status_code in _RETRYABLE_STATUSES and attempt < max_retries:
-            delay = RETRY_BACKOFF_SECONDS * attempt
+            delay = _retry_delay(response, attempt)
             logger.warning(
                 f"[External Sync] {method} {url.split('?')[0]} returned HTTP {response.status_code}, "
-                f"retrying in {delay}s (attempt {attempt}/{max_retries})"
+                f"retrying in {delay:g}s (attempt {attempt}/{max_retries})"
             )
             await asyncio.sleep(delay)
             continue

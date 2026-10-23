@@ -158,8 +158,11 @@ class TestPlanning(_DbTestCase):
         self.db.commit()
 
     def test_select_external_devices(self):
+        # every non-airqo device, including one with no serial number (analytics finds it by name)
         names = {d.device_name for d in ext.select_external_devices(self.db)}
-        self.assertEqual(names, {"ag_201560", "phli_21", "dos-addis-centr"})
+        self.assertEqual(names, {"ag_201560", "phli_21", "dos-addis-centr", "mystery"})
+        with patch.object(ext.settings, "ENABLED_NETWORKS", "airgradient"):
+            self.assertEqual({d.device_name for d in ext.select_external_devices(self.db)}, {"ag_201560"})
 
     def test_plan_groups_by_network_and_skips_complete_days(self):
         start, end = date(2026, 10, 1), date(2026, 10, 10)
@@ -170,7 +173,7 @@ class TestPlanning(_DbTestCase):
         self.db.commit()
         groups = ext.plan_fetch_groups(self.db, ext.select_external_devices(self.db), start, end)
         by_key = {(g.network, g.category): g for g in groups}
-        self.assertEqual(set(by_key), {("airgradient", "lowcost"), ("iqair", "lowcost"), ("metone", "bam")})
+        self.assertEqual(set(by_key), {("airgradient", "lowcost"), ("iqair", "lowcost"), ("metone", "bam"), ("airbeam", "lowcost")})
         ag = by_key[("airgradient", "lowcost")]
         self.assertEqual((ag.start_date, ag.end_date), (date(2026, 10, 9), date(2026, 10, 10)))
         self.assertEqual(ag.device_names, ["ag_201560"])
@@ -187,7 +190,9 @@ class TestPlanning(_DbTestCase):
         self.assertEqual(payload["endDateTime"], "2026-10-07T23:59:59Z")
         self.assertEqual(payload["frequency"], "raw")
         self.assertEqual(payload["metaDataFields"], ["latitude", "longitude"])
-        self.assertEqual(ext.build_raw_data_payload("metone", "bam", [], date(2026, 10, 1), date(2026, 10, 1))["device_category"], "bam")
+        bam = ext.build_raw_data_payload("metone", "bam", [], date(2026, 10, 1), date(2026, 10, 1))
+        self.assertEqual(bam["device_category"], "bam")
+        self.assertEqual(bam["pollutants"], ["pm2_5"])   # analytics rejects pm10 for reference monitors
 
 
 class TestBuildRawRows(unittest.TestCase):
@@ -252,6 +257,16 @@ class TestFetchRawData(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(records, [{"a": 1}])
         self.assertEqual(client.post.call_args_list[1].kwargs["json"]["network"], "airqo")
+
+    def test_rate_limit_backoff_waits_out_the_window(self):
+        r429 = _response(429, {"message": "Rate limit exceeded"})
+        r429.headers = {}
+        self.assertEqual(ext._retry_delay(r429, 1), 60.0)
+        self.assertEqual(ext._retry_delay(r429, 2), 120.0)
+        r429.headers = {"Retry-After": "7"}
+        self.assertEqual(ext._retry_delay(r429, 1), 7.0)
+        r503 = _response(503); r503.headers = {}
+        self.assertEqual(ext._retry_delay(r503, 1), 15.0)
 
     def test_server_error_reports_failure(self):
         client = MagicMock()
