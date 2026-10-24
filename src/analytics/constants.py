@@ -61,6 +61,15 @@ class DeviceNetwork(Enum):
     AIRQO = "airqo"
     URBANBETTER = "urbanbetter"
     IQAIR = "iqair"
+    AIRGRADIENT = "airgradient"
+    CLARITY = "clarity"
+    KCCA = "kcca"
+    AIRBEAM = "airbeam"
+    AIRLY = "airly"
+    PLUMELABS = "plumelabs"
+    QUANT_AQ = "quant-aq"
+    NASA = "nasa"
+    PURPLEAIR = "purpleair"
 
     def __str__(self) -> str:
         return self.value

@@ -4,6 +4,43 @@
 
 ---
 
+## [Unreleased]
+
+### Feature: Devices from other sensor manufacturers
+
+Beacon no longer drops platform devices whose network is not `airqo`. Devices from every manufacturer the device registry holds (airgradient, iqair, metone, clarity/kcca, airbeam, ...) are mirrored with their manufacturer identity, and the networks list itself is mirrored so devices can be filtered and counted per manufacturer. See `docs/MULTI_MANUFACTURER_DEVICES.md` for the research behind this and the follow-up phases (readings for external devices).
+
+- **New `sync_network` table + `GET /api/v1/networks/`, `POST /api/v1/networks/sync`** — mirror of the platform's networks ("Sensor Manufacturers" in Vertex) with per-network device counts. `group=<titles>` scopes the counts to an organisation's devices (same group → cohort → device resolution as the device list) and `only_with_devices=true` drops networks without a device in scope, so a manufacturer filter only offers what the organisation actually has.
+- **`sync_device`** gains `serial_number`, `api_code`, `auth_required`; `network_id` is indexed. Device payloads expose them plus a derived `data_source` (`thingspeak` | `external_api` | `none`).
+- **`ENABLED_NETWORKS`** setting replaces the hard-coded airqo-only filter (empty = every network). Applied at device sync, device list, single device, cohorts and grid performance.
+- **`network` query param** on `GET /api/v1/devices/synced` and `GET /api/v1/devices/`.
+- **Device profiles** resolve per manufacturer (`<network>_<category>`, e.g. `airgradient_lowcost`); the AirQo ThingSpeak profiles are only assigned to airqo devices.
+- **ThingSpeak sync** selects only airqo-network devices with a channel + read key (`select_thingspeak_devices`).
+- **Cohort performance (analytics raw-data)** groups by (network, category) and skips networks the analytics API does not accept.
+- Migration: `f1a2b3c4d5e6_add_sync_network_and_external_device_fields`.
+
+### Feature: Readings for devices from other manufacturers
+
+External devices are backfilled into the same `sync_*_device_data` tables airqo devices use, from the platform's analytics raw-data endpoint, so latest readings, online status, performance and diagnostics work for every manufacturer.
+
+- **`app/services/external_sync_service.py`** — three sources, closest to the device first:
+  - *Live feed*: `poll_external_feeds` (every `EXTERNAL_FEED_POLL_MINUTES`, `POST /api/v1/data-sync/poll-external-feeds`) reads each device's latest reading from the registry's `feeds/transform/recent`, which calls the manufacturer API through the network adapter with credentials held server-side, stores it as a raw sample and refreshes the hour's and day's aggregates.
+  - *Direct, no credential*: `AirGradientWorldSource` serves every public AirGradient device from one tokenless call to AirGradient's world endpoint, preferred over the registry feed; the location id comes from the serial number, the API URL or the `ag_<id>` name.
+  - *Direct history*: `AirGradientRawSource` reads AirGradient's authenticated past-measures endpoint (5-minute buckets, `AIRGRADIENT_API_TOKEN`) for devices shared with the account.
+  - *Analytics raw-data fallback*: nightly (after the ThingSpeak sync, `EXTERNAL_SYNC_ENABLED`) and via `POST /api/v1/data-sync/sync-external`, days without a complete daily record are fetched from `POST /analytics/raw-data` per (network, category) with cursor pagination and rate-limit backoff for devices without a direct source or whose direct fetch failed.
+- **`app/services/manufacturer_profiles.py`** — `<network>_<category>` profiles (airgradient_lowcost, iqair_lowcost, metone_bam, ...) whose telemetry mappings place named readings into `field1..field20`; `POST /api/v1/networks/profiles/seed` seeds and assigns them. Reads label slots back through the same profile.
+- **Source keys** — `sync_*_device_data.channel_id` is the ThingSpeak channel for airqo devices and the registry device id for others (`device_source_key`); `_resolve_devices`, the map view and stream last-active lookups resolve through it.
+- **Analytics** — the raw-data `Network` enum now accepts every registry network (airgradient, clarity, kcca, airbeam, airly, plumelabs, quant-aq, urbanbetter, nasa, purpleair).
+- Daily diagnostics only fall back to the plain category profile for airqo devices.
+
+### Feature: Per-manufacturer diagnostics
+
+Manufacturer profiles now carry component models for the IoT diagnostic engine, so the nightly daily diagnostics job evaluates external devices the same way it evaluates AirQo ones.
+
+- **`manufacturer_profiles.MANUFACTURER_COMPONENT_MODELS`** — components, metrics (ranges, rate limits, roles) and POWERS / COMMUNICATES_VIA relationships for `airgradient_lowcost` (incl. WiFi signal as `signal_strength` and a boot counter for reboot storms), `iqair_lowcost`, `metone_bam` and the generic single-PM profiles; attached on creation and retro-fitted to seeded profiles without components. Each sets a `reporting_interval` default.
+- **`GET /api/v1/networks/profiles`** — manufacturer profiles with the engine's readiness (diagnosable, components, warnings); the seed endpoint reports the same.
+
+
 ## Version 2.5.0
 **Released:** September 19, 2026
 

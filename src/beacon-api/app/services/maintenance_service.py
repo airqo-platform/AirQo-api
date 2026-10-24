@@ -10,6 +10,7 @@ from app.crud.crud_sync_device_data import (
     get_latest_raw_timestamps,
     get_device_metrics_for_map_view,
 )
+from app.utils.networks import source_key_for_platform_device
 from app.db.session import SessionLocal
 from app.models.sync import SyncGrid, SyncGridSite, SyncDevice
 
@@ -300,9 +301,9 @@ def _build_map_view_devices(
 
             if d_name not in device_map:
                 device_map[d_name] = _make_map_view_entry(dev)
-                dn = dev.get("device_number")
-                if dn is not None:
-                    name_to_channel[d_name] = str(dn)
+                source_key = source_key_for_platform_device(dev)
+                if source_key:
+                    name_to_channel[d_name] = source_key
                 d_id = dev.get("_id")
                 if d_id:
                     name_to_device_id[d_name] = d_id
@@ -435,19 +436,19 @@ def _enrich_single_cohort(
 def _resolve_stream_last_active(dev: Dict[str, Any], db: Optional[Any] = None) -> Optional[str]:
     """Return the latest raw timestamp for a device, falling back to lastActive."""
     last_active = dev.get("lastActive")
-    dn = dev.get("device_number")
-    if dn is None:
+    source_key = source_key_for_platform_device(dev)
+    if source_key is None:
         return last_active
 
     if db is not None:
-        latest = get_latest_raw_timestamps(db, [str(dn)])
+        latest = get_latest_raw_timestamps(db, [source_key])
     else:
         session = SessionLocal()
         try:
-            latest = get_latest_raw_timestamps(session, [str(dn)])
+            latest = get_latest_raw_timestamps(session, [source_key])
         finally:
             session.close()
-    ts = latest.get(str(dn))
+    ts = latest.get(source_key)
     return ts.isoformat() if ts is not None else last_active
 
 

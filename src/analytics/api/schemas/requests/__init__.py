@@ -50,10 +50,26 @@ class Frequency(str, Enum):
 
 
 class Network(str, Enum):
+    """
+    Sensor manufacturer / data provider a device belongs to (the device
+    registry's ``network``). Measurement rows carry the same value in their
+    ``network`` column.
+    """
+
     AIRQO = "airqo"
     IQAIR = "iqair"
     AIRNOW = "airnow"
     METONE = "metone"
+    AIRGRADIENT = "airgradient"
+    CLARITY = "clarity"
+    KCCA = "kcca"
+    AIRBEAM = "airbeam"
+    AIRLY = "airly"
+    PLUMELABS = "plumelabs"
+    QUANT_AQ = "quant-aq"
+    URBANBETTER = "urbanbetter"
+    NASA = "nasa"
+    PURPLEAIR = "purpleair"
 
 
 class ChartType(str, Enum):

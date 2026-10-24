@@ -76,6 +76,67 @@ async def sync_thingspeak_data(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@router.post("/sync-external", response_model=SyncTriggerResponse)
+async def sync_external_data(
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(...),
+    days: int = Query(default=14, ge=1, le=90, description="Lookback period in days"),
+    start_date: Optional[date] = Query(default=None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(default=None, description="End date (YYYY-MM-DD)"),
+):
+    """
+    Backfill readings for devices from other sensor manufacturers (airgradient,
+    iqair, metone, ...) from the platform's analytics raw-data endpoint into the
+    local sync tables. Runs as a background task.
+    """
+    _extract_token(authorization)  # validate auth
+
+    try:
+        from app.services.external_sync_service import sync_external_device_data
+
+        background_tasks.add_task(
+            sync_external_device_data,
+            days=days,
+            start_date=start_date.isoformat() if start_date else None,
+            end_date=end_date.isoformat() if end_date else None,
+        )
+        return SyncTriggerResponse(
+            success=True,
+            message=(
+                "External-manufacturer data sync started in the background. "
+                "It may take several minutes depending on the number of devices."
+            ),
+        )
+    except Exception as e:
+        logger.exception(f"Error triggering external data sync: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.post("/poll-external-feeds", response_model=SyncTriggerResponse)
+async def poll_external_feeds_endpoint(
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(...),
+):
+    """
+    Fetch the latest reading of every external-manufacturer device straight
+    from the manufacturer (through the registry's live feed adapter) and store
+    it. Runs as a background task.
+    """
+    _extract_token(authorization)  # validate auth
+
+    try:
+        from app.services.external_sync_service import poll_external_feeds
+
+        background_tasks.add_task(poll_external_feeds)
+        return SyncTriggerResponse(
+            success=True,
+            message="External live-feed poll started in the background.",
+        )
+    except Exception as e:
+        logger.exception(f"Error triggering external feed poll: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 @router.get("/raw", response_model=RawDataResponse)
 def get_raw_data(
     authorization: str = Header(...),
