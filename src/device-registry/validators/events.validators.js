@@ -8,6 +8,21 @@ const {
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const { isValidObjectId } = require("mongoose");
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// isValidObjectId, which also accepts arbitrary 12-byte strings that would
+// then make the ObjectId() cast in generateFilter throw.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+// Validation-only (no sanitizer): generateFilter splits and casts these
+// comma-separated ids itself, so the raw string must reach it unchanged.
+const assertObjectIdList = (field) => (value) => {
+  const values = Array.isArray(value) ? value : value.toString().split(",");
+  for (const v of values) {
+    if (v && !isObjectIdShape(String(v).trim())) {
+      throw new Error(`${field} must be a valid object ID - ${v}`);
+    }
+  }
+  return true;
+};
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
@@ -136,7 +151,9 @@ const commonValidations = {
     query("device_id")
       .optional()
       .notEmpty()
-      .trim(),
+      .trim()
+      .bail()
+      .custom(assertObjectIdList("device_id")),
   ],
 
   latLong: [
@@ -164,7 +181,9 @@ const commonValidations = {
     query("site_id")
       .optional()
       .notEmpty()
-      .trim(),
+      .trim()
+      .bail()
+      .custom(assertObjectIdList("site_id")),
   ],
 
   primary: [
