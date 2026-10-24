@@ -8,6 +8,34 @@ const {
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const { isValidObjectId } = require("mongoose");
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// isValidObjectId, which also accepts arbitrary 12-byte strings that would
+// then make the ObjectId() cast in generateFilter throw.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+// Validation-only (no ObjectId cast): generateFilter splits and casts these
+// comma-separated ids itself. Every entry is checked, so empty entries
+// ("a,,b", "a,") are rejected too — they would otherwise fail that cast.
+// Repeated params (?id=a,b&id=c) are split per entry, matching how
+// generateFilter joins and re-splits the array.
+const assertObjectIdList = (field) => (value) => {
+  const values = (Array.isArray(value) ? value : [value]).flatMap((entry) =>
+    String(entry).split(","),
+  );
+  for (const v of values) {
+    if (!isObjectIdShape(String(v).trim())) {
+      throw new Error(`${field} must be a valid object ID - ${v}`);
+    }
+  }
+  return true;
+};
+// Trims without collapsing repeated query params (?site_id=a&site_id=b) to
+// their first value, which the standard .trim() sanitizer does on arrays.
+const trimEach = (value) =>
+  Array.isArray(value)
+    ? value.map((v) => (typeof v === "string" ? v.trim() : v))
+    : typeof value === "string"
+      ? value.trim()
+      : value;
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
@@ -136,7 +164,9 @@ const commonValidations = {
     query("device_id")
       .optional()
       .notEmpty()
-      .trim(),
+      .customSanitizer(trimEach)
+      .bail()
+      .custom(assertObjectIdList("device_id")),
   ],
 
   latLong: [
@@ -164,7 +194,9 @@ const commonValidations = {
     query("site_id")
       .optional()
       .notEmpty()
-      .trim(),
+      .customSanitizer(trimEach)
+      .bail()
+      .custom(assertObjectIdList("site_id")),
   ],
 
   primary: [
