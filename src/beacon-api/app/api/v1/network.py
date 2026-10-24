@@ -98,13 +98,17 @@ def list_networks(
 
 
 @router.post("/profiles/seed", response_model=NetworkProfileSeedResponse)
-def seed_manufacturer_profiles(db: Session = Depends(get_db)):
+def seed_manufacturer_profiles(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db),
+):
     """
     Create the per-manufacturer device profiles (airgradient_lowcost,
     iqair_lowcost, metone_bam, ...) that define how named readings map onto
     the field1..field20 slots, and assign them to mirrored devices that have
     no profile yet.
     """
+    _extract_token(authorization)
     try:
         seeded = ensure_manufacturer_profiles(db)
         assigned = assign_profiles_to_external_devices(db)

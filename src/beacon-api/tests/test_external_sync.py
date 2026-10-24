@@ -288,6 +288,11 @@ class TestOrchestrator(_DbTestCase):
         def fake_upsert(kind):
             def _upsert(db, records, batch_size=2000):
                 captured[kind].extend(records)
+                if kind == "raw":
+                    # Store them: aggregates are rebuilt from the stored raw rows
+                    for r in records:
+                        db.add(SyncRawDeviceData(id=uuid.uuid4(), **r))
+                    db.commit()
                 return len(records)
             return _upsert
 
@@ -395,9 +400,6 @@ class TestReadPathForExternalDevices(_DbTestCase):
         self.assertEqual(aq["averages"]["pm2.5 sensor1"], 20.0)
         self.assertEqual(aq["averages"]["pm2.5"], 21.0)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 # ── Phase 2b: live feed + direct AirGradient source ───────────────────────────
@@ -727,3 +729,80 @@ class TestAirGradientWorldSource(_DbTestCase):
         self.assertEqual(by_key["ag_1"]["created_at_ts"], datetime(2026, 10, 23, 8, 43, tzinfo=timezone.utc))
         self.assertEqual(by_key["ag_n"]["field1"], 0.0)
         self.assertEqual(by_key["iq_1"]["field1"], 7.0)
+
+
+
+class TestAggregatesAcrossSources(_DbTestCase):
+    """CodeRabbit on #7126: aggregates must come from every stored reading, and a failed fetch must not complete days."""
+
+    HOUR = datetime(2026, 10, 11, 10, 0, tzinfo=timezone.utc)
+
+    def setUp(self):
+        super().setUp()
+        self.db.add(SyncDevice(**AIRGRADIENT))
+        # A live-feed sample already stored for this hour, carrying CO2 the backfill does not have
+        self.db.add(SyncRawDeviceData(id=uuid.uuid4(), channel_id="ag_1", device_id="ag_1", entry_id=1,
+                                      created_at_ts=self.HOUR + timedelta(minutes=5), field1=8.0, field9=455.0))
+        self.db.commit()
+        self.captured = {"hourly": [], "daily": []}
+
+        def fake_upsert_raw(db, records, batch_size=2000):
+            for r in records:
+                db.add(SyncRawDeviceData(id=uuid.uuid4(), **r))
+            db.commit()
+            return len(records)
+
+        for target, value in (
+            ("upsert_raw_data", fake_upsert_raw),
+            ("upsert_hourly_data", lambda db, r, batch_size=2000: self.captured["hourly"].extend(r) or len(r)),
+            ("upsert_daily_data", lambda db, r, batch_size=2000: self.captured["daily"].extend(r) or len(r)),
+        ):
+            patcher = patch.object(ext.crud_device_data, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(ext, "SessionLocal", self.Session)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _backfill_row(self, minute, pm):
+        ts = self.HOUR + timedelta(minutes=minute)
+        row = {"channel_id": "ag_1", "device_id": "ag_1", "entry_id": int(ts.timestamp()), "created_at_ts": ts}
+        row.update({f"field{i}": None for i in range(1, 21)})
+        row["field1"] = pm
+        return row
+
+    def test_backfill_averages_with_samples_already_stored(self):
+        summary = ext.SyncSummary()
+        ext._upsert_rows([self._backfill_row(30, 12.0)], datetime(2026, 10, 12, tzinfo=timezone.utc), summary)
+        hourly = [h for h in self.captured["hourly"] if h["hour_start"] == self.HOUR]
+        self.assertEqual(len(hourly), 1)
+        self.assertEqual(hourly[0]["record_count"], 2)            # the stored sample + the backfilled one
+        self.assertEqual(hourly[0]["field1_avg"], 10.0)
+        self.assertEqual(hourly[0]["field9_avg"], 455.0)          # CO2 from the live sample survives
+        self.assertEqual(self.captured["daily"][0]["record_count"], 2)
+        self.assertTrue(self.captured["daily"][0]["complete"])
+
+    def test_partial_fetch_leaves_the_day_incomplete(self):
+        ext._upsert_rows([self._backfill_row(30, 12.0)], datetime(2026, 10, 12, tzinfo=timezone.utc),
+                         ext.SyncSummary(), complete=False)
+        self.assertEqual(len(self.captured["daily"]), 1)
+        self.assertFalse(self.captured["daily"][0]["complete"])
+
+    def test_orchestrator_passes_the_fetch_outcome(self):
+        partial = [{"device_name": "ag_201560", "datetime": "2026-10-11 10:40:00Z", "pm2_5": 9.0}]
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with patch.object(ext.httpx, "AsyncClient", return_value=client), \
+             patch.object(ext, "fetch_raw_data", AsyncMock(return_value=(partial, False))):
+            summary = asyncio.run(ext.sync_external_device_data(start_date="2026-10-11", end_date="2026-10-11"))
+        self.assertFalse(summary["success"])
+        self.assertEqual(summary["failed_groups"], 1)
+        day = [d for d in self.captured["daily"] if d["channel_id"] == "ag_1"]
+        self.assertEqual(len(day), 1)
+        self.assertFalse(day[0]["complete"])                      # refetched on the next run
+        self.assertEqual(day[0]["record_count"], 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

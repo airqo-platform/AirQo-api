@@ -215,9 +215,6 @@ class TestDailyDiagnosticsForExternalDevice(_DbTestCase):
         self.assertEqual(diagnostic.lifecycle_state, "HEALTHY")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class TestOnDemandEvaluationUsesStoredReadings(_DbTestCase):
     """POST /diagnostics/evaluate/{id} without a telemetry window evaluates the device's own stored readings."""
@@ -275,3 +272,7 @@ class TestOnDemandEvaluationUsesStoredReadings(_DbTestCase):
         codes = {e["code"] for e in body.get("active_evidences", [])}
         self.assertIn("METRIC_BELOW_MIN:wifi_modem.wifi_rssi", codes)
         self.assertLess(body["overall_health_score"], 100.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
