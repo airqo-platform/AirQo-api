@@ -26,6 +26,7 @@ from tests.diagnostics_fixtures import (
     profile_orm,
 )
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 
 class TestDiagnosticsFeatureExtractor(unittest.TestCase):
@@ -722,7 +723,8 @@ class TestDiagnosticsAPI(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         from app.db.session import get_db

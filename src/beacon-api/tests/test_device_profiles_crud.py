@@ -19,6 +19,7 @@ from app.schemas.device_schema import (
 )
 from app.crud.crud_diagnostics import crud_diagnostics
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):
@@ -47,7 +48,8 @@ class TestDeviceProfilesCRUD(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.clear()

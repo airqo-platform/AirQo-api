@@ -15,6 +15,7 @@ from app.models.vendor import Vendor
 from app.services.diagnostics.seeds import BAM_STATUS_CODES, BAM_TELEMETRY_MAPPINGS, seed_status_code_sets, _link_status_code_set
 from app.services.status_codes import decode_value, validate_codes
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 
 @compiles(JSONB, "sqlite")
@@ -134,7 +135,8 @@ class TestStatusCodeSetAPI(StatusCodeDBTestCase):
                 session.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.pop(get_db, None)

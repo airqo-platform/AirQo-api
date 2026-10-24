@@ -20,6 +20,7 @@ from app.services.diagnostics.seeds import seed_default_templates
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import JSONB
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):
@@ -196,7 +197,8 @@ class TestVendorAndProfileFirmwareIntegration(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        client = TestClient(app)
+        client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
         # 1. POST /api/v1/vendors/
         v_res = client.post(

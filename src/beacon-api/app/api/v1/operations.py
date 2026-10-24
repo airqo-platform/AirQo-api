@@ -17,34 +17,11 @@ from app.repositories.operations import device_session_repo
 from app.services.job import job_service
 from app.services.command import command_service
 from app.services.log import log_service
-from app.websockets.routing import decode_jwt_user_id
+from app.core.security import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-def get_current_user_id(authorization: str = Header(...)) -> str:
-    """Dependency to extract user ID from JWT token in Authorization header."""
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format. Expected 'JWT <token>'"
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format. Missing token."
-        )
-    token = parts[1]
-    user_id = decode_jwt_user_id(token)
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired JWT token."
-        )
-    return user_id
-
 
 # ==========================================
 # Sessions Endpoints

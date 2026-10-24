@@ -99,6 +99,9 @@ def _startup_sync_groups_if_needed():
 @app.on_event("startup")
 async def on_startup():
     logger.info("Application starting up...")
+    from app.core.security import describe_auth_mode, verification_enabled  # noqa: WPS433
+
+    (logger.info if verification_enabled() and settings.JWT_SECRET else logger.warning)(describe_auth_mode())
     start_scheduler()
 
     try:

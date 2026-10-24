@@ -13,6 +13,7 @@ from app.schemas.site import (
 from app.services import performance_summary, site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
+from app.core.security import extract_verified_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -222,20 +223,7 @@ async def sync_sites(
     authorization: str = Header(...),
 ):
     """Trigger a full site sync from the AirQo Platform API into the local database (runs in background)."""
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-
-    token = parts[1]
+    token = extract_verified_token(authorization)
 
     background_tasks.add_task(_run_sync_sites, token)
 

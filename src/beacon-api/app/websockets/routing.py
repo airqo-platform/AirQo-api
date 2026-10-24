@@ -16,13 +16,18 @@ from app.services.job import job_service
 from app.services.command import command_service
 from app.repositories.operations import device_session_repo
 from app.schemas.operations import CommandExecuteRequest
+from app.core.security import verify_ws_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 def decode_jwt_user_id(token: str) -> Optional[str]:
-    """Helper to decode JWT payload safely and retrieve user _id field."""
+    """
+    Read the ``_id`` claim WITHOUT verifying the signature. Never use this to
+    authenticate a caller: use ``app.core.security.verify_ws_token`` or the
+    ``get_current_user_id`` dependency, which verify the token first.
+    """
     try:
         parts = token.split(".")
         if len(parts) != 3:
@@ -179,12 +184,9 @@ async def ws_sessions_endpoint(
     session_id: UUID,
     token: Optional[str] = Query(None)
 ):
-    user_id = None
-    if token:
-        # Check standard JWT format e.g. "JWT <token>" or raw token
-        clean_token = token.split(" ")[1] if token.startswith("JWT ") else token
-        user_id = decode_jwt_user_id(clean_token)
-    
+    # "JWT <token>" or the bare token; None unless the signature verifies
+    user_id = verify_ws_token(token)
+
     if not user_id:
         logger.warning(f"Unauthorized websocket connection attempt to session {session_id}")
         await websocket.accept()

@@ -14,6 +14,7 @@ from app.models.device_schema import DeviceProfile
 from app.crud.crud_category import profile_to_category_read, category as category_crud
 from app.utils.field_mappings import ensure_dict, extract_label, map_record_from_profile
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 
 @compiles(JSONB, "sqlite")
@@ -43,7 +44,8 @@ class TestCategoryReadAndEndpoints(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.clear()

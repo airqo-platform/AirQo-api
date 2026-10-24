@@ -19,6 +19,7 @@ from app.services.diagnostics import daily
 from app.services.diagnostics.issues import extract_issues, max_severity
 from main import app
 from tests.diagnostics_fixtures import lowcost_profile, profile_orm
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 
 @compiles(JSONB, "sqlite")
@@ -297,7 +298,8 @@ class TestDailyTrends(DailyDiagnosticsDBTestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.pop(get_db, None)
@@ -401,7 +403,8 @@ class TestDailyDiagnosticsAPI(DailyDiagnosticsDBTestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.pop(get_db, None)

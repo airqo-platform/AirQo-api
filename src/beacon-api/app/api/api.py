@@ -1,8 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.api.v1 import devices, stock, category, firmware, cohort, maintenance, collocation, site, data_sync, grid, group, operations, diagnostics, vendor, network, status_codes
 from app.api.v1.webrtc import webrtc_router
+from app.core.security import enforce_jwt_on_writes
 
-api_router = APIRouter()
+# Every POST/PUT/PATCH/DELETE needs a verified platform JWT (no-op when
+# JWT_VERIFICATION_ENABLED=false). Device-facing routes are reads or live
+# outside this router (agent websocket), so devices are unaffected.
+api_router = APIRouter(dependencies=[Depends(enforce_jwt_on_writes)])
 api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(stock.router, prefix="/items-stock", tags=["items-stock"])
 api_router.include_router(category.router, prefix="/categories", tags=["categories"])
