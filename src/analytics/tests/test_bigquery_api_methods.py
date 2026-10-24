@@ -21,6 +21,7 @@ import pandas as pd
 import pytest
 
 from api.models.bigquery_api import BigQueryApi
+from api.services import _resolve_table
 from api.utils.exceptions import CursorRejected
 from constants import DataType, DeviceCategory, Frequency
 from tests.paging_support import LOCATION, device_frame, payload_of
@@ -129,15 +130,115 @@ class TestTimeGrouping:
     @pytest.mark.parametrize(
         "frequency,expected",
         [
+            (
+                "daily",
+                "FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', TIMESTAMP_TRUNC(timestamp, DAY)) AS datetime",
+            ),
             ("weekly", "TIMESTAMP_TRUNC(timestamp, WEEK(MONDAY)) AS week"),
             ("monthly", "TIMESTAMP_TRUNC(timestamp, MONTH) AS month"),
             ("yearly", "EXTRACT(YEAR FROM timestamp) AS year"),
-            ("daily", "timestamp"),
             ("hourly", "timestamp"),
         ],
     )
     def test_get_time_grouping(self, bq_api, frequency, expected):
         assert bq_api.get_time_grouping(frequency) == expected
+
+
+def _select_items(sql: str) -> list:
+    """Split the select list of the device query into its items."""
+    text = re.sub(r"\s+", " ", sql).split("RIGHT JOIN (SELECT ", 1)[1]
+    items, depth, current = [], 0, ""
+    for index, char in enumerate(text):
+        if depth == 0 and text.startswith(" FROM ", index):
+            break
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        if char == "," and depth == 0:
+            items.append(current.strip())
+            current = ""
+        else:
+            current += char
+    items.append(current.strip())
+    return items
+
+
+def _alias(item: str) -> str:
+    """Return the name that a select item gives to its column."""
+    if " AS " in item:
+        return item.rsplit(" AS ", 1)[1].strip()
+    return item.rsplit(".", 1)[-1].strip("` ")
+
+
+DEVICE_FILTER = {"device_ids": ["dev_a"]}
+SITE_FILTER = {"sites": ["site_1"]}
+DEVICE_IDENTITY = ["site_id", "network", "device_id", "id"]
+SITE_IDENTITY = ["site_name", "device_id"]
+OPTIONAL_COLUMNS = ["humidity", "latitude", "longitude", "temperature"]
+
+
+def _download_query(api: BigQueryApi, device_category, frequency, data_filter) -> str:
+    """Build the query that a data-download request runs over one week."""
+    query, _ = api._result_query(
+        table=_resolve_table("calibrated", device_category.value, frequency.value),
+        start_date_time="2026-03-02T00:00:00+00:00",
+        end_date_time="2026-03-09T00:00:00+00:00",
+        device_category=device_category,
+        frequency=frequency,
+        network=None,
+        data_type=DataType.CALIBRATED,
+        columns=["pm2_5"],
+        where_fields=data_filter,
+        dynamic_query=True,
+        use_cache=True,
+    )
+    return query
+
+
+class TestGroupedFrequencyColumns:
+    """
+    The grouped frequencies average every measurement and optional column, so
+    that a row is keyed by the identity and the period alone.
+    """
+
+    @pytest.mark.parametrize(
+        "device_category,data_filter,identity",
+        [
+            (DeviceCategory.LOWCOST, DEVICE_FILTER, DEVICE_IDENTITY),
+            (DeviceCategory.BAM, SITE_FILTER, SITE_IDENTITY),
+        ],
+        ids=["lowcost-devices", "bam-sites"],
+    )
+    @pytest.mark.parametrize(
+        "frequency,period",
+        [
+            (Frequency.DAILY, "datetime"),
+            (Frequency.WEEKLY, "week"),
+            (Frequency.MONTHLY, "month"),
+            (Frequency.YEARLY, "year"),
+        ],
+        ids=["daily", "weekly", "monthly", "yearly"],
+    )
+    def test_grouped_rows_are_keyed_by_the_identity_and_ordered_by_the_period(
+        self, bq_api, device_category, data_filter, identity, frequency, period
+    ):
+        query = _download_query(bq_api, device_category, frequency, data_filter)
+        items = _select_items(query)
+        averaged = {_alias(item) for item in items if "AVG(" in item}
+        keys = [_alias(item) for item in items if "AVG(" not in item]
+        assert set(OPTIONAL_COLUMNS) <= averaged
+        assert sorted(keys) == sorted([period] + identity)
+        assert re.search(r"order by (\w+)", query).group(1) == period
+
+    def test_hourly_query_selects_the_stored_rows_without_grouping(self, bq_api):
+        query = _download_query(
+            bq_api, DeviceCategory.LOWCOST, Frequency.HOURLY, DEVICE_FILTER
+        )
+        selected = {_alias(item) for item in _select_items(query)}
+        assert "AVG(" not in query
+        assert "GROUP BY" not in query
+        assert set(OPTIONAL_COLUMNS) <= selected
 
 
 # ---------------------------------------------------------------------------
