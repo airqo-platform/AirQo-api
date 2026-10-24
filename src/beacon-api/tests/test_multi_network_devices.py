@@ -32,6 +32,7 @@ from app.services import cohort_service, device_service, network_sync_service
 from app.services.thingspeak_sync_service import select_thingspeak_devices
 from app.utils import networks as network_utils
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification, make_token
 
 
 @compiles(JSONB, "sqlite")
@@ -445,11 +446,13 @@ class TestNetworkSync(_DbTestCase):
 class TestProfileSeedAuth(_DbTestCase):
     """CodeRabbit on #7126: the profile seed writes to the database, so it needs the JWT header like /networks/sync."""
 
-    def test_seed_requires_the_jwt_header(self):
-        self.assertEqual(self.client.post("/api/v1/networks/profiles/seed").status_code, 422)
-        bad = self.client.post("/api/v1/networks/profiles/seed", headers={"Authorization": "Bearer abc"})
-        self.assertEqual(bad.status_code, 401)
-        ok = self.client.post("/api/v1/networks/profiles/seed", headers={"Authorization": "JWT abc.def.ghi"})
+    def test_seed_requires_a_verified_jwt(self):
+        enable_jwt_verification(self)
+        seed = "/api/v1/networks/profiles/seed"
+        self.assertEqual(self.client.post(seed).status_code, 401)
+        self.assertEqual(self.client.post(seed, headers={"Authorization": "Bearer abc"}).status_code, 401)
+        self.assertEqual(self.client.post(seed, headers=auth_headers(make_token(secret="forged"))).status_code, 401)
+        ok = self.client.post(seed, headers=auth_headers())
         self.assertEqual(ok.status_code, 200, ok.text)
         self.assertIn("airgradient_lowcost", ok.json()["created"])
 
