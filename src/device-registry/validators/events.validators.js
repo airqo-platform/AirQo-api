@@ -15,8 +15,12 @@ const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 // Validation-only (no ObjectId cast): generateFilter splits and casts these
 // comma-separated ids itself. Every entry is checked, so empty entries
 // ("a,,b", "a,") are rejected too — they would otherwise fail that cast.
+// Repeated params (?id=a,b&id=c) are split per entry, matching how
+// generateFilter joins and re-splits the array.
 const assertObjectIdList = (field) => (value) => {
-  const values = Array.isArray(value) ? value : value.toString().split(",");
+  const values = (Array.isArray(value) ? value : [value]).flatMap((entry) =>
+    String(entry).split(","),
+  );
   for (const v of values) {
     if (!isObjectIdShape(String(v).trim())) {
       throw new Error(`${field} must be a valid object ID - ${v}`);
