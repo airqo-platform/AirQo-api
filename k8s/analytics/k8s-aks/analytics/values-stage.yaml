@@ -3,7 +3,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: airqoacr.azurecr.io/airqo-stage-analytics-api
-  tag: stage-2767dc6a-1792669095
+  tag: stage-2b34da23-1792837946
 externalSecret:
   enabled: true
 api:
