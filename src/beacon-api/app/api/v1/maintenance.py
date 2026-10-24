@@ -15,24 +15,10 @@ from app.schemas.maintenance import (
 )
 from app.services import maintenance_service
 from app.db.session import get_db
+from app.core.security import extract_verified_token as _extract_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def _extract_token(authorization: str) -> str:
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-    return parts[1]
 
 
 @router.get("/overview")

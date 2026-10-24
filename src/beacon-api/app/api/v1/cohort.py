@@ -13,6 +13,7 @@ from app.schemas.cohort import (
 from app.services import cohort_service, cohort_sync_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
+from app.core.security import extract_verified_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,12 +47,7 @@ async def get_cohorts(
     # The token should be in the format "JWT <token>"; we still require it so
     # callers continue to authenticate, but cohorts/devices are now read from
     # the local sync tables (no platform fan-out).
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
+    token = extract_verified_token(authorization)
 
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -102,20 +98,7 @@ async def sync_cohorts(
     authorization: str = Header(...),
 ):
     """Trigger a full cohort sync from the AirQo Platform API into the local database (runs in background)."""
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-
-    token = parts[1]
+    token = extract_verified_token(authorization)
 
     background_tasks.add_task(_run_sync_cohorts, token)
 
@@ -263,12 +246,7 @@ async def get_cohorts_by_ids(
     frequency: Optional[str] = "daily",
     db: Session = Depends(get_db)
 ):
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
+    token = extract_verified_token(authorization)
 
     freq = (frequency or "daily").lower()
     if freq not in {"raw", "hourly", "daily"}:

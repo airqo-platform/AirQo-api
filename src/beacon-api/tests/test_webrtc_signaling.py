@@ -11,20 +11,25 @@ from app.db.session import AsyncSessionLocal
 from app.models.webrtc import WebRTCSession, WebRTCSessionMember, WebRTCSessionInvitation
 from app.services.redis_service import redis_service
 from main import app
+from tests.auth_helpers import jwt_verification, make_token
 
-# Craft unsigned JWTs for test users
-def _make_fake_jwt(user_id: str, email: str) -> str:
-    header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(json.dumps({"_id": user_id, "email": email}).encode()).rstrip(b"=").decode()
-    return f"{header}.{payload}.fakesig"
+# Tokens signed like auth-service signs them; verification is on for every test here.
+def _make_jwt(user_id: str, email: str) -> str:
+    return make_token(user_id, email=email)
+
+
+@pytest.fixture(autouse=True)
+def _verified_jwts():
+    with jwt_verification(True):
+        yield
 
 HOST_ID = "user-host-111"
 GUEST_1_ID = "user-guest-222"
 GUEST_2_ID = "user-guest-333"
 
-TOKEN_HOST = _make_fake_jwt(HOST_ID, "host@airqo.net")
-TOKEN_GUEST_1 = _make_fake_jwt(GUEST_1_ID, "guest1@airqo.net")
-TOKEN_GUEST_2 = _make_fake_jwt(GUEST_2_ID, "guest2@airqo.net")
+TOKEN_HOST = _make_jwt(HOST_ID, "host@airqo.net")
+TOKEN_GUEST_1 = _make_jwt(GUEST_1_ID, "guest1@airqo.net")
+TOKEN_GUEST_2 = _make_jwt(GUEST_2_ID, "guest2@airqo.net")
 
 def test_webrtc_signaling_flow():
     """

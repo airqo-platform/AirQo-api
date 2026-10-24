@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+### Security: Verify platform JWTs
+
+Beacon only checked that `Authorization` started with `JWT `, and operations, WebRTC and the session websockets read the user id out of the token without checking its signature, so any caller could forge a token and act as any user. Most write routes had no check at all.
+
+- **`app/core/security.py`**: verifies platform JWTs the way auth-service does. HS256 with the platform `JWT_SECRET`, `JWT <token>` in any case, `exp` with `JWT_GRACE_PERIOD_SECONDS` of grace, tokens without `exp` accepted. On by default and fails closed (503 when no secret is set). `JWT_VERIFICATION_ENABLED=false` restores the previous behaviour for local development.
+- **Every write under `/api/v1`** needs a verified token through one router-level dependency. This covers stock, vendors, categories, firmware upload and edit, status code sets, diagnostics profiles, templates, evaluation and runs, device metadata and config, and the manufacturer profile seed flagged by CodeRabbit on PR #7126.
+- **The ten routers that checked only the prefix** (data sync, collocation, maintenance, networks, grids, groups, cohorts, sites, devices, operations) share the verifying helper instead of copies of the prefix check.
+- **Operations, WebRTC and the two session websockets** authenticate with a verified token. `decode_jwt_user_id` is no longer used for authentication.
+- **Tests**: `tests/test_security.py` covers signatures, algorithms, expiry and grace, a missing secret, the dev mode, and route, operations and websocket enforcement. Tests that write over HTTP now send signed tokens, so the suite no longer depends on local `.env`.
+- New dependency: `PyJWT==2.9.0`. New settings: `JWT_SECRET`, `JWT_VERIFICATION_ENABLED`, `JWT_GRACE_PERIOD_SECONDS`.
+
 ### Feature: Devices from other sensor manufacturers
 
 Beacon no longer drops platform devices whose network is not `airqo`. Devices from every manufacturer the device registry holds (airgradient, iqair, metone, clarity/kcca, airbeam, ...) are mirrored with their manufacturer identity, and the networks list itself is mirrored so devices can be filtered and counted per manufacturer. See `docs/MULTI_MANUFACTURER_DEVICES.md` for the research behind this and the follow-up phases (readings for external devices).

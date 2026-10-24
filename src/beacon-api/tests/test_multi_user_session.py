@@ -30,21 +30,25 @@ from app.db.session import AsyncSessionLocal
 from app.models.sync import SyncDevice
 from app.models.operations import DeviceSession
 from app.services.redis_service import redis_service
-from app.websockets.routing import decode_jwt_user_id
+from tests.auth_helpers import jwt_verification, make_token
 
 
 # ── Two fake JWT tokens with distinct user IDs ──────────────────────────────
 
-def _make_fake_jwt(user_id: str, email: str) -> str:
-    """Craft a minimal unsigned JWT with the given _id. Signature is ignored by decode_jwt_user_id."""
-    header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(json.dumps({"_id": user_id, "email": email}).encode()).rstrip(b"=").decode()
-    return f"{header}.{payload}.fakesig"
+# Tokens signed like auth-service signs them; verification is on for every test here.
+def _make_jwt(user_id: str, email: str) -> str:
+    return make_token(user_id, email=email)
+
+
+@pytest.fixture(autouse=True)
+def _verified_jwts():
+    with jwt_verification(True):
+        yield
 
 USER_1_ID = "user-aaa-111"
 USER_2_ID = "user-bbb-222"
-TOKEN_USER_1 = _make_fake_jwt(USER_1_ID, "user1@airqo.net")
-TOKEN_USER_2 = _make_fake_jwt(USER_2_ID, "user2@airqo.net")
+TOKEN_USER_1 = _make_jwt(USER_1_ID, "user1@airqo.net")
+TOKEN_USER_2 = _make_jwt(USER_2_ID, "user2@airqo.net")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

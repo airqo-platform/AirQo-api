@@ -12,6 +12,7 @@ from app.schemas.grid import (
 from app.services import grid_service, grid_sync_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_grids
 from app.db.session import get_db, SessionLocal
+from app.core.security import extract_verified_token as _validate_jwt_header
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,21 +28,6 @@ async def _run_sync_grids(token: str):
         logger.exception(f"Background grid sync failed: {e}")
     finally:
         db.close()
-
-
-def _validate_jwt_header(authorization: str) -> str:
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-    return parts[1]
 
 
 @router.get("/")

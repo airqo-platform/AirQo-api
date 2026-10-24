@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # Platform JWT verification (app/core/security.py). Users sign in on the
+    # AirQo platform, whose auth-service signs HS256 JWTs with JWT_SECRET; set
+    # the same value here for the environment beacon serves. Verification is on
+    # by default and fails closed: with no JWT_SECRET, requests that need a
+    # token get 503. Set JWT_VERIFICATION_ENABLED=false for local development
+    # only. The grace period matches auth-service's JWT_GRACE_PERIOD_SECONDS.
+    JWT_SECRET: str = ""
+    JWT_VERIFICATION_ENABLED: bool = True
+    JWT_GRACE_PERIOD_SECONDS: int = 300
+
     # CORS
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 

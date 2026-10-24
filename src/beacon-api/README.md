@@ -92,6 +92,9 @@ Configure via environment variables or `.env` file:
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `SECRET_KEY` | Application secret key | Required |
+| `JWT_SECRET` | The platform's JWT signing secret (same value as auth-service's `JWT_SECRET` for this environment); verifies user tokens | Required when verification is on |
+| `JWT_VERIFICATION_ENABLED` | Verify platform JWTs; set `false` for local development only | `True` |
+| `JWT_GRACE_PERIOD_SECONDS` | How long after `exp` a token is still accepted (matches auth-service) | `300` |
 | `ENVIRONMENT` | Deployment environment | `development` |
 | `DEBUG` | Enable debug mode | `True` |
 | `LOG_LEVEL` | Logging level | `INFO` |
@@ -101,6 +104,17 @@ Configure via environment variables or `.env` file:
 | `EXTERNAL_FEED_NETWORKS` | Networks whose registry adapter can serve a live reading | `airgradient,iqair` |
 | `AIRGRADIENT_API_TOKEN` | AirGradient account token for direct history of privately shared devices | `` |
 | `AIRGRADIENT_BASE_URL` | AirGradient public API base | `https://api.airgradient.com/public/api/v1` |
+
+### Authentication
+
+Users sign in on the AirQo platform, whose auth-service issues HS256 JWTs signed with the platform's `JWT_SECRET`. Clients send them as `Authorization: JWT <token>`. Beacon verifies them itself in `app/core/security.py`, with the same rules as auth-service: HS256 signature, `exp` checked with a grace period, and tokens without `exp` accepted.
+
+- **Every write** (`POST`, `PUT`, `PATCH`, `DELETE`) under `/api/v1` needs a verified token, through one router-level dependency.
+- **Routes that already required a token** (platform sync and pass-through routes, collocation, maintenance, data sync) now verify it instead of only checking the `JWT ` prefix.
+- **Operations, WebRTC and the session websockets** take the user id from a verified token only.
+- **Reads** keep their own rules. **Device-facing routes** are unchanged: firmware download uses the org token, and the agent websocket authenticates devices separately.
+- **Fails closed.** With verification on and no `JWT_SECRET`, protected routes return 503 and the startup log says so. Set the secret before deploying.
+- **Local development.** Set `JWT_VERIFICATION_ENABLED=false` to get the previous behaviour: a prefix check only, and open write routes.
 
 ### Firmware & Storage Settings
 

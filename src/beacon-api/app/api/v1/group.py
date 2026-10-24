@@ -10,6 +10,7 @@ from app.schemas.group import (
 )
 from app.services import group_sync_service
 from app.db.session import get_db, SessionLocal
+from app.core.security import extract_verified_token as _validate_jwt_header
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,21 +26,6 @@ async def _run_sync_groups(token: str):
         logger.exception(f"Background group sync failed: {e}")
     finally:
         db.close()
-
-
-def _validate_jwt_header(authorization: str) -> str:
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-    return parts[1]
 
 
 @router.post("/sync", response_model=GroupSyncResponse)

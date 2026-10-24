@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from app.db.session import AsyncSessionLocal
-from app.api.v1.operations import decode_jwt_user_id
+from app.core.security import verify_ws_token
 from app.models.webrtc import WebRTCSessionMember, WebRTCSession
 from app.services.redis_service import redis_service
 from app.services.webrtc.participant_service import participant_service
@@ -24,10 +24,7 @@ async def ws_webrtc_signaling_endpoint(
     session_id: UUID,
     token: Optional[str] = Query(None)
 ):
-    user_id = None
-    if token:
-        clean_token = token.split(" ")[1] if token.startswith("JWT ") else token
-        user_id = decode_jwt_user_id(clean_token)
+    user_id = verify_ws_token(token)
 
     if not user_id:
         logger.warning(f"Unauthorized WebRTC WebSocket connection attempt to session {session_id}")

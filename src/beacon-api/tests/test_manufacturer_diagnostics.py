@@ -24,6 +24,7 @@ from app.services import manufacturer_profiles as mp
 from app.services.diagnostics import daily
 from app.services.diagnostics.profile_model import build_model
 from main import app
+from tests.auth_helpers import auth_headers, enable_jwt_verification
 
 
 @compiles(JSONB, "sqlite")
@@ -251,7 +252,8 @@ class TestOnDemandEvaluationUsesStoredReadings(_DbTestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
+        self.client = TestClient(app, headers=auth_headers())
+        enable_jwt_verification(self)
 
     def tearDown(self):
         app.dependency_overrides.clear()

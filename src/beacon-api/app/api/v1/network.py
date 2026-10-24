@@ -19,6 +19,7 @@ from app.schemas.network import (
     NetworkSyncResponse,
 )
 from app.services import network_sync_service
+from app.core.security import extract_verified_token as _extract_token
 from app.services.manufacturer_profiles import (
     assign_profiles_to_external_devices,
     ensure_manufacturer_profiles,
@@ -27,18 +28,6 @@ from app.services.manufacturer_profiles import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def _extract_token(authorization: str) -> str:
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    return parts[1]
 
 
 @router.post("/sync", response_model=NetworkSyncResponse)

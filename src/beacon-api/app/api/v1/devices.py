@@ -16,6 +16,7 @@ from app.schemas.device import (
 )
 from app.services import device_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_devices
+from app.core.security import extract_verified_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -35,14 +36,7 @@ async def sync_devices(
     background_tasks: BackgroundTasks,
     authorization: str = Header(...),
 ):
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    
-    token = parts[1]
+    token = extract_verified_token(authorization)
     
     background_tasks.add_task(_run_sync_devices, token)
     
@@ -58,14 +52,7 @@ async def sync_device_sites(
     authorization: str = Header(...),
     db: Session = Depends(get_db)
 ):
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    
-    token = parts[1]
+    token = extract_verified_token(authorization)
     
     try:
         result = await device_service.sync_device_sites(db, token)
@@ -85,14 +72,7 @@ async def sync_device_categories(
     authorization: str = Header(...),
     db: Session = Depends(get_db)
 ):
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    
-    token = parts[1]
+    token = extract_verified_token(authorization)
     
     try:
         result = await device_service.sync_device_categories(db, token)
@@ -310,14 +290,7 @@ async def get_device(
     db: Session = Depends(get_db)
 ):
     # The token should be in the format "JWT <token>"
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    
-    token = parts[1]
+    token = extract_verified_token(authorization)
     
     try:
         result = await device_service.get_device_by_id(db, token, device_id)
@@ -348,14 +321,7 @@ async def get_devices(
     ),
 ):
     # The token should be in the format "JWT <token>"
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-    
-    token = parts[1]
+    token = extract_verified_token(authorization)
 
     # Resolve group → device IDs
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids

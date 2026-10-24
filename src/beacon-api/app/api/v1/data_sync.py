@@ -16,24 +16,10 @@ from app.schemas.data_sync import (
     DailyDeviceDataRecord,
 )
 from app.crud import crud_device_data
+from app.core.security import extract_verified_token as _extract_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def _extract_token(authorization: str) -> str:
-    if not authorization.startswith("JWT "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Expected 'JWT <token>'",
-        )
-    parts = authorization.split(" ")
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header format. Missing token.",
-        )
-    return parts[1]
 
 
 @router.post("/sync-thingspeak", response_model=SyncTriggerResponse)
