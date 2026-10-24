@@ -130,16 +130,25 @@ async def sync_networks(db: Session, token: str) -> Dict[str, Any]:
     new_count = 0
     updates_count = 0
     for net in networks:
+        # A savepoint per network: a bad row rolls back only itself, and the
+        # flush inside it surfaces errors here instead of on a later network.
         try:
-            _, is_new, is_updated = upsert_network_to_sync(db, net)
-            if is_new:
-                new_count += 1
-            elif is_updated:
-                updates_count += 1
+            with db.begin_nested():
+                _, is_new, is_updated = upsert_network_to_sync(db, net)
+                db.flush()
         except Exception as e:
             logger.exception(f"Error syncing network {net.get('_id')}: {e}")
-            db.rollback()
-    db.commit()
+            continue
+        if is_new:
+            new_count += 1
+        elif is_updated:
+            updates_count += 1
+    try:
+        db.commit()
+    except Exception as e:
+        logger.exception(f"Error committing network sync: {e}")
+        db.rollback()
+        return {"success": False, "message": "Failed to save synced networks", "status_code": 500}
 
     return {
         "success": True,

@@ -441,5 +441,54 @@ class TestNetworkSync(_DbTestCase):
         self.assertEqual(result["status_code"], 401)
 
 
+
+class TestProfileSeedAuth(_DbTestCase):
+    """CodeRabbit on #7126: the profile seed writes to the database, so it needs the JWT header like /networks/sync."""
+
+    def test_seed_requires_the_jwt_header(self):
+        self.assertEqual(self.client.post("/api/v1/networks/profiles/seed").status_code, 422)
+        bad = self.client.post("/api/v1/networks/profiles/seed", headers={"Authorization": "Bearer abc"})
+        self.assertEqual(bad.status_code, 401)
+        ok = self.client.post("/api/v1/networks/profiles/seed", headers={"Authorization": "JWT abc.def.ghi"})
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertIn("airgradient_lowcost", ok.json()["created"])
+
+
+class TestNetworkSyncIsolation(_DbTestCase):
+    """CodeRabbit on #7126: one failing network must not discard the networks synced before it."""
+
+    def test_a_failing_network_keeps_the_others(self):
+        import asyncio
+
+        payload = {"success": True, "networks": [
+            {"_id": "n1", "name": "airqo", "net_name": "airqo", "net_status": "active"},
+            {"_id": "n2", "name": "broken", "net_name": "broken"},
+            {"_id": "n3", "name": "iqair", "net_name": "iqair"},
+        ]}
+        response = MagicMock(status_code=200)
+        response.json.return_value = payload
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+
+        real_upsert = network_sync_service.upsert_network_to_sync
+
+        def flaky_upsert(db, net):
+            row = real_upsert(db, net)
+            if net["_id"] == "n2":
+                raise RuntimeError("bad network row")
+            return row
+
+        with patch("app.services.network_sync_service.httpx.AsyncClient", return_value=client), \
+             patch.object(network_sync_service, "upsert_network_to_sync", flaky_upsert):
+            result = asyncio.run(network_sync_service.sync_networks(self.db, "token"))
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["new_count"], 2)                  # the failed one is not counted
+        names = sorted(r.name for r in self.db.query(SyncNetwork).all())
+        self.assertEqual(names, ["airqo", "iqair"])               # n1 survived n2's failure
+
+
 if __name__ == "__main__":
     unittest.main()

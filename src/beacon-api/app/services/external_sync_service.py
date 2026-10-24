@@ -664,8 +664,18 @@ def _slot_maps_for(db: Session, devices: List[SyncDevice]) -> Dict[str, Dict[str
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
-def _upsert_rows(rows: List[Dict[str, Any]], now_utc: datetime, summary: Any) -> None:
-    """Upsert raw rows, then hourly/daily aggregates computed from those rows."""
+def _upsert_rows(
+    rows: List[Dict[str, Any]], now_utc: datetime, summary: Any, *, complete: bool = True,
+) -> None:
+    """
+    Upsert raw rows, then rebuild the hourly and daily aggregates of every day
+    they touch from all stored raw rows, not just this batch. Several sources
+    write the same days (live-feed samples, direct history, the analytics
+    backfill), so aggregates built from one batch would overwrite the others.
+
+    ``complete=False`` is passed when the fetch that produced ``rows`` failed
+    partway: the days stay incomplete so the next run fetches them again.
+    """
     db = SessionLocal()
     try:
         summary.raw_records += crud_device_data.upsert_raw_data(db, rows)
@@ -680,12 +690,14 @@ def _upsert_rows(rows: List[Dict[str, Any]], now_utc: datetime, summary: Any) ->
 
     for key, key_rows in by_key.items():
         device_id = key_rows[0].get("device_id")
-        hourly = _aggregate_to_hourly(key_rows, key, device_id, now_utc)
-        daily = _aggregate_to_daily(key_rows, key, device_id, now_utc)
         db = SessionLocal()
         try:
-            summary.hourly_records += crud_device_data.upsert_hourly_data(db, hourly)
-            summary.daily_records += crud_device_data.upsert_daily_data(db, daily)
+            hourly, daily = recompute_aggregates_from_db(
+                db, key, device_id, [r["created_at_ts"] for r in key_rows], now_utc,
+                mark_complete=complete,
+            )
+            summary.hourly_records += hourly
+            summary.daily_records += daily
         except Exception as e:
             logger.error(f"[External Sync] aggregate upsert failed for {key}: {e}")
         finally:
@@ -704,49 +716,56 @@ def _as_utc(ts: datetime) -> datetime:
 
 
 def recompute_aggregates_from_db(
-    db: Session, channel_id: str, device_id: Optional[str], timestamps: Iterable[datetime], now_utc: datetime,
+    db: Session,
+    channel_id: str,
+    device_id: Optional[str],
+    timestamps: Iterable[datetime],
+    now_utc: datetime,
+    *,
+    mark_complete: bool = True,
 ) -> Tuple[int, int]:
     """
-    Rebuild the hourly and daily aggregates touched by ``timestamps`` from
-    every stored raw row, so a single new live-feed sample is averaged in with
-    the samples already stored for that hour and day.
-    """
-    hours = {_as_utc(t).replace(minute=0, second=0, microsecond=0) for t in timestamps}
-    days = {h.date() for h in hours}
-    hourly_count = daily_count = 0
+    Rebuild the hourly and daily aggregates of every UTC day touched by
+    ``timestamps`` from all stored raw rows of those days, in one query, so
+    readings from every source are averaged together (a single live-feed
+    sample is averaged in with the samples already stored).
 
-    for hour in hours:
-        rows = (
-            db.query(SyncRawDeviceData)
-            .filter(
-                SyncRawDeviceData.channel_id == channel_id,
-                SyncRawDeviceData.created_at_ts >= hour,
-                SyncRawDeviceData.created_at_ts < hour + timedelta(hours=1),
-            )
-            .all()
+    ``mark_complete=False`` keeps the rebuilt days incomplete, for data from
+    a fetch that failed partway.
+    """
+    days = sorted({_as_utc(t).date() for t in timestamps})
+    if not days:
+        return 0, 0
+    window_start = datetime.combine(days[0], datetime.min.time(), tzinfo=timezone.utc)
+    window_end = datetime.combine(days[-1] + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    touched = set(days)
+
+    rows = (
+        db.query(SyncRawDeviceData)
+        .filter(
+            SyncRawDeviceData.channel_id == channel_id,
+            SyncRawDeviceData.created_at_ts >= window_start,
+            SyncRawDeviceData.created_at_ts < window_end,
         )
-        records = [{**_row_dict(r), "created_at_ts": _as_utc(r.created_at_ts)} for r in rows]
-        if records:
-            hourly_count += crud_device_data.upsert_hourly_data(
-                db, _aggregate_to_hourly(records, channel_id, device_id, now_utc),
-            )
-    for day in days:
-        day_start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
-        rows = (
-            db.query(SyncRawDeviceData)
-            .filter(
-                SyncRawDeviceData.channel_id == channel_id,
-                SyncRawDeviceData.created_at_ts >= day_start,
-                SyncRawDeviceData.created_at_ts < day_start + timedelta(days=1),
-            )
-            .all()
-        )
-        records = [{**_row_dict(r), "created_at_ts": _as_utc(r.created_at_ts)} for r in rows]
-        if records:
-            daily_count += crud_device_data.upsert_daily_data(
-                db, _aggregate_to_daily(records, channel_id, device_id, now_utc),
-            )
-    return hourly_count, daily_count
+        .all()
+    )
+    records = []
+    for r in rows:
+        ts = _as_utc(r.created_at_ts)
+        if ts.date() in touched:
+            records.append({**_row_dict(r), "created_at_ts": ts})
+    if not records:
+        return 0, 0
+
+    hourly = _aggregate_to_hourly(records, channel_id, device_id, now_utc)
+    daily = _aggregate_to_daily(records, channel_id, device_id, now_utc)
+    if not mark_complete:
+        for row in daily:
+            row["complete"] = False
+    return (
+        crud_device_data.upsert_hourly_data(db, hourly),
+        crud_device_data.upsert_daily_data(db, daily),
+    )
 
 
 # ── Source 1: registry live feed ──────────────────────────────────────────────
@@ -911,7 +930,9 @@ async def _sync_direct(
         summary.records += len(records)
         rows = build_raw_rows(records, devices_by_name, slot_maps)
         if rows:
-            _upsert_rows(rows, now_utc, summary)
+            # A partial fetch keeps its days incomplete; the analytics fallback below
+            # (or the next run) fills them in and completes them.
+            _upsert_rows(rows, now_utc, summary, complete=ok)
         if not ok:
             summary.direct_failed += 1
             fallback.append(dev)
@@ -990,7 +1011,9 @@ async def sync_external_device_data(
             summary.records += len(records)
             rows = build_raw_rows(records, devices_by_name, slot_maps)
             if rows:
-                _upsert_rows(rows, now_utc, summary)
+                # Pages fetched before a failure are kept, but their days stay
+                # incomplete so the next run fetches the missing readings.
+                _upsert_rows(rows, now_utc, summary, complete=ok)
 
     message = (
         f"Synced {summary.raw_records} raw, {summary.hourly_records} hourly, "
