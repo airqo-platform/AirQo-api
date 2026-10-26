@@ -55,6 +55,7 @@ from app.services.manufacturer_profiles import (
 from app.services.thingspeak_sync_service import _aggregate_to_daily, _aggregate_to_hourly
 from app.utils.networks import (
     AIRQO_NETWORK,
+    analytics_request_network,
     DATA_SOURCE_EXTERNAL_API,
     device_data_source,
     device_source_key,
@@ -76,9 +77,10 @@ RETRY_BACKOFF_SECONDS = 15
 # raw-data is rate limited to 5 requests per minute per IP; a 429 means wait
 # out the window (the server's Retry-After wins when it sends one).
 RATE_LIMIT_BACKOFF_SECONDS = 60
-# Analytics validates ``network`` against its enum but does not use it to
-# filter rows (device names decide). Deployments that predate the wider enum
-# reject unknown networks with 422; we then retry with the historic default.
+# Requests already carry a ``network`` analytics accepts
+# (``analytics_request_network``). If analytics ever rejects one with 422 the
+# request is retried with ``airqo``, which it has always accepted; rows are
+# selected by device name either way.
 FALLBACK_NETWORK = AIRQO_NETWORK
 _RETRYABLE_STATUSES = {429, 502, 503, 504}
 # Keys of a live-feed response that are not readings.
@@ -264,10 +266,14 @@ def build_raw_data_payload(
     start_date: date,
     end_date: date,
 ) -> Dict[str, Any]:
-    """Body for ``POST /analytics/raw-data`` covering one group and date segment."""
+    """
+    Body for ``POST /analytics/raw-data`` covering one group and date segment.
+    ``network`` is the devices' own network; the body carries a value the
+    analytics endpoint accepts (see ``analytics_request_network``).
+    """
     is_bam = category == "bam"
     return {
-        "network": network,
+        "network": analytics_request_network(network),
         "device_category": "bam" if is_bam else "lowcost",
         "device_names": list(device_names),
         "startDateTime": f"{start_date.isoformat()}T00:00:00Z",

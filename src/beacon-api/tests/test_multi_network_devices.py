@@ -128,6 +128,15 @@ class TestNetworkPolicy(unittest.TestCase):
             self.assertFalse(network_utils.is_network_enabled(None))
             self.assertFalse(network_utils.is_enabled_network_device({"network": "metone"}))
 
+    def test_analytics_request_network(self):
+        # Values the unchanged analytics raw-data endpoint accepts pass through; every other
+        # manufacturer is sent as airqo, since analytics selects rows by device name only.
+        f = network_utils.analytics_request_network
+        self.assertEqual({n: f(n) for n in ("airqo", "iqair", "airnow", "metone")},
+                         {"airqo": "airqo", "iqair": "iqair", "airnow": "airnow", "metone": "metone"})
+        for other in ("airgradient", "kcca", "clarity", "airbeam", "AirGradient", None, ""):
+            self.assertEqual(f(other), "airqo", other)
+
     def test_device_data_source_classification(self):
         ds = network_utils.device_data_source
         self.assertEqual(ds("airqo", 2866794, "key"), network_utils.DATA_SOURCE_THINGSPEAK)

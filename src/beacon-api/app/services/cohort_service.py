@@ -18,6 +18,7 @@ from app.utils.field_mappings import (
     map_record_from_profile,
 )
 from app.utils.networks import (
+    ANALYTICS_REQUEST_NETWORKS,
     AIRQO_NETWORK,
     is_enabled_network_device,
     is_network_enabled,
@@ -30,10 +31,11 @@ from app.services.manufacturer_profiles import external_mapping_profile
 logger = logging.getLogger(__name__)
 
 
-# Networks the platform's analytics raw-data endpoint accepts (its ``Network``
-# request enum). Devices on other manufacturers have no BigQuery-backed raw
-# data path yet, so they are skipped there rather than failing the request.
-ANALYTICS_RAW_DATA_NETWORKS = {"airqo", "iqair", "airnow", "metone"}
+# This platform-cohort performance path only fetches devices whose own
+# network analytics accepts. Other manufacturers' readings reach the local
+# sync tables through external_sync_service, which the local cohort
+# performance path reads.
+ANALYTICS_RAW_DATA_NETWORKS = ANALYTICS_REQUEST_NETWORKS
 
 
 def _filter_cohort_devices_to_enabled_networks(cohorts: List[Dict[str, Any]]) -> None:

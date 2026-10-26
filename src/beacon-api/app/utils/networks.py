@@ -101,3 +101,18 @@ def device_source_key(network: Any, device_id: Any = None, device_number: Any = 
 def source_key_for_platform_device(dev: Dict[str, Any]) -> Optional[str]:
     """``device_source_key`` for a platform-shaped device dict (``_id``, ``network``, ``device_number``)."""
     return device_source_key(dev.get("network"), dev.get("_id"), dev.get("device_number"))
+
+
+# Values the platform's analytics raw-data endpoint accepts for ``network``
+# (its ``Network`` request enum in src/analytics/api/schemas/requests). The
+# endpoint validates the value but never uses it in the query: rows are
+# selected by device name, and each row keeps its own ``network`` column. So a
+# device from any manufacturer is fetched by sending a value the endpoint
+# accepts, with no change to the analytics service.
+ANALYTICS_REQUEST_NETWORKS = frozenset({"airqo", "iqair", "airnow", "metone"})
+
+
+def analytics_request_network(network: Any) -> str:
+    """The ``network`` to send to analytics raw-data for a device on ``network``."""
+    name = normalize_network(network)
+    return name if name in ANALYTICS_REQUEST_NETWORKS else AIRQO_NETWORK

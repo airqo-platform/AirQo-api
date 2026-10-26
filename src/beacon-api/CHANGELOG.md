@@ -41,7 +41,7 @@ External devices are backfilled into the same `sync_*_device_data` tables airqo 
   - *Analytics raw-data fallback*: nightly (after the ThingSpeak sync, `EXTERNAL_SYNC_ENABLED`) and via `POST /api/v1/data-sync/sync-external`, days without a complete daily record are fetched from `POST /analytics/raw-data` per (network, category) with cursor pagination and rate-limit backoff for devices without a direct source or whose direct fetch failed.
 - **`app/services/manufacturer_profiles.py`** — `<network>_<category>` profiles (airgradient_lowcost, iqair_lowcost, metone_bam, ...) whose telemetry mappings place named readings into `field1..field20`; `POST /api/v1/networks/profiles/seed` seeds and assigns them. Reads label slots back through the same profile.
 - **Source keys** — `sync_*_device_data.channel_id` is the ThingSpeak channel for airqo devices and the registry device id for others (`device_source_key`); `_resolve_devices`, the map view and stream last-active lookups resolve through it.
-- **Analytics** — the raw-data `Network` enum now accepts every registry network (airgradient, clarity, kcca, airbeam, airly, plumelabs, quant-aq, urbanbetter, nasa, purpleair).
+- **No analytics change needed** — the raw-data endpoint validates `network` but selects rows by device name only, so beacon sends a value it accepts (`analytics_request_network`: the device's own network for airqo, iqair, airnow and metone, `airqo` for every other manufacturer).
 - Daily diagnostics only fall back to the plain category profile for airqo devices.
 
 ### Feature: Per-manufacturer diagnostics
