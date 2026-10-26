@@ -10,29 +10,39 @@ from sqlalchemy import or_
 from app.core.config import settings
 from app.models.sync import SyncCohort, SyncCohortDevice, SyncDevice, SyncSite
 from app.utils.performance import PerformanceAnalysis
-from app.utils.field_mappings import map_record, get_category_mapping
+from app.utils.field_mappings import (
+    ensure_dict,
+    extract_label,
+    get_category_mapping,
+    map_record,
+    map_record_from_profile,
+)
+from app.utils.networks import (
+    ANALYTICS_REQUEST_NETWORKS,
+    AIRQO_NETWORK,
+    is_enabled_network_device,
+    is_network_enabled,
+    normalize_network,
+)
 from app.crud.crud_sync_device_data import get_device_data_for_devices
+from app.models.device_schema import DeviceProfile
+from app.services.manufacturer_profiles import external_mapping_profile
 
 logger = logging.getLogger(__name__)
 
 
-# Only devices belonging to this network are exposed by the beacon API.
-# Cohort responses (from the platform or local DB) can include devices from
-# other networks; we filter them out at every device-list ingress point.
-AIRQO_NETWORK = "airqo"
+# This platform-cohort performance path only fetches devices whose own
+# network analytics accepts. Other manufacturers' readings reach the local
+# sync tables through external_sync_service, which the local cohort
+# performance path reads.
+ANALYTICS_RAW_DATA_NETWORKS = ANALYTICS_REQUEST_NETWORKS
 
 
-def _is_airqo_device(dev: Dict[str, Any]) -> bool:
-    """Return True if a device dict belongs to the airqo network."""
-    network = (dev.get("network") or "").strip().lower()
-    return network == AIRQO_NETWORK
-
-
-def _filter_cohort_devices_to_airqo(cohorts: List[Dict[str, Any]]) -> None:
-    """Mutate cohorts so each cohort['devices'] only contains airqo devices."""
+def _filter_cohort_devices_to_enabled_networks(cohorts: List[Dict[str, Any]]) -> None:
+    """Mutate cohorts so each cohort['devices'] only holds enabled-network devices."""
     for cohort in cohorts or []:
         devices = cohort.get("devices") or []
-        cohort["devices"] = [d for d in devices if _is_airqo_device(d)]
+        cohort["devices"] = [d for d in devices if is_enabled_network_device(d)]
 
 
 # ---------------------------------------------------------------------------
@@ -126,10 +136,9 @@ def _hydrate_cohort_devices(db: Session, cohort_ids: List[str]) -> Dict[str, Lis
     by_cohort: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for j in junctions:
         sync_dev = sync_devices.get(j.device_id)
-        # Skip devices that aren't on the airqo network. We require a
-        # SyncDevice row with network_id == 'airqo'; rows missing entirely
-        # (orphaned junctions) are also dropped.
-        if not sync_dev or (sync_dev.network_id or "").strip().lower() != AIRQO_NETWORK:
+        # Orphaned junctions (no SyncDevice row) and devices outside the
+        # ENABLED_NETWORKS allow-list are dropped.
+        if not sync_dev or not is_network_enabled(sync_dev.network_id):
             continue
         by_cohort[j.cohort_id].append(
             _platform_shape_device(
@@ -280,8 +289,8 @@ async def get_cohorts(token: str, params: Dict[str, Any] = None) -> Dict[str, An
     if include_performance and start_date_time and end_date_time:
         await _process_performance_data(cohorts, start_date_time, end_date_time, frequency, include_device_data=False)
 
-    # Restrict each cohort's device list to airqo-network devices only.
-    _filter_cohort_devices_to_airqo(cohorts)
+    # Restrict each cohort's device list to enabled networks.
+    _filter_cohort_devices_to_enabled_networks(cohorts)
 
     # Put it back inside the platform response structure
     platform_response["cohorts"] = cohorts
@@ -335,7 +344,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
 
         if total_pages <= 1:
             logger.info(f"Fetched {len(all_cohorts)} cohorts (single page)")
-            _filter_cohort_devices_to_airqo(all_cohorts)
+            _filter_cohort_devices_to_enabled_networks(all_cohorts)
             return {"success": True, "cohorts": all_cohorts}
 
         # Fetch remaining pages in parallel
@@ -358,7 +367,7 @@ async def get_all_cohorts_paginated(token: str, params: Dict[str, Any] = None) -
             all_cohorts.extend(page_cohorts)
 
     logger.info(f"Fetched {len(all_cohorts)} cohorts across {total_pages} pages (parallel)")
-    _filter_cohort_devices_to_airqo(all_cohorts)
+    _filter_cohort_devices_to_enabled_networks(all_cohorts)
     return {"success": True, "cohorts": all_cohorts}
 
 
@@ -396,10 +405,11 @@ def _build_raw_data_payload(
     end_date_time: str,
     frequency: str,
     device_category: str,
+    network: str = AIRQO_NETWORK,
 ) -> Dict[str, Any]:
-    """Construct the analytics raw-data payload for a single category."""
+    """Construct the analytics raw-data payload for a single (network, category) group."""
     base = {
-        "network": "airqo",
+        "network": network,
         "device_category": device_category,
         "device_names": device_names,
         "startDateTime": start_date_time,
@@ -506,7 +516,8 @@ async def _fetch_all_pages(
 async def _fetch_raw_data_for_devices(
     device_names: List[str], start_date_time: str, end_date_time: str, frequency: str,
     device_category: str = "lowcost",
-    semaphore: asyncio.Semaphore = None, max_retries: int = 3
+    semaphore: asyncio.Semaphore = None, max_retries: int = 3,
+    network: str = AIRQO_NETWORK,
 ) -> List[Dict[str, Any]]:
     """
     Fetch raw data for a chunk of devices, handling cursor-based pagination.
@@ -515,6 +526,7 @@ async def _fetch_raw_data_for_devices(
     """
     payload = _build_raw_data_payload(
         device_names, start_date_time, end_date_time, frequency, device_category,
+        network=network,
     )
     raw_data: List[Dict[str, Any]] = []
 
@@ -534,10 +546,13 @@ def _is_inlab_cohort(cohort: Dict[str, Any]) -> bool:
 
 
 async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_time: str, end_date_time: str, frequency: str, include_device_data: bool = True) -> None:
-    # Group devices by category to fetch raw data correctly
+    # Group devices by (network, category): the analytics raw-data endpoint
+    # takes one network and one category per request.
+    devices_by_group: Dict[Tuple[str, str], Set[str]] = {}
     devices_by_category: Dict[str, Set[str]] = {}
     device_to_category: Dict[str, str] = {}
-    
+    skipped_networks: Set[str] = set()
+
     for cohort in cohorts:
         inlab = _is_inlab_cohort(cohort)
         for device in cohort.get("devices", []):
@@ -545,10 +560,21 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
                 name = device.get("name")
                 # Default to lowcost if category is missing
                 cat = device.get("category", "lowcost")
-                devices_by_category.setdefault(cat, set()).add(name)
+                network = normalize_network(device.get("network")) or AIRQO_NETWORK
                 device_to_category[name] = cat
+                if network not in ANALYTICS_RAW_DATA_NETWORKS:
+                    skipped_networks.add(network)
+                    continue
+                devices_by_group.setdefault((network, cat), set()).add(name)
+                devices_by_category.setdefault(cat, set()).add(name)
 
-    if not devices_by_category:
+    if skipped_networks:
+        logger.info(
+            "Skipping analytics raw-data for networks without a raw-data path: "
+            f"{sorted(skipped_networks)}"
+        )
+
+    if not devices_by_group:
         return
 
     # Split date range into segments
@@ -559,14 +585,14 @@ async def _process_performance_data(cohorts: List[Dict[str, Any]], start_date_ti
     semaphore = asyncio.Semaphore(2)
     tasks = []
     
-    for cat, names in devices_by_category.items():
+    for (network, cat), names in devices_by_group.items():
         name_list = list(names)
         for i in range(0, len(name_list), CHUNK_SIZE):
             chunk = name_list[i : i + CHUNK_SIZE]
             for seg_start, seg_end in date_segments:
                 tasks.append(_fetch_raw_data_for_devices(
                     chunk, seg_start, seg_end, frequency, 
-                    device_category=cat, semaphore=semaphore
+                    device_category=cat, semaphore=semaphore, network=network,
                 ))
 
     logger.info(
@@ -930,17 +956,55 @@ def _mean(values: List[float]) -> Optional[float]:
     return round(sum(vals) / len(vals), 4)
 
 
+def _load_profiles(db: Session, info_by_name: Dict[str, Dict[str, Any]]) -> Dict[Any, DeviceProfile]:
+    """Profiles referenced by ``info_by_name`` (only external devices need them)."""
+    ids = {
+        info.get("profile_id")
+        for info in info_by_name.values()
+        if info.get("profile_id") and normalize_network(info.get("network")) not in (None, AIRQO_NETWORK)
+    }
+    if not ids:
+        return {}
+    return {p.id: p for p in db.query(DeviceProfile).filter(DeviceProfile.id.in_(list(ids))).all()}
+
+
+def _mapping_for_device(
+    info: Dict[str, Any], profiles: Optional[Dict[Any, DeviceProfile]] = None,
+):
+    """
+    (record mapper, label list) for one device.
+
+    airqo devices keep the static per-category ThingSpeak layout. Devices from
+    other manufacturers are labelled through their ``<network>_<category>``
+    profile, or the default external layout when none is assigned.
+    """
+    category = info.get("category") or "lowcost"
+    if normalize_network(info.get("network")) in (None, AIRQO_NETWORK):
+        return (lambda r: map_record(r, category)), None
+    profile = (profiles or {}).get(info.get("profile_id"))
+    if profile is None or not ensure_dict(getattr(profile, "telemetry_mappings", None)):
+        profile = external_mapping_profile(category)
+    labels = [
+        label for label in (extract_label(v) for v in ensure_dict(profile.telemetry_mappings).values()) if label
+    ]
+    return (lambda r: map_record_from_profile(r, profile)), labels
+
+
 def _compute_device_averages(
-    mapped_records: List[Dict[str, Any]], category: str
+    mapped_records: List[Dict[str, Any]], category: str, labels: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Mean of every mapped numeric label present in ``mapped_records``.
 
+    ``labels`` overrides the static per-category label list (used for
+    devices from other manufacturers, whose labels come from their profile).
+
     For ``lowcost`` we additionally surface a derived ``pm2.5`` value: the
     mean of the two per-sensor averages (``pm2.5 sensor1`` / ``pm2.5 sensor2``).
     """
-    mapping = get_category_mapping(category)
-    labels = list(mapping.values())
+    if labels is None:
+        mapping = get_category_mapping(category)
+        labels = list(mapping.values())
 
     averages: Dict[str, Any] = {}
     for label in labels:
@@ -949,7 +1013,7 @@ def _compute_device_averages(
         if avg is not None:
             averages[label] = avg
 
-    if category == "lowcost":
+    if category == "lowcost" and "pm2.5 sensor1" in labels:
         s1 = averages.get("pm2.5 sensor1")
         s2 = averages.get("pm2.5 sensor2")
         components = [v for v in (s1, s2) if v is not None]
@@ -994,15 +1058,17 @@ def compute_device_performance(
     records_by_device, info_by_name = get_device_data_for_devices(
         db, names, start_date_time, end_date_time, frequency=frequency,
     )
+    profiles = _load_profiles(db, info_by_name)
 
     out: Dict[str, Dict[str, Any]] = {}
     for name in names:
         info = info_by_name.get(name) or {}
         category = info.get("category") or "lowcost"
         raw_records = records_by_device.get(name, [])
-        mapped = [map_record(r, category) for r in raw_records]
+        mapper, labels = _mapping_for_device(info, profiles)
+        mapped = [mapper(r) for r in raw_records]
         uptime = _compute_uptime(raw_records, start_date_time, end_date_time, frequency)
-        averages = _compute_device_averages(mapped, category)
+        averages = _compute_device_averages(mapped, category, labels)
         out[name] = {
             "category": category,
             "uptime": uptime,
@@ -1050,6 +1116,7 @@ def _build_per_device_metrics(
     start_date_time: str,
     end_date_time: str,
     frequency: str,
+    profiles: Optional[Dict[Any, DeviceProfile]] = None,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
     """Compute per-device mapped records + metrics dicts."""
     per_device_metrics: Dict[str, Dict[str, Any]] = {}
@@ -1059,11 +1126,12 @@ def _build_per_device_metrics(
         info = info_by_name.get(name) or {}
         category = info.get("category") or "lowcost"
         raw_records = records_by_device.get(name, [])
-        mapped = [map_record(r, category) for r in raw_records]
+        mapper, labels = _mapping_for_device(info, profiles)
+        mapped = [mapper(r) for r in raw_records]
         mapped_by_device[name] = mapped
 
         uptime = _compute_uptime(raw_records, start_date_time, end_date_time, frequency)
-        averages = _compute_device_averages(mapped, category)
+        averages = _compute_device_averages(mapped, category, labels)
         per_device_metrics[name] = {
             "uptime": uptime,
             "data_completeness": uptime,
@@ -1200,6 +1268,7 @@ def apply_local_performance(
     per_device_metrics, mapped_by_device = _build_per_device_metrics(
         all_device_names, records_by_device, info_by_name,
         start_date_time, end_date_time, frequency,
+        profiles=_load_profiles(db, info_by_name),
     )
 
     for cohort in cohorts:
