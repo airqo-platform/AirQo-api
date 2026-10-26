@@ -20,10 +20,12 @@ spec:
       targetPort: {{ $webTargetPort }}
       protocol: {{ $webProtocol }}
       nodePort: {{ $webNodePort }}
+    {{- if .Values.inPodRedis.enabled }}
     - name: redis-server
       port: {{ $redisSvcPort }}
       targetPort: {{ $redisTargetPort }}
       protocol: {{ $redisProtocol }}
       nodePort: {{ $redisNodePort }}
+    {{- end }}
   selector:
     app: {{ .Values.app.label }}
