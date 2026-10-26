@@ -19,19 +19,37 @@ from typing import List, Dict, Any, Tuple, Optional
 from uuid import UUID
 from app.utils.performance import PerformanceAnalysis
 from app.utils.field_mappings import ensure_dict
+from app.utils.networks import (
+    AIRQO_NETWORK,
+    device_data_source,
+    enabled_networks,
+    is_enabled_network_device,
+    normalize_network,
+)
 
 logger = logging.getLogger(__name__)
 
-# Only devices belonging to this network are exposed by the beacon API.
-# Platform responses can include devices from other networks; we filter them
-# out at every ingress point (list, single-device, and sync).
-AIRQO_NETWORK = "airqo"
+# Devices from every network ("sensor manufacturer") the platform returns are
+# mirrored, subject to the optional ENABLED_NETWORKS allow-list. Platform
+# payloads are filtered at every ingress point (list, single-device, sync).
 
 
-def _is_airqo_device(dev: Dict[str, Any]) -> bool:
-    """Return True if a platform device payload belongs to the airqo network."""
-    network = (dev.get("network") or "").strip().lower()
-    return network == AIRQO_NETWORK
+def online_threshold_utc() -> datetime:
+    """
+    A deployed device counts as online when its latest raw reading is newer
+    than this instant: the start of yesterday (UTC).
+    """
+    start_of_today_utc = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    return start_of_today_utc - timedelta(days=1)
+
+
+def _parse_network_filter(network: Optional[str]) -> List[str]:
+    """Comma-separated network names → lower-cased list (empty = no filter)."""
+    if not network:
+        return []
+    return [n for n in (normalize_network(part) for part in network.split(",")) if n]
 
 
 async def decrypt_read_keys(token: str, items: List[Dict[str, Any]]) -> Dict[int, str]:
@@ -112,10 +130,12 @@ def extract_device_category(dev: Dict[str, Any]) -> str:
 _AUTHORITATIVE_FIELDS = (
     "category", "site_id", "network_id", "device_name",
     "device_number", "writeKey", "readKey", "status",
+    "serial_number", "api_code", "auth_required",
 )
 
 _NON_AUTH_FILL_FIELDS = (
     "device_name", "network_id", "device_number", "writeKey", "readKey", "status",
+    "serial_number", "api_code",
 )
 
 
@@ -144,6 +164,10 @@ def _build_field_values(
         "writeKey": dev.get("writeKey"),
         "readKey": read_key or dev.get("readKey"),
         "status": dev.get("status"),
+        # Non-airqo manufacturers: identity used by the registry's adapter layer.
+        "serial_number": dev.get("serial_number"),
+        "api_code": dev.get("api_code"),
+        "auth_required": dev.get("authRequired"),
     }
 
 
@@ -181,9 +205,30 @@ def _apply_non_authoritative_update(
     return updated
 
 
-def _resolve_profile_id(db: Session, category_str: Optional[str]) -> Optional[UUID]:
-    """Resolves a DeviceProfile ID from the category string (lowcost, gas, bam)."""
+def _resolve_profile_id(
+    db: Session, category_str: Optional[str], network: Optional[str] = None,
+) -> Optional[UUID]:
+    """
+    Resolve a DeviceProfile ID from the device's network and category.
+
+    A manufacturer-specific profile named ``<network>_<category>`` (for
+    example ``airgradient_lowcost``) wins when it exists. The plain category
+    profiles (``lowcost``, ``lowcost_gas``, ``bam``) describe AirQo hardware
+    on ThingSpeak, so they are only used for airqo devices; a device from
+    another manufacturer without its own profile stays unassigned rather than
+    inheriting ThingSpeak field semantics.
+    """
     cat_lower = (category_str or "lowcost").strip().lower()
+    net_lower = normalize_network(network)
+
+    if net_lower and net_lower != AIRQO_NETWORK:
+        profile = (
+            db.query(DeviceProfile)
+            .filter(func.lower(DeviceProfile.name) == f"{net_lower}_{cat_lower}")
+            .first()
+        )
+        return profile.id if profile else None
+
     profile = db.query(DeviceProfile).filter(func.lower(DeviceProfile.name) == cat_lower).first()
     if not profile:
         if cat_lower == "gas":
@@ -213,7 +258,7 @@ def upsert_device_to_sync(
 
     site_id, status = _resolve_site_id(dev)
     values = _build_field_values(dev, read_key, site_id)
-    profile_id = _resolve_profile_id(db, values.get("category"))
+    profile_id = _resolve_profile_id(db, values.get("category"), values.get("network_id"))
 
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
 
@@ -235,6 +280,9 @@ def upsert_device_to_sync(
             writeKey=values["writeKey"],
             readKey=values["readKey"],
             status=values.get("status"),
+            serial_number=values.get("serial_number"),
+            api_code=values.get("api_code"),
+            auth_required=values.get("auth_required"),
         )
         db.add(db_device)
         return db_device, True, False
@@ -516,6 +564,16 @@ async def _decrypt_keys_for_devices(
     return await decrypt_read_keys(token, items) if items else {}
 
 
+def _device_data_source_from_db(db_device: SyncDevice) -> str:
+    return device_data_source(
+        db_device.network_id,
+        db_device.device_number,
+        db_device.readKey,
+        db_device.serial_number,
+        db_device.api_code,
+    )
+
+
 def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
     return {
         "network_id": db_device.network_id,
@@ -529,6 +587,10 @@ def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
         "status": db_device.status,
+        "serial_number": db_device.serial_number,
+        "api_code": db_device.api_code,
+        "auth_required": db_device.auth_required,
+        "data_source": _device_data_source_from_db(db_device),
     }
 
 
@@ -555,6 +617,10 @@ def _serialize_synced_device(db_device: SyncDevice) -> Dict[str, Any]:
         "device_number": db_device.device_number,
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
+        "serial_number": db_device.serial_number,
+        "api_code": db_device.api_code,
+        "authRequired": db_device.auth_required,
+        "data_source": _device_data_source_from_db(db_device),
         "site": {"_id": db_device.site_id} if db_device.site_id else None,
         "beacon_data": _beacon_data_from_db(db_device),
         "category_hierarchy": _category_hierarchy_from_db(db_device),
@@ -645,13 +711,7 @@ def _build_synced_devices_meta(
         or 0
     )
 
-    start_of_today_utc = datetime.now(timezone.utc).replace(
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
-    online_threshold = start_of_today_utc - timedelta(days=1)
+    online_threshold = online_threshold_utc()
 
     latest_seen_subquery = (
         db.query(
@@ -741,6 +801,13 @@ def _beacon_data_from_platform(
         "writeKey": dev.get("writeKey"),
         "readKey": read_key_to_store,
         "status": dev.get("status"),
+        "serial_number": dev.get("serial_number"),
+        "api_code": dev.get("api_code"),
+        "auth_required": dev.get("authRequired"),
+        "data_source": device_data_source(
+            dev.get("network"), dev.get("device_number"), read_key_to_store,
+            dev.get("serial_number"), dev.get("api_code"),
+        ),
     }
 
 
@@ -779,8 +846,8 @@ async def get_device_details(db: Session, token: str, params: Dict[str, Any] = N
         return error
 
     devices = platform_data.get("devices", []) or []
-    # Restrict to airqo-network devices only.
-    devices = [d for d in devices if _is_airqo_device(d)]
+    # Drop devices outside the ENABLED_NETWORKS allow-list (no-op by default).
+    devices = [d for d in devices if is_enabled_network_device(d)]
     platform_data["devices"] = devices
     # Keep meta counts consistent with the filtered list when present.
     meta = platform_data.get("meta")
@@ -807,12 +874,24 @@ def get_synced_device_details(
     search: Optional[str] = None,
     group_device_ids: Optional[List[str]] = None,
     query_params: Optional[Dict[str, Any]] = None,
+    network: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Read devices from the local sync_device table using the platform-like response shape."""
+    """
+    Read devices from the local sync_device table using the platform-like
+    response shape. ``network`` narrows the list to one or more sensor
+    manufacturers (comma-separated, e.g. ``airqo,airgradient``).
+    """
     safe_skip = max(skip, 0)
     safe_limit = max(limit, 1)
 
-    base_query = db.query(SyncDevice).filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
+    base_query = db.query(SyncDevice)
+    allowed_networks = enabled_networks()
+    if allowed_networks:
+        # ENABLED_NETWORKS allow-list (empty = every network).
+        base_query = base_query.filter(func.lower(SyncDevice.network_id).in_(sorted(allowed_networks)))
+    requested_networks = _parse_network_filter(network)
+    if requested_networks:
+        base_query = base_query.filter(func.lower(SyncDevice.network_id).in_(requested_networks))
 
     if group_device_ids is not None and not group_device_ids:
         stats_query = base_query.filter(False)
@@ -928,8 +1007,8 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             platform_data["success"] = True
         return platform_data
 
-    # Restrict to airqo-network devices only.
-    if not _is_airqo_device(device_data):
+    # Devices outside the ENABLED_NETWORKS allow-list are not exposed.
+    if not is_enabled_network_device(device_data):
         return {
             "success": False,
             "message": f"Device {device_id} not found",
@@ -954,33 +1033,10 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
     
     if db_device:
-        beacon_data = {
-            "network_id": db_device.network_id,
-            "site_id": db_device.site_id,
-            "current_firmware": db_device.current_firmware,
-            "previous_firmware": db_device.previous_firmware,
-            "file_upload_state": db_device.file_upload_state,
-            "firmware_download_state": db_device.firmware_download_state,
-            "device_number": db_device.device_number,
-            "writeKey": db_device.writeKey,
-            "readKey": db_device.readKey,
-            "status": db_device.status,
-        }
+        beacon_data = _beacon_data_from_db(db_device)
     else:
         # Device not synced yet — use defaults or platform data
-        platform_site_id = device_data.get("site", {}).get("_id")
-        beacon_data = {
-            "network_id": device_data.get("network"),
-            "site_id": platform_site_id if device_data.get("status") == "deployed" else None,
-            "current_firmware": None,
-            "previous_firmware": None,
-            "file_upload_state": False,
-            "firmware_download_state": None,
-            "device_number": device_data.get("device_number"),
-            "writeKey": device_data.get("writeKey"),
-            "readKey": read_key_to_store,
-            "status": device_data.get("status"),
-        }
+        beacon_data = _beacon_data_from_platform(device_data, read_key_to_store)
     
     # 3. Add category data
     category_hierarchy = device_data.get("device_categories", {}).get("category_hierarchy")
@@ -1347,13 +1403,12 @@ async def _fetch_all_platform_devices(
             if resp.status_code == 200:
                 all_devices.extend(resp.json().get("devices", []))
 
-    # Restrict to airqo-network devices only — sync_device must never hold
-    # devices from other networks.
+    # Mirror every manufacturer's devices unless ENABLED_NETWORKS narrows it.
     before = len(all_devices)
-    all_devices = [d for d in all_devices if _is_airqo_device(d)]
+    all_devices = [d for d in all_devices if is_enabled_network_device(d)]
     if before != len(all_devices):
         logger.info(
-            f"Filtered platform devices to airqo network: {len(all_devices)}/{before}"
+            f"Filtered platform devices to enabled networks: {len(all_devices)}/{before}"
         )
     return all_devices, None
 
@@ -1423,6 +1478,16 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
         return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
 
     decrypted_keys_map = await _decrypt_keys_for_devices(token, all_devices)
+
+    # Devices from other manufacturers resolve to ``<network>_<category>``
+    # profiles; seed them first so new devices are assigned on this pass.
+    try:
+        from app.services.manufacturer_profiles import ensure_manufacturer_profiles  # noqa: WPS433
+
+        ensure_manufacturer_profiles(db)
+    except Exception as e:
+        logger.warning(f"Could not seed manufacturer profiles before device sync: {e}")
+        db.rollback()
 
     updates_count = 0
     new_count = 0

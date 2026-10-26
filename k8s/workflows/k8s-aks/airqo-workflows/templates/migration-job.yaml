@@ -1,0 +1,53 @@
+{{- if .Values.migrationJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: '{{ .Values.app.name }}-db-migrate-{{ .Values.images.tag }}'
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "airqo-workflows.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.migrationJob.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app: '{{ .Values.app.name }}-db-migrate'
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.app.serviceAccount }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
+      initContainers:
+        {{- include "airqo-workflows.xcomInitContainer" . | nindent 8 }}
+      containers:
+        - name: '{{ .Values.app.name }}-db-migrate'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          command: ["airflow"]
+          args:
+            {{- toYaml .Values.migrationJob.args | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.migrationJob.limits.cpu }}
+              memory: {{ .Values.resources.migrationJob.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.migrationJob.requests.cpu }}
+              memory: {{ .Values.resources.migrationJob.requests.memory }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -18,6 +18,7 @@ import httpx
 from app.db.session import SessionLocal
 from app.models.sync import SyncDevice
 from app.crud import crud_device_data
+from app.utils.networks import DATA_SOURCE_THINGSPEAK, device_data_source
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +265,31 @@ def _aggregate_to_daily(
     return results
 
 
+# ── Device selection ──────────────────────────────────────────────────────────
+
+def select_thingspeak_devices(db) -> List[SyncDevice]:
+    """
+    Devices this pipeline can read: airqo-network devices with a ThingSpeak
+    channel (``device_number``) and read key. Devices from other sensor
+    manufacturers are mirrored in ``sync_device`` too, but their readings
+    come from the manufacturer's API, not ThingSpeak, so they are excluded
+    here even if they happen to carry a channel-like number.
+    """
+    rows = (
+        db.query(SyncDevice)
+        .filter(
+            SyncDevice.device_number.isnot(None),
+            SyncDevice.readKey.isnot(None),
+            SyncDevice.readKey != "",
+        )
+        .all()
+    )
+    return [
+        d for d in rows
+        if device_data_source(d.network_id, d.device_number, d.readKey) == DATA_SOURCE_THINGSPEAK
+    ]
+
+
 # ── Main Sync Orchestrator ────────────────────────────────────────────────────
 
 async def sync_device_data(
@@ -314,15 +340,7 @@ async def sync_device_data(
     # ── 1. Get devices from local DB ──────────────────────────────────────
     db = SessionLocal()
     try:
-        devices_rows = (
-            db.query(SyncDevice)
-            .filter(
-                SyncDevice.device_number.isnot(None),
-                SyncDevice.readKey.isnot(None),
-                SyncDevice.readKey != "",
-            )
-            .all()
-        )
+        devices_rows = select_thingspeak_devices(db)
     finally:
         db.close()
 

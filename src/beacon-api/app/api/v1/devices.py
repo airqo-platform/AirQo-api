@@ -231,6 +231,10 @@ def get_synced_devices(
     limit: int = 30,
     skip: int = 0,
     search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Comma-separated sensor manufacturer(s) / network(s), e.g. airqo,airgradient",
+    ),
     include_performance: Annotated[bool, Query(alias="includePerformance")] = False,
     start_date_time: Annotated[Optional[str], Query(alias="startDateTime")] = None,
     end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
@@ -239,6 +243,7 @@ def get_synced_devices(
 ):
     """List devices from the local sync_device table, filtered by group.
 
+    ``network`` narrows the list to one or more sensor manufacturers.
     When ``includePerformance=true`` and both date bounds are provided, each
     device on the page is enriched with locally-computed metrics.
     When ``includeDiagnostics=true``, each device carries its most recent
@@ -257,7 +262,7 @@ def get_synced_devices(
     group_device_ids = resolve_group_device_ids(db, cohort_ids)
     with_performance = bool(include_performance and start_date_time and end_date_time)
 
-    query_params = {"group": group, "search": search}
+    query_params = {"group": group, "search": search, "network": network}
     if with_performance:
         query_params.update({
             "includePerformance": "true",
@@ -276,6 +281,7 @@ def get_synced_devices(
             search=search,
             group_device_ids=group_device_ids,
             query_params=query_params,
+            network=network,
         )
 
         if with_performance:
@@ -335,7 +341,11 @@ async def get_devices(
     db: Session = Depends(get_db),
     limit: int = 30,
     skip: int = 0,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Sensor manufacturer / network to filter by (passed through to the platform)",
+    ),
 ):
     # The token should be in the format "JWT <token>"
     if not authorization.startswith("JWT "):
@@ -376,6 +386,8 @@ async def get_devices(
             params["device_id__in"] = ",".join(group_device_ids)
         if search:
             params["search"] = search
+        if network:
+            params["network"] = network
 
         result = await device_service.get_device_details(db, token, params)
         
@@ -395,6 +407,8 @@ async def get_devices(
             fallback_params = {}
             if search:
                 fallback_params["search"] = search
+            if network:
+                fallback_params["network"] = network
 
             fallback_result = await device_service.get_device_details(db, token, fallback_params)
             if not fallback_result.get("success", True):

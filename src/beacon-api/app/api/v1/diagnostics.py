@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Any, Dict
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -45,6 +45,8 @@ from app.services.diagnostics.daily import (
 from app.services.diagnostics.evaluator import DiagnosticEvaluator
 from app.services.diagnostics.profile_model import ProfileNotDiagnosableError, build_model
 from app.services.diagnostics.seeds import seed_default_templates
+from app.models.device_data import SyncRawDeviceData
+from app.utils.networks import AIRQO_NETWORK, device_source_key, normalize_network
 from app.models.sync import SyncDevice
 from app.services.group_filter import group_device_id_select
 from app.utils.field_mappings import map_record_from_profile, normalize_and_unpack_record
@@ -302,7 +304,8 @@ def _resolve_profile(db: Session, profile_id: Optional[str] = None, device_id: O
             if sync_dev:
                 if sync_dev.profile_id:
                     profile = crud_diagnostics.get_profile(db, sync_dev.profile_id)
-                elif sync_dev.category:
+                elif sync_dev.category and normalize_network(sync_dev.network_id) in (None, AIRQO_NETWORK):
+                    # The plain category profiles describe AirQo ThingSpeak hardware.
                     profile = crud_diagnostics.get_profile(db, sync_dev.category)
     except Exception:
         profile = None
@@ -356,6 +359,39 @@ def evaluate_custom_payload(
     return _evaluate_with_profile(device_id, request, profile)
 
 
+def load_stored_telemetry(db: Session, device_id: str, window_hours: float) -> List[Dict[str, Any]]:
+    """
+    The device's raw readings from the local sync tables for the last
+    ``window_hours``, keyed the way they were stored: ThingSpeak channel for
+    airqo devices, registry device id for other manufacturers.
+    """
+    sync_dev = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
+    if sync_dev is None:
+        return []
+    source_key = device_source_key(sync_dev.network_id, sync_dev.device_id, sync_dev.device_number)
+    if not source_key:
+        return []
+    since = datetime.now(timezone.utc) - timedelta(hours=float(window_hours or 24))
+    rows = (
+        db.query(SyncRawDeviceData)
+        .filter(SyncRawDeviceData.channel_id == source_key, SyncRawDeviceData.created_at_ts >= since)
+        .order_by(SyncRawDeviceData.created_at_ts)
+        .all()
+    )
+    records: List[Dict[str, Any]] = []
+    for row in rows:
+        ts = row.created_at_ts
+        record: Dict[str, Any] = {
+            "created_at_ts": ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc),
+        }
+        for i in range(1, 21):
+            value = getattr(row, f"field{i}")
+            if value is not None:
+                record[f"field{i}"] = value
+        records.append(record)
+    return records
+
+
 @router.post("/evaluate/{device_id}", response_model=EvaluationResultResponse)
 def evaluate_device(
     device_id: str,
@@ -365,8 +401,14 @@ def evaluate_device(
 ) -> Any:
     """
     Runs the full diagnostic pipeline on a device and saves a health snapshot record.
+
+    When the request carries no ``telemetry_window``, the device's stored
+    readings for the last ``window_hours`` are evaluated, whichever
+    manufacturer they came from.
     """
     req = request or EvaluationRequest()
+    if not req.telemetry_window:
+        req = req.model_copy(update={"telemetry_window": load_stored_telemetry(db, device_id, req.window_hours)})
     profile = _resolve_profile(db, profile_id=req.profile_id, device_id=device_id)
     result = _evaluate_with_profile(device_id, req, profile)
 

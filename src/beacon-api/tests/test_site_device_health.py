@@ -71,7 +71,8 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
         db = self.Session()
 
         # Group "ministry" -> cohort coh_a -> devices dev_1, dev_3, dev_4.
-        # dev_2 is airqo but outside the group; dev_3 is in the group but on another network.
+        # dev_2 is airqo but outside the group; dev_3 is in the group but on another
+        # network (kcca) — listed like any other manufacturer unless filtered by network.
         db.add_all([
             SyncGroup(group_id="grp_a", grp_title="ministry"),
             SyncCohort(cohort_id="coh_a", name="ministry_cohort"),
@@ -190,8 +191,13 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
 
     def test_synced_devices_without_performance(self):
         data = self.client.get("/api/v1/devices/synced?group=ministry").json()
-        self.assertEqual([d["_id"] for d in data["devices"]], ["dev_1", "dev_4"])
+        # Every manufacturer's devices are listed; dev_3 is on the kcca network.
+        self.assertEqual([d["_id"] for d in data["devices"]], ["dev_1", "dev_4", "dev_3"])
         self.assertNotIn("uptime", data["devices"][0])
+
+        # The network filter narrows the list to one manufacturer.
+        data = self.client.get("/api/v1/devices/synced?group=ministry&network=airqo").json()
+        self.assertEqual([d["_id"] for d in data["devices"]], ["dev_1", "dev_4"])
 
     def test_synced_devices_with_performance(self):
         response = self.client.get(f"/api/v1/devices/synced?group=ministry&{PERF_QS}")
