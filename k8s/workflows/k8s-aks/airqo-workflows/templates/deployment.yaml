@@ -37,23 +37,31 @@ spec:
         {{- toYaml .Values.tolerations | nindent 8 }}
 
       initContainers:
-        - name: '{{ .Values.app.name }}-xcom'
-          image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
+        {{- include "airqo-workflows.xcomInitContainer" . | nindent 8 }}
+        {{- if .Values.checkMigrations.enabled }}
+        - name: '{{ .Values.app.name }}-check-migrations'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
-          resources:
-            limits:
-              cpu: {{ .Values.resources.initContainer.limits.cpu }}
-              memory: {{ .Values.resources.initContainer.limits.memory }}
-            requests:
-              cpu: {{ .Values.resources.initContainer.requests.cpu }}
-              memory: {{ .Values.resources.initContainer.requests.memory }}
           envFrom:
             - secretRef:
                 name: {{ .Values.app.secret }}
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          command: ["/usr/bin/dumb-init", "--", "airflow"]
+          args: ["db", "check-migrations", "--migration-wait-timeout", "{{ .Values.checkMigrations.waitTimeoutSeconds }}"]
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.checkMigrations.limits.cpu }}
+              memory: {{ .Values.resources.checkMigrations.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.checkMigrations.requests.cpu }}
+              memory: {{ .Values.resources.checkMigrations.requests.memory }}
+        {{- end }}
       containers:
         - name: '{{ .Values.app.name }}-scheduler'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
@@ -129,6 +137,7 @@ spec:
             httpGet:
               path: /workflows/health
               port: {{ $webTargetPort }}
+        {{- if .Values.inPodRedis.enabled }}
         - name: '{{ .Values.app.name }}-redis'
           image: "{{ .Values.images.repositories.redisContainer }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
@@ -156,6 +165,7 @@ spec:
             timeoutSeconds: 5
             tcpSocket:
               port: {{ $redisPort }}
+        {{- end }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
