@@ -184,7 +184,9 @@ class TestPlanning(_DbTestCase):
 
     def test_payload_shape(self):
         payload = ext.build_raw_data_payload("airgradient", "lowcost", ["ag_201560"], date(2026, 10, 1), date(2026, 10, 7))
-        self.assertEqual(payload["network"], "airgradient")
+        # analytics only accepts its own network values; it selects rows by device name
+        self.assertEqual(payload["network"], "airqo")
+        self.assertEqual(ext.build_raw_data_payload("iqair", "lowcost", [], date(2026, 10, 1), date(2026, 10, 1))["network"], "iqair")
         self.assertEqual(payload["device_category"], "lowcost")
         self.assertEqual(payload["startDateTime"], "2026-10-01T00:00:00Z")
         self.assertEqual(payload["endDateTime"], "2026-10-07T23:59:59Z")
@@ -297,7 +299,7 @@ class TestOrchestrator(_DbTestCase):
             return _upsert
 
         responses = {
-            "airgradient": {"data": [
+            "airqo": {"data": [   # the AirGradient group, sent with a value analytics accepts
                 {"device_name": "ag_201560", "datetime": "2026-10-11 10:00:00Z", "pm2_5": 10.0, "pm10": 12.0, "temperature": 25.0},
                 {"device_name": "ag_201560", "datetime": "2026-10-11 10:30:00Z", "pm2_5": 14.0, "pm10": 16.0, "temperature": 27.0},
             ], "metadata": {"has_more": False}},

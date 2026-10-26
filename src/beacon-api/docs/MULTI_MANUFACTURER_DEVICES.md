@@ -178,11 +178,14 @@ with a per-device key. Manufacturer APIs differ, so external devices combine:
 3. *Analytics raw-data* (fallback). The ETL pipelines write every network's
    measurements to the same BigQuery raw table, tagged with the device's
    network, and `POST /analytics/raw-data` serves them by device name. Used
-   for devices without a direct source and whenever a direct fetch fails. Its
-   request model validated `network` against a short enum; this branch widens
-   that enum in the analytics service, and beacon falls back to
-   `network=airqo` on a 422 from an older deployment (the value is validated
-   but not used in the query).
+   for devices without a direct source and whenever a direct fetch fails. No
+   change to the analytics service is needed. Its request model validates
+   `network` against a short list (`airqo`, `iqair`, `airnow`, `metone`), but
+   the export never uses that value in the query: rows are selected by device
+   name and each row keeps its own `network` column. So beacon sends the
+   device's own network when analytics accepts it and `airqo` otherwise
+   (`analytics_request_network`). Verified on staging: `network=airqo` with an
+   AirGradient device name returns that device's rows, tagged `airgradient`.
 
 **Source keys.** The local tables stay keyed by `channel_id`, but the key is
 now `device_source_key`: the ThingSpeak channel number for airqo devices and
