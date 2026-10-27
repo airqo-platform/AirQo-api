@@ -209,6 +209,60 @@ class TestExternalDeviceSync(_DbTestCase):
         self.assertIs(row.auth_required, True)
 
 
+class TestCohortBackfillKeepsSite(_DbTestCase):
+    # Platform cohort listings project each device's status but not its site.
+    COHORT_DEVICE = {
+        "_id": "aq_dev_1",
+        "name": "airqo_g5433",
+        "device_number": 2866794,
+        "isActive": True,
+        "status": "deployed",
+        "network": "airqo",
+    }
+
+    def setUp(self):
+        super().setUp()
+        device_service.upsert_device_to_sync(self.db, AIRQO_DEVICE, is_authoritative=True)
+        self.db.commit()
+
+    def _site_id(self):
+        return self.db.query(SyncDevice).filter(SyncDevice.device_id == "aq_dev_1").one().site_id
+
+    def test_deployed_payload_without_site_keeps_site(self):
+        device_service.upsert_device_to_sync(self.db, self.COHORT_DEVICE, is_authoritative=False)
+        self.db.commit()
+        self.assertEqual(self._site_id(), "site_1")
+
+    def test_undeployed_payload_clears_site(self):
+        recalled = {**self.COHORT_DEVICE, "status": "recalled"}
+        device_service.upsert_device_to_sync(self.db, recalled, is_authoritative=False)
+        self.db.commit()
+        self.assertIsNone(self._site_id())
+
+
+class TestDeviceSyncRefreshesSites(unittest.TestCase):
+    def _run(self, device_sync):
+        import asyncio
+        from app.api.v1 import devices as devices_api
+
+        calls = []
+        device_sync.side_effect = device_sync.side_effect or (lambda *a: calls.append("devices"))
+        site_sync = AsyncMock(side_effect=lambda *a: calls.append("sites") or {"message": "ok"})
+        with patch.object(devices_api, "SessionLocal", MagicMock()), \
+                patch.object(device_service, "sync_devices", device_sync), \
+                patch.object(devices_api.site_service, "sync_sites", site_sync):
+            asyncio.run(devices_api._run_sync_devices("token"))
+        return calls, site_sync
+
+    def test_sites_sync_after_devices(self):
+        calls, _ = self._run(AsyncMock())
+        self.assertEqual(calls, ["devices", "sites"])
+
+    def test_sites_sync_runs_when_device_sync_raises(self):
+        _, site_sync = self._run(AsyncMock(side_effect=RuntimeError("boom")))
+        site_sync.assert_awaited_once()
+
+
 class TestSyncedDeviceListing(_DbTestCase):
     def setUp(self):
         super().setUp()

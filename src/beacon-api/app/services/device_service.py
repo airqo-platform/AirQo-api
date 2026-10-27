@@ -188,13 +188,17 @@ def _apply_non_authoritative_update(
     db_device: SyncDevice,
     values: Dict[str, Any],
     status: Optional[str],
+    carries_site: bool,
 ) -> bool:
     """Update only missing/safe fields when source is partial. Returns True if changed."""
     updated = False
     if not db_device.category:
         db_device.category = values["category"]
         updated = True
-    if status is not None and db_device.site_id != values["site_id"]:
+    # Cohort payloads carry status but no site; a deployed device keeps its
+    # site_id unless the payload actually names one.
+    site_known = carries_site or status != "deployed"
+    if status is not None and site_known and db_device.site_id != values["site_id"]:
         db_device.site_id = values["site_id"]
         updated = True
     for field in _NON_AUTH_FILL_FIELDS:
@@ -293,7 +297,8 @@ def upsert_device_to_sync(
             db_device.profile_id = profile_id
             updated = True
     else:
-        updated = _apply_non_authoritative_update(db_device, values, status)
+        carries_site = "site" in dev or "site_id" in dev
+        updated = _apply_non_authoritative_update(db_device, values, status, carries_site)
         if not db_device.profile_id and profile_id:
             db_device.profile_id = profile_id
             updated = True
