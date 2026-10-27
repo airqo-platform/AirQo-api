@@ -10,7 +10,7 @@ from collections import Counter
 import requests
 
 from configure import Config
-from utils.geocoding import ReverseGeocodingService
+from utils.geocoding import ReverseGeocodingBusyError, ReverseGeocodingService
 
 
 logger = logging.getLogger(__name__)
@@ -246,7 +246,12 @@ class SiteCategoryModel:
         with ThreadPoolExecutor(max_workers=2) as executor:
             reverse_future = executor.submit(self._reverse_geocode, latitude, longitude)
             overpass_future = executor.submit(self._overpass_query, latitude, longitude)
-            reverse_result = reverse_future.result()
+            reverse_busy_error = None
+            try:
+                reverse_result = reverse_future.result()
+            except ReverseGeocodingBusyError as error:
+                reverse_busy_error = error
+                reverse_result = {"_error": "reverse_geocoder_busy"}
             elements, overpass_url, overpass_errors = overpass_future.result()
 
         candidates = []
@@ -277,6 +282,8 @@ class SiteCategoryModel:
             method = "overpass"
             confidence = min(0.98, max(0.45, 0.98 - distance / (self.search_radius_m * 2)))
         else:
+            if reverse_busy_error is not None:
+                raise reverse_busy_error
             category, priority, reason, matched_tags = self._classify_reverse_result(reverse_result)
             matched_element = None
             distance = None

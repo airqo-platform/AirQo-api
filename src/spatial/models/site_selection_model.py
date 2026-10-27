@@ -6,7 +6,7 @@ from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from utils.geocoding import ReverseGeocodingService
+from utils.geocoding import ReverseGeocodingBusyError, ReverseGeocodingService
 
 
 GEOCODING_MAX_WORKERS = max(1, int(os.getenv("SITE_LOCATION_GEOCODING_WORKERS", "4")))
@@ -167,6 +167,16 @@ class SensorDeployment:
                         "highway": highway,
                         "landuse": landuse,
                         "natural": natural,
+                        "geocoding_status": "completed",
+                    }
+                )
+                return site
+            except ReverseGeocodingBusyError:
+                site.update(
+                    {
+                        "category": None,
+                        "area_name": None,
+                        "geocoding_status": "deferred",
                     }
                 )
                 return site
@@ -191,6 +201,6 @@ class SensorDeployment:
     def get_category_counts(self):
         counts = {}
         for site in self.sites:
-            category = site.get("category", "Unknown")
+            category = site.get("category") or "Unenriched"
             counts[category] = counts.get(category, 0) + 1
         return counts

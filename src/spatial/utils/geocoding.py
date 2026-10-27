@@ -1,5 +1,6 @@
 """Shared, bounded reverse-geocoding access for the spatial service."""
 
+from dask.array.routines import isin
 import logging
 import os
 import threading
@@ -9,6 +10,10 @@ import requests
 
 
 logger = logging.getLogger(__name__)
+
+
+class ReverseGeocodingBusyError(RuntimeError):
+    """Raised when bounded geocoding capacity remains unavailable."""
 
 
 class ReverseGeocodingService:
@@ -29,6 +34,12 @@ class ReverseGeocodingService:
         )
         self.acquire_timeout_seconds = max(
             0.0, float(os.getenv("SPATIAL_GEOCODING_ACQUIRE_TIMEOUT_SECONDS", "0.1"))
+        )
+        self.acquire_attempts = max(
+            1, int(os.getenv("SPATIAL_GEOCODING_ACQUIRE_ATTEMPTS", "3"))
+        )
+        self.acquire_retry_delay_seconds = max(
+            0.0, float(os.getenv("SPATIAL_GEOCODING_RETRY_DELAY_SECONDS", "0.05"))
         )
         self.request_timeout_seconds = max(
             0.1, float(os.getenv("SPATIAL_GEOCODING_TIMEOUT_SECONDS", "3"))
@@ -86,8 +97,18 @@ class ReverseGeocodingService:
         if cached is not None:
             return cached
 
-        if not self._request_lock.acquire(timeout=self.acquire_timeout_seconds):
-            return {"_error": "reverse_geocoder_busy"}
+        acquired = False
+        for attempt in range(self.acquire_attempts):
+            acquired = self._request_lock.acquire(
+                timeout=self.acquire_timeout_seconds
+            )
+            if acquired:
+                break
+            if attempt + 1 < self.acquire_attempts:
+                time.sleep(self.acquire_retry_delay_seconds)
+
+        if not acquired:
+            raise ReverseGeocodingBusyError("Reverse geocoder is busy")
 
         try:
             cached = self._get_cached(key)
@@ -108,6 +129,11 @@ class ReverseGeocodingService:
             )
             response.raise_for_status()
             result = response.json()
+            if not isinstance(result, dict):
+                return {"_error": "reverse_geocode_failed"}
+            address = result.get("address")
+            if address is None or not isinstance(address, dict):
+                return {"_error": "reverse_geocode_failed"}
             self._set_cached(key, result)
             return result
         except Exception as error:

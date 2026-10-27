@@ -18,6 +18,8 @@ BASE_POLYGON = (
     (32.575107, 0.305577),
 )
 NUM_SENSORS = max(1, int(os.getenv("LOCUST_SITE_LOCATION_NUM_SENSORS", "3")))
+MUST_HAVE_COUNT = 1
+MIN_DISTANCE_OPTIONS_KM = (0.5, 1.0, 1.5, 2.0, 2.5)
 REQUEST_TIMEOUT_SECONDS = max(
     1.0, float(os.getenv("LOCUST_REQUEST_TIMEOUT_SECONDS", "60"))
 )
@@ -34,10 +36,13 @@ class SpatialAPIUser(HttpUser):
             [longitude + longitude_offset, latitude + latitude_offset]
             for longitude, latitude in BASE_POLYGON
         ]
+        must_have_locations = [
+            [0.305 + latitude_offset, 32.59 + longitude_offset]
+        ]
         payload = {
             "polygon": {"coordinates": [polygon]},
-            "must_have_locations": [],
-            "min_distance_km": 2.5,
+            "must_have_locations": must_have_locations,
+            "min_distance_km": random.choice(MIN_DISTANCE_OPTIONS_KM),
             "num_sensors": NUM_SENSORS,
         }
 
@@ -60,10 +65,15 @@ class SpatialAPIUser(HttpUser):
                 response.failure("Response was not valid JSON")
                 return
 
+            if not isinstance(body, dict):
+                response.failure("Response JSON was not an object")
+                return
+
             sites = body.get("site_location")
             if not isinstance(sites, list):
                 response.failure("Response did not contain site_location list")
-            elif len(sites) != NUM_SENSORS:
+            expected_sites = NUM_SENSORS + MUST_HAVE_COUNT
+            if len(sites) != expected_sites:
                 response.failure(
-                    f"Expected {NUM_SENSORS} sites, received {len(sites)}"
+                    f"Expected {expected_sites} sites, received {len(sites)}"
                 )
