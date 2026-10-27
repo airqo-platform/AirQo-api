@@ -42,6 +42,14 @@ HEATMAP_REFRESH_TIMEOUT_SECONDS=600
 MODEL_DIR_FILE=./models
 OSMNX_CACHE_MAX_FILES=100
 OSMNX_CACHE_MAX_AGE_HOURS=168
+SITE_LOCATION_CANDIDATE_MULTIPLIER=30
+SITE_LOCATION_KMEANS_N_INIT=3
+SITE_LOCATION_GEOCODING_WORKERS=4
+SPATIAL_GEOCODING_CONCURRENCY=1
+SPATIAL_GEOCODING_ACQUIRE_TIMEOUT_SECONDS=0.1
+SPATIAL_GEOCODING_TIMEOUT_SECONDS=3
+SPATIAL_GEOCODING_MIN_INTERVAL_SECONDS=1
+SPATIAL_GEOCODING_CACHE_TTL_SECONDS=86400
 FIRMS_MAP_KEY=your-free-nasa-firms-map-key
 FIRMS_API_BASE_URL=https://firms.modaps.eosdis.nasa.gov
 FIRMS_REQUEST_TIMEOUT_SECONDS=30
@@ -461,6 +469,62 @@ curl -X POST http://127.0.0.1:5000/api/v2/spatial/site_location \
     "num_sensors": 3
   }'
 ```
+
+### Legacy site-location behavior and performance
+
+`/site_location` generates candidate points inside the supplied polygon and uses
+KMeans cluster centers as the recommended sensor coordinates. The number of
+candidate points is calculated as:
+
+```text
+num_sensors * SITE_LOCATION_CANDIDATE_MULTIPLIER
+```
+
+The default multiplier is `30`, so a request for 10 sensors evaluates 300
+candidate points. `SITE_LOCATION_KMEANS_N_INIT` controls how many independent
+KMeans initializations are evaluated and defaults to `3`. Higher values can
+increase computation time and should be load-tested before deployment.
+
+Reverse geocoding is handled by a shared, process-wide service with bounded
+concurrency, request timeouts, rate spacing, and an in-memory TTL cache. When
+the geocoder is busy or unavailable, placement still succeeds and affected
+sites use `Unknown` metadata instead of blocking the entire request.
+
+`must_have_locations` are currently returned in addition to the requested
+`num_sensors`. For example, 10 requested sensors and two valid mandatory
+locations can produce 12 returned sites.
+
+### Load testing `/site_location`
+
+Install development dependencies from the repository root:
+
+```bash
+python -m pip install -r src/spatial/requirements-dev.txt
+```
+
+Start the spatial API on port 5000, then run 100 concurrent Locust users:
+
+```bash
+python -m locust \
+  -f src/spatial/tests/locustfile.py \
+  --host=http://127.0.0.1:5000 \
+  --headless \
+  --users 100 \
+  --spawn-rate 10 \
+  --run-time 5m \
+  --only-summary
+```
+
+The scenario sends different polygon coordinates and validates the HTTP status,
+JSON response, and returned site count. Configure it with:
+
+- `LOCUST_SITE_LOCATION_NUM_SENSORS`: sensors requested per test call; default `3`
+- `LOCUST_REQUEST_TIMEOUT_SECONDS`: client-side request timeout; default `60`
+
+Run high-concurrency tests against local or preview environments first. Monitor
+failure rate, requests per second, median latency, and P95/P99 latency together
+with service CPU, memory, replica count, and upstream geocoding behavior. Do not
+use the public Nominatim service as the target of an unrestricted load test.
 
 Polygon optimizer, fast default response:
 ```bash

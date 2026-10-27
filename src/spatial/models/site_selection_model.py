@@ -10,6 +10,8 @@ from utils.geocoding import ReverseGeocodingService
 
 
 GEOCODING_MAX_WORKERS = max(1, int(os.getenv("SITE_LOCATION_GEOCODING_WORKERS", "4")))
+CANDIDATE_MULTIPLIER = max(10, int(os.getenv("SITE_LOCATION_CANDIDATE_MULTIPLIER", "30")))
+KMEANS_N_INIT = max(1, int(os.getenv("SITE_LOCATION_KMEANS_N_INIT", "3")))
 
 class SiteCategoryModel:
     geocoding_service = ReverseGeocodingService()
@@ -107,12 +109,12 @@ class SensorDeployment:
 
         # Generate random points within the polygon
         random_points = self.generate_random_points(
-            num_sensors * 100
+            num_sensors * CANDIDATE_MULTIPLIER
         )  # Generate more points than needed
         random_coords = [(point.y, point.x) for point in random_points]
 
         # Apply KMeans clustering to find optimal sensor locations
-        kmeans = KMeans(n_clusters=num_sensors, random_state=42, n_init=10)
+        kmeans = KMeans(n_clusters=num_sensors, random_state=42, n_init=KMEANS_N_INIT)
         kmeans.fit(random_coords)
         cluster_centers = kmeans.cluster_centers_
 
