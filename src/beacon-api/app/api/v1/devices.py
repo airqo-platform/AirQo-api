@@ -14,19 +14,33 @@ from app.schemas.device import (
     KeyValuePayload,
     DeviceSyncResponse,
 )
-from app.services import device_service
+from app.services import device_service, site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_devices
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 async def _run_sync_devices(token: str):
-    """Background task to run device sync with its own DB session."""
+    """Background task to run device sync, then site sync, with its own DB session.
+
+    Devices only carry a site_id; coordinates live on sync_site, so sites are
+    refreshed afterwards to cover devices deployed to newly created sites.
+    """
     db = SessionLocal()
     try:
-        await device_service.sync_devices(db, token)
-    except Exception as e:
-        logger.exception(f"Background device sync failed: {e}")
+        try:
+            await device_service.sync_devices(db, token)
+        except Exception as e:
+            logger.exception(f"Background device sync failed: {e}")
+            db.rollback()
+        try:
+            result = await site_service.sync_sites(db, token)
+            if result.get("success", True):
+                logger.info(f"[Site Sync] Sync after device sync completed: {result.get('message')}")
+            else:
+                logger.error(f"[Site Sync] Sync after device sync failed: {result.get('message')}")
+        except Exception as e:
+            logger.exception(f"Site sync after device sync failed: {e}")
     finally:
         db.close()
 
@@ -48,7 +62,7 @@ async def sync_devices(
     
     return {
         "success": True, 
-        "message": "Device sync process started in the background. It may take a few minutes to complete.",
+        "message": "Device and site sync process started in the background. It may take a few minutes to complete.",
         "updates_count": 0,
         "new_count": 0
     }
