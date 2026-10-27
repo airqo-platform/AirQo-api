@@ -35,7 +35,10 @@ async def _run_sync_devices(token: str):
             db.rollback()
         try:
             result = await site_service.sync_sites(db, token)
-            logger.info(f"[Site Sync] Sync after device sync completed: {result.get('message')}")
+            if result.get("success", True):
+                logger.info(f"[Site Sync] Sync after device sync completed: {result.get('message')}")
+            else:
+                logger.error(f"[Site Sync] Sync after device sync failed: {result.get('message')}")
         except Exception as e:
             logger.exception(f"Site sync after device sync failed: {e}")
     finally:

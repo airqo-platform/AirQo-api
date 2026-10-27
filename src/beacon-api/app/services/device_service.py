@@ -297,7 +297,8 @@ def upsert_device_to_sync(
             db_device.profile_id = profile_id
             updated = True
     else:
-        carries_site = "site" in dev or "site_id" in dev
+        # An empty site/site_id field is no more informative than a missing one.
+        carries_site = site_id is not None
         updated = _apply_non_authoritative_update(db_device, values, status, carries_site)
         if not db_device.profile_id and profile_id:
             db_device.profile_id = profile_id

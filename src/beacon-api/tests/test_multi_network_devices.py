@@ -233,6 +233,20 @@ class TestCohortBackfillKeepsSite(_DbTestCase):
         self.db.commit()
         self.assertEqual(self._site_id(), "site_1")
 
+    def test_deployed_payload_with_empty_site_keeps_site(self):
+        for empty in ({"site_id": None}, {"site": {}}):
+            device_service.upsert_device_to_sync(
+                self.db, {**self.COHORT_DEVICE, **empty}, is_authoritative=False,
+            )
+            self.db.commit()
+            self.assertEqual(self._site_id(), "site_1", empty)
+
+    def test_deployed_payload_with_new_site_moves_site(self):
+        moved = {**self.COHORT_DEVICE, "site_id": "site_9"}
+        device_service.upsert_device_to_sync(self.db, moved, is_authoritative=False)
+        self.db.commit()
+        self.assertEqual(self._site_id(), "site_9")
+
     def test_undeployed_payload_clears_site(self):
         recalled = {**self.COHORT_DEVICE, "status": "recalled"}
         device_service.upsert_device_to_sync(self.db, recalled, is_authoritative=False)
@@ -241,13 +255,14 @@ class TestCohortBackfillKeepsSite(_DbTestCase):
 
 
 class TestDeviceSyncRefreshesSites(unittest.TestCase):
-    def _run(self, device_sync):
+    def _run(self, device_sync, site_result=None):
         import asyncio
         from app.api.v1 import devices as devices_api
 
         calls = []
         device_sync.side_effect = device_sync.side_effect or (lambda *a: calls.append("devices"))
-        site_sync = AsyncMock(side_effect=lambda *a: calls.append("sites") or {"message": "ok"})
+        site_result = site_result or {"success": True, "message": "ok"}
+        site_sync = AsyncMock(side_effect=lambda *a: calls.append("sites") or site_result)
         with patch.object(devices_api, "SessionLocal", MagicMock()), \
                 patch.object(device_service, "sync_devices", device_sync), \
                 patch.object(devices_api.site_service, "sync_sites", site_sync):
@@ -261,6 +276,11 @@ class TestDeviceSyncRefreshesSites(unittest.TestCase):
     def test_sites_sync_runs_when_device_sync_raises(self):
         _, site_sync = self._run(AsyncMock(side_effect=RuntimeError("boom")))
         site_sync.assert_awaited_once()
+
+    def test_returned_site_sync_failure_is_logged_as_error(self):
+        with self.assertLogs("app.api.v1.devices", level="ERROR") as logs:
+            self._run(AsyncMock(), {"success": False, "message": "Platform API returned HTTP 401 on page 1"})
+        self.assertIn("Sync after device sync failed", logs.output[0])
 
 
 class TestSyncedDeviceListing(_DbTestCase):
