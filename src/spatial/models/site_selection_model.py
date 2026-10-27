@@ -1,45 +1,39 @@
+import hashlib
+import json
+import os
 import random
 from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
-from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import multiprocessing
+from utils.geocoding import ReverseGeocodingService
 
-random.seed(42)
 
+GEOCODING_MAX_WORKERS = max(1, int(os.getenv("SITE_LOCATION_GEOCODING_WORKERS", "4")))
 
 class SiteCategoryModel:
-    def __init__(self):
-        self.geolocator = Nominatim(user_agent="sensor_deployment")
+    geocoding_service = ReverseGeocodingService()
 
     def categorize_site_osm(self, lat, lon):
-        try:
-            location = self.geolocator.reverse((lat, lon), language="en")
-            address = location.raw.get("address", {})
-        except Exception as e:
-            address = {}
-
+        result = self.geocoding_service.reverse(lat, lon)
+        address = result.get("address") or {}
         category = self._determine_category(address)
         highway = (
-            address.get("road", None)
+            address.get("road")
             if category in ["Urban", "Commercial", "Residential"]
             else None
         )
         landuse = (
-            address.get("landuse", None)
+            address.get("landuse")
             if category in ["Residential", "Commercial", "Industrial"]
             else None
         )
-        natural = (
-            address.get("natural", None) if category in ["Natural", "Rural"] else None
-        )
-
+        natural = address.get("natural") if category in ["Natural", "Rural"] else None
         place_name = address.get("suburb", address.get("city", "Unknown"))
-
         return (category, None, place_name, landuse, natural, None, highway, None)
 
-    def _determine_category(self, address):
+    @staticmethod
+    def _determine_category(address):
         if "landuse" in address:
             landuse = address["landuse"]
             if landuse in ["residential"]:
@@ -75,8 +69,21 @@ class SensorDeployment:
     def generate_random_points(self, num_points):
         minx, miny, maxx, maxy = self.polygon.bounds
         points = []
+        seed_payload = json.dumps(
+            {
+                "polygon": self.polygon.wkt,
+                "must_have_locations": self.must_have_locations,
+                "min_distance_km": self.min_distance_km,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+        seed = int.from_bytes(hashlib.sha256(seed_payload).digest()[:8], "big")
+        random_generator = random.Random(seed)
         while len(points) < num_points:
-            random_point = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
+            random_point = Point(
+                random_generator.uniform(minx, maxx),
+                random_generator.uniform(miny, maxy),
+            )
             if self.polygon.contains(random_point):
                 points.append(random_point)
         return points
@@ -123,7 +130,7 @@ class SensorDeployment:
                 }
             )
 
-    def categorize_sites(self, max_workers=None):
+    def categorize_sites(self, max_workers=GEOCODING_MAX_WORKERS):
         model = SiteCategoryModel()
 
         def process_site(site):
@@ -165,9 +172,7 @@ class SensorDeployment:
                 #   print(f"Error processing site at ({site['latitude']}, {site['longitude']}): {e}")
                 return None
 
-        # Determine the number of workers, defaulting to the number of CPU cores if not provided
-        if max_workers is None:
-            max_workers = multiprocessing.cpu_count()
+        max_workers = max(1, min(max_workers, len(self.sites)))
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_site = {

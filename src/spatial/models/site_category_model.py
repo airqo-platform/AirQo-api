@@ -10,6 +10,7 @@ from collections import Counter
 import requests
 
 from configure import Config
+from utils.geocoding import ReverseGeocodingService
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class SiteCategoryModel:
     """
 
     _SITE_CATEGORY_CACHE = {}
+    _GEOCODING_SERVICE = ReverseGeocodingService()
     _CACHE_MAX_ITEMS = 5000
     SITE_CATEGORIES = {
         "Background Site",
@@ -108,21 +110,7 @@ class SiteCategoryModel:
         return response.json()
 
     def _reverse_geocode(self, latitude, longitude):
-        try:
-            return self._request_json(
-                "GET",
-                "https://nominatim.openstreetmap.org/reverse",
-                params={
-                    "lat": latitude,
-                    "lon": longitude,
-                    "format": "jsonv2",
-                    "addressdetails": 1,
-                    "zoom": 18,
-                },
-            )
-        except Exception as error:
-            logger.warning("Nominatim reverse lookup failed: %s", error)
-            return {"_error": "reverse_geocode_failed"}
+        return self._GEOCODING_SERVICE.reverse(latitude, longitude)
 
     def _overpass_query(self, latitude, longitude):
         local_radius = min(self.search_radius_m, 150)

@@ -4,6 +4,9 @@ FROM python:3.11-slim-bullseye AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
     FLASK_APP=app:app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -44,9 +47,9 @@ CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
 FROM base AS staging
 ENV APP_ENV=staging
 ENV FLASK_DEBUG=0
-CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "--worker-class=gthread", "--workers=1", "--threads=4", "--timeout=60", "--backlog=2048", "app:app"]
 
 FROM base AS production
 ENV APP_ENV=production
 ENV FLASK_DEBUG=0
-CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "--worker-class=gthread", "--workers=1", "--threads=4", "--timeout=60", "--backlog=2048", "app:app"]
