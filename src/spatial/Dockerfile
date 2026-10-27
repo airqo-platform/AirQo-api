@@ -1,5 +1,5 @@
 # Use the official Python image as a base image
-FROM python:3.11-slim-bullseye AS base
+FROM python:3.11-slim-bookworm AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
