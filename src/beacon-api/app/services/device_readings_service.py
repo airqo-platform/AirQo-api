@@ -150,11 +150,12 @@ def covers_today(end_date_time: Optional[str], now_utc: Optional[datetime] = Non
 
 # ── Refresh claim (shared through the database) ───────────────────────────────
 
-def _claim(device_id: str, now_utc: datetime) -> Tuple[bool, Optional[str]]:
+def _claim(device_id: str, now_utc: datetime) -> Tuple[Optional[datetime], Optional[str]]:
     """
-    Claim ``device_id`` for a refresh. Returns ``(claimed, state)``; when the
-    claim fails, ``state`` is what the current holder left (``running`` or a
-    refresh outcome in its cooldown).
+    Claim ``device_id`` for a refresh. Returns ``(claim, state)``: ``claim``
+    is the new claim's expiry, which the refresh hands back to ``_release``,
+    or None when the claim fails, and then ``state`` is what the current
+    holder left (``running`` or a refresh outcome in its cooldown).
 
     Safe across replicas: an expired row is taken over by one conditional
     UPDATE (a concurrent taker re-checks the condition and matches nothing),
@@ -170,36 +171,41 @@ def _claim(device_id: str, now_utc: datetime) -> Tuple[bool, Optional[str]]:
         )
         db.commit()
         if taken:
-            return True, _CLAIM_RUNNING
+            return until, _CLAIM_RUNNING
         current = (
             db.query(DeviceReadingsRefresh.state)
             .filter(DeviceReadingsRefresh.device_id == device_id)
             .scalar()
         )
         if current is not None:
-            return False, current
+            return None, current
         db.add(DeviceReadingsRefresh(device_id=device_id, state=_CLAIM_RUNNING, expires_at=until))
         try:
             db.commit()
         except IntegrityError:
             db.rollback()
-            return False, _CLAIM_RUNNING
-        return True, _CLAIM_RUNNING
+            return None, _CLAIM_RUNNING
+        return until, _CLAIM_RUNNING
     finally:
         db.close()
 
 
-def _release(device_id: str, outcome: str) -> None:
-    """Hold ``device_id`` with the refresh's outcome for the cooldown."""
+def _release(device_id: str, claim: datetime, outcome: str) -> bool:
+    """
+    Hold ``device_id`` with the refresh's outcome for the cooldown, if the
+    refresh still holds ``claim``. A refresh that outlived its claim was taken
+    over, and leaves the newer holder's row alone. Returns whether it released.
+    """
     until = datetime.now(timezone.utc) + timedelta(seconds=settings.DEVICE_READINGS_REFRESH_COOLDOWN_SECONDS)
     db = SessionLocal()
     try:
-        (
+        released = (
             db.query(DeviceReadingsRefresh)
-            .filter(DeviceReadingsRefresh.device_id == device_id)
+            .filter(DeviceReadingsRefresh.device_id == device_id, DeviceReadingsRefresh.expires_at == claim)
             .update({"state": outcome, "expires_at": until}, synchronize_session=False)
         )
         db.commit()
+        return bool(released)
     finally:
         db.close()
 
@@ -224,9 +230,9 @@ def refresh_if_stale(
             return REFRESH_NOT_APPLICABLE
         if not is_stale(latest_reading_at(db, readings_key(dev)), now_utc):
             return REFRESH_NOT_NEEDED
-        claimed, state = _claim(dev.device_id, now_utc)
-        if claimed:
-            background_tasks.add_task(refresh_device_readings, dev.device_id)
+        claim, state = _claim(dev.device_id, now_utc)
+        if claim is not None:
+            background_tasks.add_task(refresh_device_readings, dev.device_id, claim)
             return REFRESH_STARTED
         return REFRESH_RUNNING if state == _CLAIM_RUNNING else REFRESH_COOLDOWN
     except Exception as e:
@@ -322,11 +328,13 @@ async def _live_feed_rows(dev: SyncDevice, now_utc: datetime) -> Tuple[List[Dict
     return rows, "ok" if rows else "no_data"
 
 
-async def refresh_device_readings(device_id: str, now_utc: Optional[datetime] = None) -> Dict[str, Any]:
+async def refresh_device_readings(
+    device_id: str, claim: datetime, now_utc: Optional[datetime] = None,
+) -> Dict[str, Any]:
     """
     Background task: fetch the newest readings of one device from its source,
     store them and rebuild the aggregates of the days they touch, then hold
-    the device's claim with the outcome for the cooldown.
+    the device's ``claim`` (from ``_claim``) with the outcome for the cooldown.
     """
     now_utc = now_utc or datetime.now(timezone.utc)
     result: Dict[str, Any] = {
@@ -364,7 +372,8 @@ async def refresh_device_readings(device_id: str, now_utc: Optional[datetime] = 
         logger.exception(f"[Readings Refresh] refresh of {device_id} failed: {e}")
     finally:
         try:
-            _release(device_id, result["outcome"])
+            if not _release(device_id, claim, result["outcome"]):
+                logger.info(f"[Readings Refresh] {device_id}: claim was taken over before the refresh finished")
         except Exception as e:
             # The claim still expires after _RUNNING_TTL_SECONDS.
             logger.error(f"[Readings Refresh] releasing {device_id} failed: {e}")

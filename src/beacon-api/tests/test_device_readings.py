@@ -5,6 +5,8 @@ device_readings_refresh claim per device. GET /devices/{id} and single-device pe
 same refresh.
 """
 import asyncio
+import base64
+import json
 import unittest
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -34,8 +36,16 @@ def compile_jsonb_sqlite(type_, compiler, **kw):
 
 
 NOW = datetime(2026, 10, 28, 9, 30, tzinfo=timezone.utc)
+CLAIM = NOW + timedelta(seconds=drs._RUNNING_TTL_SECONDS)   # a claim taken at NOW
 CHANNEL = "2866794"
-AUTH = {"Authorization": "JWT test-token"}
+
+
+def _jwt(payload):
+    seg = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
+    return f"{seg({'alg': 'HS256', 'typ': 'JWT'})}.{seg(payload)}.sig"
+
+
+AUTH = {"Authorization": f"JWT {_jwt({'_id': 'user_1'})}"}
 
 AIRQO = dict(device_id="aq_1", device_name="airqo_g5433", network_id="airqo", category="lowcost",
              device_number=2866794, readKey="k", status="deployed")
@@ -131,15 +141,15 @@ class TestRefreshDecision(_Base):
         self.assertEqual(drs.refresh_if_stale(self.db, first, dev, NOW), drs.REFRESH_STARTED)
         self.assertEqual(len(first.tasks), 1)
         self.assertIs(first.tasks[0].func, drs.refresh_device_readings)
-        self.assertEqual(first.tasks[0].args, ("aq_1",))
-        self.assertEqual(self.claim("aq_1"), ("running", NOW + timedelta(seconds=drs._RUNNING_TTL_SECONDS)))
+        self.assertEqual(first.tasks[0].args, ("aq_1", CLAIM))
+        self.assertEqual(self.claim("aq_1"), ("running", CLAIM))
 
         second = BackgroundTasks()
         self.assertEqual(drs.refresh_if_stale(self.db, second, dev, NOW), drs.REFRESH_RUNNING)
         self.assertEqual(second.tasks, [])
 
         # The refresh finished but the device has nothing newer: wait out the cooldown
-        drs._release("aq_1", "no_data")
+        drs._release("aq_1", CLAIM, "no_data")
         self.assertEqual(self.claim("aq_1"), ("no_data", NOW + timedelta(seconds=120)))
         third = BackgroundTasks()
         self.assertEqual(drs.refresh_if_stale(self.db, third, dev, NOW), drs.REFRESH_COOLDOWN)
@@ -180,6 +190,18 @@ class TestRefreshDecision(_Base):
         tasks = BackgroundTasks()
         self.assertEqual(drs.refresh_if_stale(self.db, tasks, self.device("aq_1"), NOW), drs.REFRESH_RUNNING)
         self.assertEqual(tasks.tasks, [])
+
+    def test_a_refresh_that_outlived_its_claim_leaves_the_newer_claim(self):
+        self.assertEqual(drs._claim("aq_1", NOW), (CLAIM, "running"))
+        # The first refresh overran its claim and a later view took the device over
+        later = CLAIM + timedelta(seconds=1)
+        newer, _ = drs._claim("aq_1", later)
+        self.assertEqual(newer, later + timedelta(seconds=drs._RUNNING_TTL_SECONDS))
+
+        self.assertFalse(drs._release("aq_1", CLAIM, "ok"))
+        self.assertEqual(self.claim("aq_1"), ("running", newer))
+        self.assertTrue(drs._release("aq_1", newer, "ok"))
+        self.assertEqual(self.claim("aq_1")[0], "ok")
 
     def test_a_failed_check_never_raises(self):
         with patch.object(drs, "latest_reading_at", side_effect=RuntimeError("db gone")):
@@ -239,7 +261,7 @@ class TestBackgroundRefresh(_Base):
         ]}])
 
         with patch.object(ts, "fetch_thingspeak_data_bulk", fetch):
-            result = asyncio.run(drs.refresh_device_readings("aq_1", NOW))
+            result = asyncio.run(drs.refresh_device_readings("aq_1", CLAIM, NOW))
 
         fetch.assert_awaited_once_with(
             [{"channel_id": CHANNEL, "api_key": "k"}], "2026-10-28", "2026-10-28",
@@ -266,7 +288,7 @@ class TestBackgroundRefresh(_Base):
         self.db.commit()
         fetch = AsyncMock(return_value=[{"channel_id": CHANNEL, "feeds": []}])
         with patch.object(ts, "fetch_thingspeak_data_bulk", fetch):
-            result = asyncio.run(drs.refresh_device_readings("aq_1", NOW))
+            result = asyncio.run(drs.refresh_device_readings("aq_1", CLAIM, NOW))
         self.assertEqual(fetch.await_args.kwargs["start_time"], "00:00:00")
         self.assertEqual(result["outcome"], "no_data")
         self.assertEqual(self.captured["hourly"], [])
@@ -283,7 +305,7 @@ class TestBackgroundRefresh(_Base):
         client.__aexit__ = AsyncMock(return_value=False)
 
         with patch.object(drs.httpx, "AsyncClient", return_value=client):
-            result = asyncio.run(drs.refresh_device_readings("ag_1", NOW))
+            result = asyncio.run(drs.refresh_device_readings("ag_1", CLAIM, NOW))
 
         self.assertEqual(result["outcome"], "ok")
         self.assertTrue(client.get.await_args.args[0].endswith("/world/locations/201560/measures/current"))
@@ -297,12 +319,12 @@ class TestBackgroundRefresh(_Base):
 
     def test_a_failed_refresh_still_sets_the_cooldown(self):
         with patch.object(ts, "fetch_thingspeak_data_bulk", AsyncMock(side_effect=RuntimeError("boom"))):
-            result = asyncio.run(drs.refresh_device_readings("aq_1", NOW))
+            result = asyncio.run(drs.refresh_device_readings("aq_1", CLAIM, NOW))
         self.assertEqual(result["outcome"], "failed")
         self.assertEqual(self.claim("aq_1"), ("failed", NOW + timedelta(seconds=120)))
 
     def test_unknown_device_is_a_no_op(self):
-        result = asyncio.run(drs.refresh_device_readings("gone", NOW))
+        result = asyncio.run(drs.refresh_device_readings("gone", CLAIM, NOW))
         self.assertEqual(result["outcome"], drs.REFRESH_NOT_APPLICABLE)
 
 
@@ -344,7 +366,7 @@ class TestDeviceEndpoints(_Base):
         self.assertEqual([r["entry_id"] for r in body["data"]], [1, 2])
         self.assertTrue(body["last_reading_at"].startswith("2026-10-28T08:30:00"))
         self.assertEqual(body["refresh"], "started")
-        self.refresh.assert_called_once_with("aq_1")
+        self.refresh.assert_called_once_with("aq_1", CLAIM)
 
         # A second viewer while that refresh still holds the claim
         body = self.client.get("/api/v1/devices/aq_1/readings", headers=AUTH).json()
@@ -375,15 +397,16 @@ class TestDeviceEndpoints(_Base):
 
     def test_bad_frequency_or_auth(self):
         self.assertEqual(self.client.get("/api/v1/devices/aq_1/readings?frequency=daily", headers=AUTH).status_code, 400)
-        self.assertEqual(
-            self.client.get("/api/v1/devices/aq_1/readings", headers={"Authorization": "Bearer x"}).status_code, 401,
-        )
+        for header in ("Bearer x", "JWT not-a-jwt", f"JWT {_jwt({'sub': 'no-id'})}"):
+            self.assertEqual(
+                self.client.get("/api/v1/devices/aq_1/readings", headers={"Authorization": header}).status_code, 401,
+            )
 
     def test_get_device_by_id_refreshes_the_device(self):
         found = AsyncMock(return_value={"success": True, "message": "ok", "data": None})
         with patch.object(device_service, "get_device_by_id", found):
             self.assertEqual(self.client.get("/api/v1/devices/aq_1", headers=AUTH).status_code, 200)
-        self.refresh.assert_called_once_with("aq_1")
+        self.refresh.assert_called_once_with("aq_1", CLAIM)
 
         self.refresh.reset_mock()
         missing = AsyncMock(return_value={"success": False, "message": "nope", "status_code": 404})
@@ -397,7 +420,7 @@ class TestDeviceEndpoints(_Base):
         with patch.object(device_service, "get_device_performance", perf):
             resp = self.client.get(f"/api/v1/devices/performance?device_name=airqo_g5433&{today}")
             self.assertEqual(resp.status_code, 200, resp.text)
-            self.refresh.assert_called_once_with("aq_1")
+            self.refresh.assert_called_once_with("aq_1", CLAIM)
 
             self.refresh.reset_mock()
             self.client.get(f"/api/v1/devices/performance?device_name=airqo_g5433,ag_201560&{today}")

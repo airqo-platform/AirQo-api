@@ -3,6 +3,7 @@ import logging
 from datetime import date
 from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional
+from app.api.v1.operations import get_current_user_id
 from app.db.session import get_db, SessionLocal
 from app.schemas.data_sync import DeviceReadingsResponse
 from app.schemas.device import (
@@ -327,11 +328,16 @@ def get_synced_devices(
         logger.exception(f"Unexpected error fetching synced devices: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@router.get("/{device_id}/readings", response_model=DeviceReadingsResponse)
+@router.get(
+    "/{device_id}/readings",
+    response_model=DeviceReadingsResponse,
+    # Answers from local tables without calling the platform, so the token is
+    # checked here rather than by the platform.
+    dependencies=[Depends(get_current_user_id)],
+)
 def get_device_readings(
     device_id: str,
     background_tasks: BackgroundTasks,
-    authorization: str = Header(...),
     day: Optional[date] = Query(default=None, alias="date", description="UTC day (YYYY-MM-DD); defaults to today"),
     frequency: str = Query(default="raw", description="raw | hourly"),
     refresh: bool = Query(default=True, description="Refresh today's readings in the background when they are stale"),
@@ -344,11 +350,6 @@ def get_device_readings(
     newest reading is stale is refreshed from ThingSpeak or its manufacturer
     in the background, and ``refresh`` says whether to ask again shortly.
     """
-    if not authorization.startswith("JWT "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Expected 'JWT <token>'")
-    if len(authorization.split(" ")) < 2:
-        raise HTTPException(status_code=401, detail="Invalid authorization header format. Missing token.")
-
     freq = (frequency or "raw").lower()
     if freq not in {"raw", "hourly"}:
         raise HTTPException(status_code=400, detail="Invalid 'frequency'. Must be one of: raw, hourly.")
