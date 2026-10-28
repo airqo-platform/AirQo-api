@@ -2,6 +2,7 @@
 
 import os
 import random
+from itertools import count
 
 from locust import HttpUser, between, task
 
@@ -17,7 +18,10 @@ BASE_POLYGON = (
     (32.574334, 0.296994),
     (32.575107, 0.305577),
 )
-NUM_SENSORS = max(1, int(os.getenv("LOCUST_SITE_LOCATION_NUM_SENSORS", "3")))
+SENSOR_COUNTS = tuple(
+    max(1, int(value.strip()))
+    for value in os.getenv("LOCUST_SITE_LOCATION_SENSOR_COUNTS", "1,3,5,8").split(",")
+)
 MUST_HAVE_COUNT = 1
 MIN_DISTANCE_OPTIONS_KM = (0.5, 1.0, 1.5, 2.0, 2.5)
 REQUEST_TIMEOUT_SECONDS = max(
@@ -26,12 +30,17 @@ REQUEST_TIMEOUT_SECONDS = max(
 
 
 class SpatialAPIUser(HttpUser):
+    host = os.getenv("LOCUST_HOST", "http://127.0.0.1:5000")
     wait_time = between(1, 3)
+    _user_ids = count()
+
+    def on_start(self):
+        self.user_id = next(self._user_ids)
 
     @task
     def locate_sites(self):
-        latitude_offset = random.uniform(-0.5, 0.5)
-        longitude_offset = random.uniform(-0.5, 0.5)
+        latitude_offset = (self.user_id // 10 - 2) * 0.08
+        longitude_offset = (self.user_id % 10 - 5) * 0.08
         polygon = [
             [longitude + longitude_offset, latitude + latitude_offset]
             for longitude, latitude in BASE_POLYGON
@@ -39,11 +48,12 @@ class SpatialAPIUser(HttpUser):
         must_have_locations = [
             [0.305 + latitude_offset, 32.59 + longitude_offset]
         ]
+        num_sensors = SENSOR_COUNTS[self.user_id % len(SENSOR_COUNTS)]
         payload = {
             "polygon": {"coordinates": [polygon]},
             "must_have_locations": must_have_locations,
             "min_distance_km": random.choice(MIN_DISTANCE_OPTIONS_KM),
-            "num_sensors": NUM_SENSORS,
+            "num_sensors": num_sensors,
         }
 
         with self.client.post(
@@ -72,8 +82,17 @@ class SpatialAPIUser(HttpUser):
             sites = body.get("site_location")
             if not isinstance(sites, list):
                 response.failure("Response did not contain site_location list")
-            expected_sites = NUM_SENSORS + MUST_HAVE_COUNT
+                return
+            expected_sites = num_sensors + MUST_HAVE_COUNT
             if len(sites) != expected_sites:
                 response.failure(
                     f"Expected {expected_sites} sites, received {len(sites)}"
                 )
+                return
+            if any(
+                not isinstance(site, dict)
+                or not isinstance(site.get("latitude"), (int, float))
+                or not isinstance(site.get("longitude"), (int, float))
+                for site in sites
+            ):
+                response.failure("A site was missing latitude or longitude")
