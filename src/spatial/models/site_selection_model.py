@@ -1,23 +1,32 @@
 import hashlib
 import json
+import logging
 import os
 import random
+import threading
 from shapely.geometry import Polygon, Point
 from geopy.distance import great_circle
 from sklearn.cluster import KMeans
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from utils.geocoding import ReverseGeocodingBusyError, ReverseGeocodingService
+from concurrent.futures import ThreadPoolExecutor
+from utils.geocoding import (
+    ReverseGeocodingBusyError,
+    ReverseGeocodingLookupError,
+    ReverseGeocodingService,
+)
 
 
-GEOCODING_MAX_WORKERS = max(1, int(os.getenv("SITE_LOCATION_GEOCODING_WORKERS", "4")))
+GEOCODING_MAX_WORKERS = max(1, int(os.getenv("SITE_LOCATION_GEOCODING_WORKERS", "1")))
 CANDIDATE_MULTIPLIER = max(10, int(os.getenv("SITE_LOCATION_CANDIDATE_MULTIPLIER", "30")))
 KMEANS_N_INIT = max(1, int(os.getenv("SITE_LOCATION_KMEANS_N_INIT", "3")))
+logger = logging.getLogger(__name__)
 
 class SiteCategoryModel:
     geocoding_service = ReverseGeocodingService()
 
     def categorize_site_osm(self, lat, lon):
         result = self.geocoding_service.reverse(lat, lon)
+        if result.get("_error"):
+            raise ReverseGeocodingLookupError(result["_error"])
         address = result.get("address") or {}
         category = self._determine_category(address)
         highway = (
@@ -31,7 +40,19 @@ class SiteCategoryModel:
             else None
         )
         natural = address.get("natural") if category in ["Natural", "Rural"] else None
-        place_name = address.get("suburb", address.get("city", "Unknown"))
+        place_name = next(
+            (
+                address[key]
+                for key in (
+                    "suburb", "neighbourhood", "city_district", "city", "town",
+                    "village", "hamlet", "municipality", "county", "state", "country",
+                )
+                if address.get(key)
+            ),
+            result.get("display_name"),
+        )
+        if not place_name:
+            raise ReverseGeocodingLookupError("Nominatim returned no place name")
         return (category, None, place_name, landuse, natural, None, highway, None)
 
     @staticmethod
@@ -134,8 +155,24 @@ class SensorDeployment:
 
     def categorize_sites(self, max_workers=GEOCODING_MAX_WORKERS):
         model = SiteCategoryModel()
+        skip_geocoding = threading.Event()
+
+        def unenriched(site, status):
+            site.update(
+                {
+                    "category": None,
+                    "area_name": None,
+                    "highway": None,
+                    "landuse": None,
+                    "natural": None,
+                    "geocoding_status": status,
+                }
+            )
+            return site
 
         def process_site(site):
+            if skip_geocoding.is_set():
+                return unenriched(site, "skipped")
             try:
                 lat, lon = site["latitude"], site["longitude"]
                 (
@@ -172,29 +209,23 @@ class SensorDeployment:
                 )
                 return site
             except ReverseGeocodingBusyError:
-                site.update(
-                    {
-                        "category": None,
-                        "area_name": None,
-                        "geocoding_status": "deferred",
-                    }
-                )
-                return site
-            except Exception as e:
-                #   print(f"Error processing site at ({site['latitude']}, {site['longitude']}): {e}")
-                return None
+                skip_geocoding.set()
+                return unenriched(site, "deferred")
+            except ReverseGeocodingLookupError:
+                skip_geocoding.set()
+                return unenriched(site, "failed")
+            except Exception:
+                logger.exception("Site geocoding failed")
+                skip_geocoding.set()
+                return unenriched(site, "failed")
 
         max_workers = max(1, min(max_workers, len(self.sites)))
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_site = {
-                executor.submit(process_site, site): site for site in self.sites
-            }
-            results = []
-            for future in as_completed(future_to_site):
-                result = future.result()
-                if result is not None:
-                    results.append(result)
+            results = [
+                result for result in executor.map(process_site, self.sites)
+                if result is not None
+            ]
 
         self.sites = results
 

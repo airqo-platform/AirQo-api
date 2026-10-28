@@ -131,3 +131,77 @@ def test_legacy_site_selection_defers_busy_geocoding_without_dropping_site():
     assert deployment.sites[0]["area_name"] is None
     assert deployment.sites[0]["geocoding_status"] == "deferred"
     assert deployment.get_category_counts() == {"Unenriched": 1}
+
+
+def test_site_selection_uses_town_when_suburb_and_city_are_missing():
+    response = Mock()
+    response.json.return_value = {
+        "display_name": "Entebbe, Uganda",
+        "address": {"town": "Entebbe", "country": "Uganda"},
+    }
+    deployment = SensorDeployment(
+        {"coordinates": [[[32.4, 0.0], [32.6, 0.0], [32.6, 0.2], [32.4, 0.0]]]}
+    )
+    deployment.sites = [{"latitude": 0.05, "longitude": 32.5}]
+
+    with patch("utils.geocoding.requests.get", return_value=response):
+        deployment.categorize_sites()
+
+    assert deployment.sites[0]["area_name"] == "Entebbe"
+    assert deployment.sites[0]["geocoding_status"] == "completed"
+
+
+def test_site_selection_reports_failed_lookup_without_dropping_site():
+    deployment = SensorDeployment(
+        {"coordinates": [[[32.4, 0.0], [32.6, 0.0], [32.6, 0.2], [32.4, 0.0]]]}
+    )
+    deployment.sites = [{"latitude": 0.05, "longitude": 32.5}]
+
+    with patch.object(
+        SelectionSiteCategoryModel.geocoding_service,
+        "reverse",
+        return_value={"_error": "reverse_geocode_failed"},
+    ):
+        deployment.categorize_sites()
+
+    assert deployment.sites[0]["area_name"] is None
+    assert deployment.sites[0]["geocoding_status"] == "failed"
+    assert deployment.get_category_counts() == {"Unenriched": 1}
+
+
+def test_site_selection_uses_display_name_when_address_has_no_place():
+    model = SelectionSiteCategoryModel()
+    with patch.object(
+        model.geocoding_service,
+        "reverse",
+        return_value={"address": {}, "display_name": "Named landmark, Uganda"},
+    ):
+        result = model.categorize_site_osm(0.05, 32.5)
+
+    assert result[2] == "Named landmark, Uganda"
+
+
+def test_site_selection_skips_remaining_lookups_after_failure():
+    deployment = SensorDeployment(
+        {"coordinates": [[[32.4, 0.0], [32.6, 0.0], [32.6, 0.2], [32.4, 0.0]]]}
+    )
+    coordinates = [(0.05, 32.5), (0.06, 32.51), (0.07, 32.52)]
+    deployment.sites = [
+        {"latitude": latitude, "longitude": longitude}
+        for latitude, longitude in coordinates
+    ]
+
+    with patch.object(
+        SelectionSiteCategoryModel.geocoding_service,
+        "reverse",
+        return_value={"_error": "reverse_geocode_failed"},
+    ) as reverse:
+        deployment.categorize_sites()
+
+    reverse.assert_called_once()
+    assert [site["geocoding_status"] for site in deployment.sites] == [
+        "failed", "skipped", "skipped"
+    ]
+    assert [
+        (site["latitude"], site["longitude"]) for site in deployment.sites
+    ] == coordinates

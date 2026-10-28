@@ -1,6 +1,5 @@
 """Shared, bounded reverse-geocoding access for the spatial service."""
 
-from dask.array.routines import isin
 import logging
 import os
 import threading
@@ -14,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 class ReverseGeocodingBusyError(RuntimeError):
     """Raised when bounded geocoding capacity remains unavailable."""
+
+
+class ReverseGeocodingLookupError(RuntimeError):
+    """Raised when Nominatim did not return a usable address."""
 
 
 class ReverseGeocodingService:
