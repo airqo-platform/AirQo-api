@@ -156,6 +156,15 @@ class SensorDeployment:
     def categorize_sites(self, max_workers=GEOCODING_MAX_WORKERS):
         model = SiteCategoryModel()
         skip_geocoding = threading.Event()
+        failure_lock = threading.Lock()
+        consecutive_failures = 0
+
+        def record_lookup_result(succeeded):
+            nonlocal consecutive_failures
+            with failure_lock:
+                consecutive_failures = 0 if succeeded else consecutive_failures + 1
+                if consecutive_failures >= 2:
+                    skip_geocoding.set()
 
         def unenriched(site, status):
             site.update(
@@ -185,6 +194,7 @@ class SensorDeployment:
                     highway,
                     _,
                 ) = model.categorize_site_osm(lat, lon)
+                record_lookup_result(True)
 
                 if natural in [
                     "water",
@@ -212,7 +222,7 @@ class SensorDeployment:
                 skip_geocoding.set()
                 return unenriched(site, "deferred")
             except ReverseGeocodingLookupError:
-                skip_geocoding.set()
+                record_lookup_result(False)
                 return unenriched(site, "failed")
             except Exception:
                 logger.exception("Site geocoding failed")

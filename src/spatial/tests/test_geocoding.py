@@ -181,7 +181,7 @@ def test_site_selection_uses_display_name_when_address_has_no_place():
     assert result[2] == "Named landmark, Uganda"
 
 
-def test_site_selection_skips_remaining_lookups_after_failure():
+def test_site_selection_skips_remaining_lookups_after_two_failures():
     deployment = SensorDeployment(
         {"coordinates": [[[32.4, 0.0], [32.6, 0.0], [32.6, 0.2], [32.4, 0.0]]]}
     )
@@ -198,10 +198,34 @@ def test_site_selection_skips_remaining_lookups_after_failure():
     ) as reverse:
         deployment.categorize_sites()
 
-    reverse.assert_called_once()
+    assert reverse.call_count == 2
     assert [site["geocoding_status"] for site in deployment.sites] == [
-        "failed", "skipped", "skipped"
+        "failed", "failed", "skipped"
     ]
     assert [
         (site["latitude"], site["longitude"]) for site in deployment.sites
     ] == coordinates
+
+
+def test_site_selection_continues_after_one_failed_lookup():
+    deployment = SensorDeployment(
+        {"coordinates": [[[32.4, 0.0], [32.6, 0.0], [32.6, 0.2], [32.4, 0.0]]]}
+    )
+    deployment.sites = [
+        {"latitude": 0.05, "longitude": 32.5},
+        {"latitude": 0.06, "longitude": 32.51},
+        {"latitude": 0.07, "longitude": 32.52},
+    ]
+    success = {"address": {"city": "Kampala"}, "display_name": "Kampala"}
+
+    with patch.object(
+        SelectionSiteCategoryModel.geocoding_service,
+        "reverse",
+        side_effect=[{"_error": "reverse_geocode_failed"}, success, success],
+    ) as reverse:
+        deployment.categorize_sites()
+
+    assert reverse.call_count == 3
+    assert [site["geocoding_status"] for site in deployment.sites] == [
+        "failed", "completed", "completed"
+    ]
