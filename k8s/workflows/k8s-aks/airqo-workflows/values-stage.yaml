@@ -17,10 +17,10 @@ checkMigrations:
   enabled: true
   waitTimeoutSeconds: 600
 migrationJob:
-  enabled: false
+  enabled: true
   args:
     - db
-    - upgrade
+    - migrate
   activeDeadlineSeconds: 1800
 resources:
   initContainer:

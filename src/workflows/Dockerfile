@@ -1,5 +1,5 @@
 # The Airflow base image of every stage below; each Airflow upgrade changes only this default.
-ARG AIRFLOW_BASE_IMAGE=apache/airflow:2.6.3-python3.10
+ARG AIRFLOW_BASE_IMAGE=apache/airflow:slim-2.11.2-python3.10
 
 # Build the airqo_etl_utils wheel (tiny throwaway image)
 FROM python:3.10.14-slim-bullseye AS wheel-builder
@@ -10,37 +10,40 @@ COPY airqo_etl_utils/ airqo_etl_utils/
 #TODO: Update to use the toml script, may requires updated dags to use relative imports
 RUN python airqo_etl_utils/setup.py bdist_wheel
 
-# Runtime image: the Airflow base image with the service's packages installed in place.
-# Debian bullseye is past its end of life and its packages now live on archive.debian.org.
-# The pgdg repository list is removed because its bullseye index no longer exists.
+# Runtime image: the slim Airflow base image with the service's packages installed in place.
+# lightgbm needs the OpenMP runtime, which the slim image leaves out.
 FROM ${AIRFLOW_BASE_IMAGE} AS base
 ENV AIRFLOW__CORE__ENABLE_XCOM_PICKLING=true
 USER root
-RUN rm -f /etc/apt/sources.list.d/pgdg.list && \
-    . /etc/os-release && \
-    if [ "$VERSION_CODENAME" = "bullseye" ]; then \
-        printf 'deb [check-valid-until=no] http://archive.debian.org/debian bullseye main\ndeb [check-valid-until=no] http://archive.debian.org/debian-security bullseye-security main\n' > /etc/apt/sources.list; \
-    fi && \
-    apt-get update -y && \
+RUN apt-get update -y && \
     apt-get install -y --no-install-recommends libgomp1 && \
     rm -rf /var/lib/apt/lists/*
 USER airflow
 
 COPY --chown=airflow:root --from=wheel-builder /build/dist/airqo_etl_utils-1.0.0-py3-none-any.whl /home/airflow/
-# Every pin ships a binary wheel, so the install needs no compiler.
-# apache-airflow is named at the version the base image exports in AIRFLOW_VERSION, so pip resolves
-# the wheel's pins against the installed Airflow and the version follows the base image at each hop.
-# The Elasticsearch provider is unused by this service; its elasticsearch-dbapi dependency holds
-# packaging below 22, which the xarray pin forbids, so both are removed before pip check.
+# The slim base image ships Airflow without providers. The constraints file of the base image's Airflow
+# release and Python version pins both installs below, with the entries for the packages the service
+# wheel pins itself removed, so the service's versions apply and every other package stays at the
+# version Airflow was tested with. The ruamel.yaml entry is removed as well: great_expectations 0.18.18
+# needs a release below 0.17.18, and pip check confirms that the packages of the Airflow set accept
+# it. The first install adds the executor with its broker client (celery),
+# the metadata database driver (postgres), Sentry, the Slack provider the code imports and the Google
+# provider of the remote task-log handler. The second install adds the service wheel. Every pin ships
+# a binary wheel, so the install needs no compiler.
 # pip check runs before the Jupyter strip because great-expectations declares notebook and nbformat.
 # The Jupyter/notebook ecosystem dragged in by great_expectations 0.18.x serves its Data Docs UI;
 # the strip shares this layer with the install, so the removed files never reach the image.
 # After the strip, the Great Expectations modules the service uses are imported, so a version
 # that needs a stripped package fails the build.
-RUN pip install --no-cache-dir \
-        "apache-airflow==${AIRFLOW_VERSION}" \
-        /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl && \
-    pip uninstall -y apache-airflow-providers-elasticsearch elasticsearch-dbapi && \
+RUN PYTHON_MAJOR_MINOR="$(python -c 'import sys; print(sys.version_info[0], sys.version_info[1], sep=chr(46))')" && \
+    curl -fsSL "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_MAJOR_MINOR}.txt" -o /tmp/constraints-airflow.txt && \
+    python -c 'import re, sys, zipfile; wheel = zipfile.ZipFile(sys.argv[1]); metadata = wheel.read(next(name for name in wheel.namelist() if name.endswith("/METADATA"))).decode(); normalise = lambda name: re.sub(r"[-_.]+", "-", name).lower(); pinned = {normalise(name) for name in re.findall(r"^Requires-Dist: *([A-Za-z0-9][A-Za-z0-9._-]*)", metadata, re.M)} | {"ruamel-yaml"}; sys.stdout.writelines(line for line in open(sys.argv[2]) if normalise(line.split("==")[0]) not in pinned)' \
+        /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl /tmp/constraints-airflow.txt > /tmp/constraints.txt && \
+    pip install --no-cache-dir --constraint /tmp/constraints.txt \
+        "apache-airflow[celery,postgres,sentry]==${AIRFLOW_VERSION}" \
+        apache-airflow-providers-slack \
+        apache-airflow-providers-google && \
+    pip install --no-cache-dir --constraint /tmp/constraints.txt /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl && \
     pip check && \
     { pip uninstall -y \
         notebook jupyterlab jupyterlab-server jupyter-server jupyter-server-terminals \
