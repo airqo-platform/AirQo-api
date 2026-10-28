@@ -21,6 +21,7 @@ from app.models.device_data import (
     SyncRawDeviceData,
     SyncHourlyDeviceData,
     SyncDailyDeviceData,
+    DeviceReadingsRefresh,
 )
 from app.models.vendor import Vendor
 from app.models.firmware import Firmware
