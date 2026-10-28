@@ -17,10 +17,10 @@ checkMigrations:
   enabled: false
   waitTimeoutSeconds: 600
 migrationJob:
-  enabled: false
+  enabled: true
   args:
     - db
-    - upgrade
+    - migrate
   activeDeadlineSeconds: 1800
 nodeSelector:
   workload: airflow
