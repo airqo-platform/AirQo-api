@@ -10,17 +10,17 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
-  tag: prod-1a381745-1793042368
+  tag: prod-cd812a0e-1793186210
 inPodRedis:
   enabled: true
 checkMigrations:
   enabled: false
   waitTimeoutSeconds: 600
 migrationJob:
-  enabled: false
+  enabled: true
   args:
     - db
-    - upgrade
+    - migrate
   activeDeadlineSeconds: 1800
 nodeSelector:
   workload: airflow
