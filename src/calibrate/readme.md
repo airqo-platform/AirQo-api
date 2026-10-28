@@ -103,7 +103,21 @@ V2 loads `default_rf.pkl` (PM2.5) and `default_lasso.pkl` (PM10) from the
 root of `FORECAST_MODELS_BUCKET`, defaulting to `airqo_prediction_bucket_dev`.
 It uses the same joblib loader and ratio feature as workflow calibration
 inference. These are legacy prediction models, not the newer training artifact
-dictionaries in the `calibration/` folder. Models are downloaded per request.
+dictionaries in the `calibration/` folder. Each API worker caches one loaded pair
+in memory. Concurrent requests in a worker share the models and a lock prevents
+duplicate cold-start downloads. V1 local model loading is unchanged.
+
+On the first request after `MODEL_REFRESH_INTERVAL_SECONDS` (default 3600), the
+worker checks both GCS object generations. Unchanged objects are not downloaded
+or deserialized again; changed objects are downloaded with a generation
+precondition. The new pair is published only after both models validate. If a
+refresh fails, that worker keeps its last working pair and retries after another
+interval. A first-load failure still returns 503. Switching
+`FORECAST_MODELS_BUCKET` requires loading that bucket's models; it never serves a
+cached pair from a different bucket. Restarting a worker clears its memory cache.
+Refresh checks are request-driven, not a background task or a disk cache. Each
+worker owns its model memory, and refreshing a large model can temporarily retain
+both old and new versions; size container memory accordingly.
 
 Set this in `src/calibrate/.env` and restart the API:
 

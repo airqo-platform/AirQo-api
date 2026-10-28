@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pickle
-import io
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -22,19 +21,10 @@ class Regression:
     def __init__(self, bucket=None):
         self.workflow_features = bucket is not None
         if bucket is not None:
-            import joblib
-            from google.cloud import storage
+            from models.model_cache import prediction_model_cache
 
-            client = storage.Client()
-            bucket_obj = client.bucket(bucket)
-            models = []
-            for filename in ("default_rf.pkl", "default_lasso.pkl"):
-                content = bucket_obj.blob(filename).download_as_bytes()
-                model = joblib.load(io.BytesIO(content))
-                if not callable(getattr(model, "predict", None)):
-                    raise ValueError("Expected a prediction model in " + filename)
-                models.append(model)
-            self.rf_regressor, self.lasso_regressor = models
+            interval = float(os.getenv("MODEL_REFRESH_INTERVAL_SECONDS", "3600"))
+            self.rf_regressor, self.lasso_regressor = prediction_model_cache.get(bucket, interval)
         else:
             with open(RF_REG_MODEL, "rb") as handle:
                 self.rf_regressor = pickle.load(handle)
