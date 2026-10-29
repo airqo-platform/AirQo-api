@@ -9,9 +9,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.crud.crud_sync_device_data import iter_hourly_records_by_channel
 from app.models.sync import SyncSite, SyncSiteDevice, SyncDevice
 from app.services import cohort_sync_service
 from app.services.device_service import AIRQO_NETWORK, upsert_device_to_sync
+from app.utils.field_mappings import get_category_mapping
+from app.utils.networks import device_source_key
 
 logger = logging.getLogger(__name__)
 
@@ -636,6 +639,13 @@ def _sensor_agreement(records: List[Dict[str, Any]]) -> Tuple[Optional[float], O
     return _mean_or_none(daily_margins), _mean_or_none(daily_correlations)
 
 
+def _pm25_sensor_fields(category: Optional[str]) -> Optional[Tuple[str, str]]:
+    """The fields an airqo device of ``category`` reports PM2.5 sensor 1 and 2 in, if it has both."""
+    field_by_label = {label: field for field, label in get_category_mapping(category).items()}
+    sensor1, sensor2 = field_by_label.get("pm2.5 sensor1"), field_by_label.get("pm2.5 sensor2")
+    return (sensor1, sensor2) if sensor1 and sensor2 else None
+
+
 def get_sites_performance_summary(
     db: Session,
     start_date_time: str,
@@ -650,6 +660,10 @@ def get_sites_performance_summary(
     counting each device once even when it has moved between sites. Uptime is the mean of
     the devices' uptime; error margin and correlation are means over the devices that have
     readings from both PM2.5 sensors.
+
+    Devices are told apart by id, not name: names are not unique, so a lookup by name could
+    take in the readings of a same-named device outside the group. Readings are rolled up a
+    channel at a time, so only one device's hourly rows are held at once.
     """
     # Local import, as in cohort_sync_service, to avoid a circular import at load time
     from app.services import cohort_service
@@ -657,33 +671,50 @@ def get_sites_performance_summary(
     junctions = _site_device_junction_query(db, group_device_ids, airqo_only=True).all()
     site_ids = {j.site_id for j in junctions}
     device_ids = {j.device_id for j in junctions if j.device_id}
-    device_names: List[str] = []
+
+    # Readings are stored by channel: the ThingSpeak channel number for airqo devices
+    device_ids_by_channel: Dict[str, List[str]] = {}
+    sensor_fields: Dict[str, Optional[Tuple[str, str]]] = {}
     if device_ids:
-        device_names = sorted({
-            name
-            for (name,) in db.query(SyncDevice.device_name).filter(SyncDevice.device_id.in_(device_ids))
-            if name
-        })
+        devices = db.query(
+            SyncDevice.device_id, SyncDevice.device_number, SyncDevice.network_id, SyncDevice.category,
+        ).filter(SyncDevice.device_id.in_(device_ids))
+        for device in devices:
+            sensor_fields[device.device_id] = _pm25_sensor_fields(device.category)
+            channel = device_source_key(device.network_id, device.device_id, device.device_number)
+            if channel:
+                device_ids_by_channel.setdefault(channel, []).append(device.device_id)
 
-    metrics = cohort_service.compute_device_performance(
-        db, device_names, start_date_time, end_date_time, frequency="hourly",
-    )
-
-    uptimes: List[float] = []
+    uptime_by_device: Dict[str, float] = {}
     error_margins: List[float] = []
     correlations: List[float] = []
-    for name in device_names:
-        device_metrics = metrics.get(name) or {}
-        uptimes.append(device_metrics.get("uptime") or 0.0)
-        error_margin, correlation = _sensor_agreement(device_metrics.get("data") or [])
-        if error_margin is not None:
-            error_margins.append(error_margin)
-        if correlation is not None:
-            correlations.append(correlation)
+    fields = {field for pair in sensor_fields.values() if pair for field in pair}
+    channel_records = iter_hourly_records_by_channel(
+        db, device_ids_by_channel, start_date_time, end_date_time, fields,
+    )
+    for channel, records in channel_records:
+        # Counted as compute_device_performance counts it, so the summary matches the sites list
+        uptime = cohort_service._compute_uptime(records, start_date_time, end_date_time, "hourly")
+        for device_id in device_ids_by_channel.get(channel, []):
+            uptime_by_device[device_id] = uptime
+            pair = sensor_fields.get(device_id)
+            if pair is None:
+                continue
+            sensor1, sensor2 = pair
+            error_margin, correlation = _sensor_agreement([
+                {"datetime": r["datetime"], "pm2.5 sensor1": r.get(sensor1), "pm2.5 sensor2": r.get(sensor2)}
+                for r in records
+            ])
+            if error_margin is not None:
+                error_margins.append(error_margin)
+            if correlation is not None:
+                correlations.append(correlation)
+
+    uptimes = [uptime_by_device.get(device_id, 0.0) for device_id in device_ids]
 
     return {
         "total_sites": len(site_ids),
-        "total_devices": len(device_names),
+        "total_devices": len(device_ids),
         "uptime": _round_or_none(_mean_or_none(uptimes), 2),
         "error_margin": _round_or_none(_mean_or_none(error_margins)),
         "error_margin_devices": len(error_margins),

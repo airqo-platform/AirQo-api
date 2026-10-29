@@ -1,4 +1,6 @@
 import unittest
+import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 from urllib.parse import parse_qs
 
@@ -8,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from app.db.session import Base, get_db
-from app.models.device_data import SyncRawDeviceData
+from app.models.device_data import SyncHourlyDeviceData, SyncRawDeviceData
 from app.models.device_schema import DeviceProfile
 from app.models.sync import (
     SyncSite,
@@ -43,6 +45,19 @@ FAKE_RECORDS = {
 }
 
 
+def hourly_row(channel_id, hour, field1, field3):
+    """An hourly reading on 2026-10-01, as the sites summary reads them."""
+    return SyncHourlyDeviceData(
+        id=uuid.uuid4(),
+        channel_id=channel_id,
+        hour_start=datetime(2026, 10, 1, hour, tzinfo=timezone.utc),
+        field1_avg=field1,
+        field3_avg=field3,
+        record_count=1,
+        complete=True,
+    )
+
+
 def fake_get_device_data_for_devices(db, device_names, start, end, frequency="hourly"):
     records = {name: list(FAKE_RECORDS.get(name, [])) for name in device_names}
     info = {name: {"category": "lowcost"} for name in device_names}
@@ -65,6 +80,7 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
             SyncCohort.__table__,
             SyncCohortDevice.__table__,
             SyncRawDeviceData.__table__,
+            SyncHourlyDeviceData.__table__,
             DeviceProfile.__table__,
         ]
         Base.metadata.create_all(self.engine, tables=self.tables)
@@ -94,6 +110,9 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
             SyncSiteDevice(site_id="site_2", device_id="dev_3", is_active=True),
             SyncSiteDevice(site_id="site_3", device_id="dev_4", is_active=True),
             SyncSiteDevice(site_id="site_4", device_id="dev_2", is_active=True),
+            # aq_01's readings (channel 1) for the sites summary, as in FAKE_RECORDS
+            hourly_row("1", 0, 10.0, 20.0),
+            hourly_row("1", 1, 30.0, 40.0),
         ])
         db.commit()
         db.close()
@@ -216,12 +235,36 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
         self.assertEqual(summary["total_devices"], 3)
         self.assertEqual(summary["uptime"], 16.67)
 
+    def test_sites_summary_keeps_same_named_devices_apart(self):
+        # A second "aq_01", outside the group and at no site, reporting every hour on channel 5
+        db = self.Session()
+        db.add(SyncDevice(device_id="dev_5", device_name="aq_01", device_number=5, network_id="airqo", status="deployed"))
+        db.add_all([hourly_row("5", hour, 100.0, 500.0) for hour in range(4)])
+        db.commit()
+        db.close()
+
+        summary = self.client.get(
+            f"/api/v1/sites/summary?group=ministry&startDateTime={START}&endDateTime={END}"
+        ).json()["summary"]
+        self.assertEqual(summary["total_devices"], 2)
+        self.assertEqual(summary["uptime"], 25.0)
+        self.assertEqual(summary["error_margin"], 10.0)
+
     def test_sites_summary_validates_its_window(self):
         self.assertEqual(self.client.get("/api/v1/sites/summary").status_code, 422)
         bad_dates = self.client.get("/api/v1/sites/summary?startDateTime=yesterday&endDateTime=today")
         self.assertEqual(bad_dates.status_code, 400)
         reversed_window = self.client.get(f"/api/v1/sites/summary?startDateTime={END}&endDateTime={START}")
         self.assertEqual(reversed_window.status_code, 400)
+        # Hourly readings are kept for 30 days
+        too_long = self.client.get(
+            "/api/v1/sites/summary?startDateTime=2026-09-01T00:00:00Z&endDateTime=2026-10-02T00:00:00Z"
+        )
+        self.assertEqual(too_long.status_code, 400)
+        month = self.client.get(
+            "/api/v1/sites/summary?startDateTime=2026-09-01T00:00:00Z&endDateTime=2026-10-01T00:00:00Z"
+        )
+        self.assertEqual(month.status_code, 200)
         unknown_group = self.client.get(
             f"/api/v1/sites/summary?group=nope&startDateTime={START}&endDateTime={END}"
         )

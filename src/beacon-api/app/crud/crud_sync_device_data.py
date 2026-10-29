@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from itertools import groupby
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -206,6 +207,45 @@ def get_device_data_for_devices(
 
     records_by_device = _group_rows_by_device(rows, name_by_channel, device_names, frequency)
     return records_by_device, info_by_name
+
+
+def iter_hourly_records_by_channel(
+    db: Session,
+    channel_ids: Iterable[str],
+    start: Optional[str],
+    end: Optional[str],
+    fields: Iterable[str] = (),
+) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    """
+    Yield ``(channel_id, records)`` for each channel with hourly rows between ``start``
+    and ``end``, one channel at a time, so a caller rolling readings up holds only one
+    channel's rows rather than every row of every channel.
+
+    Each record carries ``datetime`` (ISO 8601) and the requested ``fields`` (``field1``
+    … ``field20``, read from their ``_avg`` columns), as ``get_device_data_for_devices``
+    shapes them. Channels without rows are not yielded.
+    """
+    ids = sorted({str(c) for c in channel_ids if c is not None and str(c) != ""})
+    if not ids:
+        return
+    field_names = sorted(set(fields))
+    columns = [getattr(SyncHourlyDeviceData, f"{name}_avg") for name in field_names]
+
+    BATCH_SIZE = 200
+    for i in range(0, len(ids), BATCH_SIZE):
+        batch = ids[i : i + BATCH_SIZE]
+        query = db.query(
+            SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start, *columns,
+        ).filter(SyncHourlyDeviceData.channel_id.in_(batch))
+        query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, end)
+        rows = query.order_by(
+            SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start,
+        ).yield_per(1000)
+        for channel_id, channel_rows in groupby(rows, key=lambda row: str(row[0])):
+            yield channel_id, [
+                {"datetime": row[1].isoformat(), **dict(zip(field_names, row[2:]))}
+                for row in channel_rows
+            ]
 
 
 def get_latest_raw_timestamps(

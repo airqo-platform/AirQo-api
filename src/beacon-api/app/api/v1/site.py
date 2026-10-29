@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Header, Depends, BackgroundTasks, Query
 from typing import Optional, Annotated
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 import logging
 
@@ -16,6 +16,10 @@ from app.db.session import get_db, SessionLocal
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Hourly readings are kept for 30 days (crud_device_data.cleanup_hourly_data), so a longer
+# summary window only lowers uptime, while making one request read more hours per device
+SITES_SUMMARY_MAX_DAYS = 30
 
 
 async def _run_sync_sites(token: str):
@@ -126,6 +130,11 @@ def get_sites_summary(
         raise HTTPException(status_code=400, detail="startDateTime and endDateTime must be ISO 8601 dates.")
     if (start_dt.tzinfo is None) != (end_dt.tzinfo is None) or end_dt <= start_dt:
         raise HTTPException(status_code=400, detail="endDateTime must be after startDateTime.")
+    if end_dt - start_dt > timedelta(days=SITES_SUMMARY_MAX_DAYS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"The window between startDateTime and endDateTime can be at most {SITES_SUMMARY_MAX_DAYS} days.",
+        )
 
     group_device_ids = _resolve_group_device_ids(db, group)
 
