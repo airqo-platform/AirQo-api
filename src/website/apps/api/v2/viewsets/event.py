@@ -798,7 +798,9 @@ class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, Opti
         return qs
 
     def list(self, request, *args, **kwargs):
-        cache_key = self.get_cache_key('partner_list', query_params=request.query_params)
+        cache_key = self.get_cache_key(
+            'event_partner_catalog_list', query_params=request.query_params
+        )
         cached = self.get_cached_response(cache_key)
         if cached is not None:
             return Response(cached)
@@ -808,7 +810,9 @@ class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, Opti
 
     def retrieve(self, request, *args, **kwargs):
         identifier = str(kwargs.get(self.lookup_url_kwarg, kwargs.get('pk', '')))
-        cache_key = self.get_cache_key('partner_detail', identifier, request.query_params)
+        cache_key = self.get_cache_key(
+            'event_partner_catalog_detail', identifier, request.query_params
+        )
         cached = self.get_cached_response(cache_key)
         if cached is not None:
             return Response(cached)

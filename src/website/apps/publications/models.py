@@ -153,11 +153,12 @@ def validate_provider_endpoint(value, expected_hostname):
         )
 
 
-def split_feed_setting_values(value):
-    """Parse the admin's comma/newline-separated public feed settings."""
+def split_feed_setting_values(value, *, split_commas=True):
+    """Parse admin-entered feed settings with optional comma splitting."""
     values = []
     seen = set()
-    for item in re.split(r"[,\r\n]+", value or ""):
+    pattern = r"[,\r\n]+" if split_commas else r"[\r\n]+"
+    for item in re.split(pattern, value or ""):
         item = item.strip()
         key = item.casefold()
         if item and key not in seen:
@@ -257,11 +258,17 @@ class LivePublicationFeedSettings(models.Model):
             raise ValidationError(
                 {"openalex_author_ids": "At most 100 author IDs may be configured."}
             )
-        if len(split_feed_setting_values(self.allowed_affiliations)) > 5:
+        affiliation_count = len(
+            split_feed_setting_values(self.allowed_affiliations, split_commas=False)
+        )
+        if affiliation_count > 5:
             raise ValidationError(
                 {"allowed_affiliations": "At most 5 affiliations may be configured."}
             )
-        if len(split_feed_setting_values(self.relevance_keywords)) > 30:
+        keyword_count = len(
+            split_feed_setting_values(self.relevance_keywords, split_commas=False)
+        )
+        if keyword_count > 30:
             raise ValidationError(
                 {"relevance_keywords": "At most 30 keywords may be configured."}
             )
@@ -279,11 +286,15 @@ class LivePublicationFeedSettings(models.Model):
 
     @property
     def allowed_affiliation_list(self):
-        return split_feed_setting_values(self.allowed_affiliations)
+        return split_feed_setting_values(
+            self.allowed_affiliations, split_commas=False
+        )
 
     @property
     def relevance_keyword_list(self):
-        return split_feed_setting_values(self.relevance_keywords)
+        return split_feed_setting_values(
+            self.relevance_keywords, split_commas=False
+        )
 
     def __str__(self):
         return "AirQo research publications"

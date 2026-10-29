@@ -486,7 +486,7 @@ The admin interface provides enhanced organization for Clean Air content:
 
 The Django admin is the source of truth for the external research feed:
 
-- Open **Publications → Live publication feed settings** to enable or disable
+- Open **Publications → AirQo publication feed settings** to enable or disable
   live publications and update the OpenAlex author IDs.
 - The same form controls affiliations, relevance filtering, official provider
   endpoints, and the Crossref contact email.

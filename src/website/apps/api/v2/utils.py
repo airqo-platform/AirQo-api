@@ -33,8 +33,9 @@ class CachedViewSetMixin:
         ``QueryDict.items()`` only returns the last value for repeated query
         parameters. Using ``lists()`` when available preserves all values and
         prevents different requests from sharing the wrong cached response.
-        Sorting the normalized pairs makes semantically equivalent parameter
-        orderings share a cache entry.
+        Sort query keys so equivalent key ordering shares a cache entry, while
+        preserving the order of repeated values because some filters use the
+        last supplied value.
         """
         if query_params is None:
             query_params = {}
@@ -45,12 +46,12 @@ class CachedViewSetMixin:
             raw_items = query_params.items()
 
         pairs = []
-        for key, values in raw_items:
+        for key, values in sorted(raw_items, key=lambda item: str(item[0])):
             if not isinstance(values, (list, tuple)):
                 values = [values]
             pairs.extend((str(key), str(value)) for value in values)
 
-        query_string = urlencode(sorted(pairs))
+        query_string = urlencode(pairs)
         digest_input = f"{identifier}\x00{query_string}".encode("utf-8")
         digest = hashlib.sha256(digest_input).hexdigest()
         return f"{self.cache_key_namespace}:{prefix}:{digest}"

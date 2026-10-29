@@ -44,19 +44,43 @@ class PublicationApiPerformanceTests(TestCase):
 
 
 class CachedViewSetKeyTests(SimpleTestCase):
-    def test_cache_key_preserves_and_normalizes_repeated_query_parameters(self):
+    def test_cache_key_preserves_repeated_value_order(self):
         mixin = CachedViewSetMixin()
-        first = QueryDict("identifier=one&identifier=two")
-        reordered = QueryDict("identifier=two&identifier=one")
-        different = QueryDict("identifier=one")
+        first = QueryDict("category=airqo&category=cleanair")
+        reordered = QueryDict("category=cleanair&category=airqo")
+        same_values_with_keys_reordered = QueryDict(
+            "page=1&category=airqo&category=cleanair"
+        )
+        same_values_with_page_last = QueryDict(
+            "category=airqo&category=cleanair&page=1"
+        )
 
-        self.assertEqual(
+        self.assertNotEqual(
             mixin.get_cache_key("overrides", query_params=first),
             mixin.get_cache_key("overrides", query_params=reordered),
         )
-        self.assertNotEqual(
-            mixin.get_cache_key("overrides", query_params=first),
-            mixin.get_cache_key("overrides", query_params=different),
+        self.assertEqual(
+            mixin.get_cache_key(
+                "overrides", query_params=same_values_with_keys_reordered
+            ),
+            mixin.get_cache_key("overrides", query_params=same_values_with_page_last),
+        )
+
+
+class LivePublicationFeedSettingParsingTests(SimpleTestCase):
+    def test_affiliations_and_keywords_preserve_commas_inside_values(self):
+        settings = LivePublicationFeedSettings(
+            allowed_affiliations="Makerere University, Kampala\nAirQo",
+            relevance_keywords="air quality, health\nPM2.5",
+        )
+
+        self.assertEqual(
+            settings.allowed_affiliation_list,
+            ["Makerere University, Kampala", "AirQo"],
+        )
+        self.assertEqual(
+            settings.relevance_keyword_list,
+            ["air quality, health", "PM2.5"],
         )
 
 
