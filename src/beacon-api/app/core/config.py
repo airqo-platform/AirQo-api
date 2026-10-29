@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     # disables the direct source and those devices use analytics raw-data.
     AIRGRADIENT_API_TOKEN: str = ""
     AIRGRADIENT_BASE_URL: str = "https://api.airgradient.com/public/api/v1"
+    # On-demand refresh of one device's readings when it is viewed
+    # (GET /devices/{id}/readings, GET /devices/{id}, single-device
+    # performance). A device whose newest stored reading is older than
+    # DEVICE_READINGS_STALE_MINUTES is refreshed in the background, at most
+    # once per DEVICE_READINGS_REFRESH_COOLDOWN_SECONDS across all replicas
+    # (coordinated through the device_readings_refresh table).
+    DEVICE_READINGS_STALE_MINUTES: int = 10
+    DEVICE_READINGS_REFRESH_COOLDOWN_SECONDS: int = 120
 
     # Tokens
     ORG_TOKEN: str = ""
