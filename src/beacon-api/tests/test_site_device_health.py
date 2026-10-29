@@ -250,6 +250,19 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
         self.assertEqual(summary["uptime"], 25.0)
         self.assertEqual(summary["error_margin"], 10.0)
 
+    def test_sites_summary_leaves_out_the_hour_that_starts_at_the_end(self):
+        # aq_01 also reports in the 04:00 bucket, which starts at END and lies outside the window
+        db = self.Session()
+        db.add(hourly_row("1", 4, 50.0, 90.0))
+        db.commit()
+        db.close()
+
+        summary = self.client.get(
+            f"/api/v1/sites/summary?group=ministry&startDateTime={START}&endDateTime={END}"
+        ).json()["summary"]
+        self.assertEqual(summary["uptime"], 25.0)
+        self.assertEqual(summary["error_margin"], 10.0)
+
     def test_sites_summary_validates_its_window(self):
         self.assertEqual(self.client.get("/api/v1/sites/summary").status_code, 422)
         bad_dates = self.client.get("/api/v1/sites/summary?startDateTime=yesterday&endDateTime=today")

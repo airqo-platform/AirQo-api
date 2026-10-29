@@ -21,6 +21,7 @@ afterwards.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -150,7 +151,7 @@ def covers_today(end_date_time: Optional[str], now_utc: Optional[datetime] = Non
 
 # ── Refresh claim (shared through the database) ───────────────────────────────
 
-def _claim(device_id: str, now_utc: datetime) -> Tuple[Optional[datetime], Optional[str]]:
+def _claim(db: Session, device_id: str, now_utc: datetime) -> Tuple[Optional[datetime], Optional[str]]:
     """
     Claim ``device_id`` for a refresh. Returns ``(claim, state)``: ``claim``
     is the new claim's expiry, which the refresh hands back to ``_release``,
@@ -160,9 +161,12 @@ def _claim(device_id: str, now_utc: datetime) -> Tuple[Optional[datetime], Optio
     Safe across replicas: an expired row is taken over by one conditional
     UPDATE (a concurrent taker re-checks the condition and matches nothing),
     and two first claims race on the primary key.
+
+    Runs on the request's own session, so a request holds one pooled
+    connection rather than waiting on a second one while it holds the first.
+    The claim commits that session, which expires what it has loaded.
     """
     until = now_utc + timedelta(seconds=_RUNNING_TTL_SECONDS)
-    db = SessionLocal()
     try:
         taken = (
             db.query(DeviceReadingsRefresh)
@@ -186,8 +190,10 @@ def _claim(device_id: str, now_utc: datetime) -> Tuple[Optional[datetime], Optio
             db.rollback()
             return None, _CLAIM_RUNNING
         return until, _CLAIM_RUNNING
-    finally:
-        db.close()
+    except Exception:
+        # Leave the request's session usable for the rest of its response
+        db.rollback()
+        raise
 
 
 def _release(device_id: str, claim: datetime, outcome: str) -> bool:
@@ -230,7 +236,7 @@ def refresh_if_stale(
             return REFRESH_NOT_APPLICABLE
         if not is_stale(latest_reading_at(db, readings_key(dev)), now_utc):
             return REFRESH_NOT_NEEDED
-        claim, state = _claim(dev.device_id, now_utc)
+        claim, state = _claim(db, dev.device_id, now_utc)
         if claim is not None:
             background_tasks.add_task(refresh_device_readings, dev.device_id, claim)
             return REFRESH_STARTED
@@ -267,13 +273,14 @@ def get_device_readings(
     """
     now_utc = now_utc or datetime.now(timezone.utc)
     day = day or now_utc.date()
-    channel_id = readings_key(dev)
-    records = stored_readings(db, channel_id, day, frequency, limit) if channel_id else []
-    schema = HourlyDeviceDataRecord if frequency == "hourly" else RawDeviceDataRecord
-
+    # Before the rows are loaded: a claim commits the session, which would expire them
     status = REFRESH_NOT_APPLICABLE
     if refresh and day == now_utc.date():
         status = refresh_if_stale(db, background_tasks, dev, now_utc)
+
+    channel_id = readings_key(dev)
+    records = stored_readings(db, channel_id, day, frequency, limit) if channel_id else []
+    schema = HourlyDeviceDataRecord if frequency == "hourly" else RawDeviceDataRecord
 
     return {
         "success": True,
@@ -291,6 +298,22 @@ def get_device_readings(
 
 
 # ── Background refresh ────────────────────────────────────────────────────────
+# The refresh runs on the event loop, so its database work goes to a worker
+# thread (``asyncio.to_thread``), each piece with a session of its own there.
+
+def _in_session(fn, *args):
+    """``fn(db, *args)`` on a session opened and closed in the calling thread."""
+    db = SessionLocal()
+    try:
+        return fn(db, *args)
+    finally:
+        db.close()
+
+
+def _device_and_latest_reading(db: Session, device_id: str) -> Tuple[Optional[SyncDevice], Optional[datetime]]:
+    dev = find_device(db, device_id)
+    return dev, latest_reading_at(db, readings_key(dev)) if dev else None
+
 
 async def _thingspeak_rows(
     dev: SyncDevice, since: datetime, now_utc: datetime,
@@ -318,11 +341,7 @@ async def _live_feed_rows(dev: SyncDevice, now_utc: datetime) -> Tuple[List[Dict
         payload, outcome = await ext.fetch_current_reading(client, dev, params, headers)
     if outcome != "ok" or payload is None:
         return [], outcome
-    db = SessionLocal()
-    try:
-        slot_maps = ext._slot_maps_for(db, [dev])
-    finally:
-        db.close()
+    slot_maps = await asyncio.to_thread(_in_session, ext._slot_maps_for, [dev])
     record = ext.feed_record(dev, payload, now_utc)
     rows = ext.build_raw_rows([record] if record else [], {dev.device_name: dev}, slot_maps)
     return rows, "ok" if rows else "no_data"
@@ -341,12 +360,7 @@ async def refresh_device_readings(
         "device_id": device_id, "outcome": "failed", "raw_records": 0, "hourly_records": 0, "daily_records": 0,
     }
     try:
-        db = SessionLocal()
-        try:
-            dev = find_device(db, device_id)
-            last_reading_at = latest_reading_at(db, readings_key(dev)) if dev else None
-        finally:
-            db.close()
+        dev, last_reading_at = await asyncio.to_thread(_in_session, _device_and_latest_reading, device_id)
 
         source = refresh_source(dev) if dev else None
         if source == SOURCE_THINGSPEAK:
@@ -357,11 +371,9 @@ async def refresh_device_readings(
             rows, outcome = [], REFRESH_NOT_APPLICABLE
 
         if rows:
-            db = SessionLocal()
-            try:
-                raw, hourly, daily = ext.store_device_rows(db, rows, dev.device_id, now_utc)
-            finally:
-                db.close()
+            raw, hourly, daily = await asyncio.to_thread(
+                _in_session, ext.store_device_rows, rows, dev.device_id, now_utc,
+            )
             result.update(raw_records=raw, hourly_records=hourly, daily_records=daily)
         result["outcome"] = outcome
         logger.info(
@@ -372,7 +384,7 @@ async def refresh_device_readings(
         logger.exception(f"[Readings Refresh] refresh of {device_id} failed: {e}")
     finally:
         try:
-            if not _release(device_id, claim, result["outcome"]):
+            if not await asyncio.to_thread(_release, device_id, claim, result["outcome"]):
                 logger.info(f"[Readings Refresh] {device_id}: claim was taken over before the refresh finished")
         except Exception as e:
             # The claim still expires after _RUNNING_TTL_SECONDS.

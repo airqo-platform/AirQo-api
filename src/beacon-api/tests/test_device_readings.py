@@ -191,11 +191,26 @@ class TestRefreshDecision(_Base):
         self.assertEqual(drs.refresh_if_stale(self.db, tasks, self.device("aq_1"), NOW), drs.REFRESH_RUNNING)
         self.assertEqual(tasks.tasks, [])
 
+    def test_the_claim_runs_on_the_request_session(self):
+        # A second session would need a second pooled connection while the request holds one
+        no_second_session = MagicMock(side_effect=AssertionError("opened a second session"))
+        with patch.object(drs, "SessionLocal", no_second_session):
+            status = drs.refresh_if_stale(self.db, BackgroundTasks(), self.device("aq_1"), NOW)
+        self.assertEqual(status, drs.REFRESH_STARTED)
+        self.assertEqual(self.claim("aq_1"), ("running", CLAIM))
+
+    def test_a_failed_claim_leaves_the_request_session_usable(self):
+        with patch.object(self.db, "commit", side_effect=RuntimeError("db gone")):
+            status = drs.refresh_if_stale(self.db, BackgroundTasks(), self.device("aq_1"), NOW)
+        self.assertEqual(status, drs.REFRESH_UNAVAILABLE)
+        self.assertEqual(self.device("aq_1").device_id, "aq_1")
+        self.assertIsNone(self.claim("aq_1"))
+
     def test_a_refresh_that_outlived_its_claim_leaves_the_newer_claim(self):
-        self.assertEqual(drs._claim("aq_1", NOW), (CLAIM, "running"))
+        self.assertEqual(drs._claim(self.db, "aq_1", NOW), (CLAIM, "running"))
         # The first refresh overran its claim and a later view took the device over
         later = CLAIM + timedelta(seconds=1)
-        newer, _ = drs._claim("aq_1", later)
+        newer, _ = drs._claim(self.db, "aq_1", later)
         self.assertEqual(newer, later + timedelta(seconds=drs._RUNNING_TTL_SECONDS))
 
         self.assertFalse(drs._release("aq_1", CLAIM, "ok"))
@@ -249,8 +264,8 @@ class TestBackgroundRefresh(_Base):
         patcher.start()
         self.addCleanup(patcher.stop)
         # A refresh only runs after a view claimed the device
-        drs._claim("aq_1", NOW)
-        drs._claim("ag_1", NOW)
+        drs._claim(self.db, "aq_1", NOW)
+        drs._claim(self.db, "ag_1", NOW)
 
     def test_thingspeak_fetches_from_newest_reading_and_rebuilds_the_day(self):
         self.db.add(_raw(CHANNEL, 100, datetime(2026, 10, 28, 8, 0, tzinfo=timezone.utc), 10.0))
@@ -423,11 +438,15 @@ class TestDeviceEndpoints(_Base):
             self.refresh.assert_called_once_with("aq_1", CLAIM)
 
             self.refresh.reset_mock()
-            self.client.get(f"/api/v1/devices/performance?device_name=airqo_g5433,ag_201560&{today}")
-            self.client.get(
+            perf.reset_mock()
+            multi = self.client.get(f"/api/v1/devices/performance?device_name=airqo_g5433,ag_201560&{today}")
+            past = self.client.get(
                 "/api/v1/devices/performance?device_name=airqo_g5433"
                 "&startDateTime=2026-10-20T00:00:00Z&endDateTime=2026-10-27T00:00:00Z"
             )
+            # Both were answered, so the refresh was skipped on purpose
+            self.assertEqual((multi.status_code, past.status_code), (200, 200))
+            self.assertEqual(perf.await_count, 2)
             self.refresh.assert_not_called()
 
 

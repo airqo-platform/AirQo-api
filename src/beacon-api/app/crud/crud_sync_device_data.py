@@ -217,9 +217,12 @@ def iter_hourly_records_by_channel(
     fields: Iterable[str] = (),
 ) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
     """
-    Yield ``(channel_id, records)`` for each channel with hourly rows between ``start``
-    and ``end``, one channel at a time, so a caller rolling readings up holds only one
+    Yield ``(channel_id, records)`` for each channel with hourly rows from ``start`` up to
+    ``end``, one channel at a time, so a caller rolling readings up holds only one
     channel's rows rather than every row of every channel.
+
+    The end is exclusive: the hour that starts at ``end`` lies outside the window, and
+    counting it would lift uptime by one hour's share when ``end`` falls on the hour.
 
     Each record carries ``datetime`` (ISO 8601) and the requested ``fields`` (``field1``
     … ``field20``, read from their ``_avg`` columns), as ``get_device_data_for_devices``
@@ -230,6 +233,7 @@ def iter_hourly_records_by_channel(
         return
     field_names = sorted(set(fields))
     columns = [getattr(SyncHourlyDeviceData, f"{name}_avg") for name in field_names]
+    end_dt = _parse_datetime(end)
 
     BATCH_SIZE = 200
     for i in range(0, len(ids), BATCH_SIZE):
@@ -237,7 +241,9 @@ def iter_hourly_records_by_channel(
         query = db.query(
             SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start, *columns,
         ).filter(SyncHourlyDeviceData.channel_id.in_(batch))
-        query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, end)
+        query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, None)
+        if end_dt is not None:
+            query = query.filter(SyncHourlyDeviceData.hour_start < end_dt)
         rows = query.order_by(
             SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start,
         ).yield_per(1000)

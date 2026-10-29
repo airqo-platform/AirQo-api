@@ -331,8 +331,10 @@ def get_synced_devices(
 @router.get(
     "/{device_id}/readings",
     response_model=DeviceReadingsResponse,
-    # Answers from local tables without calling the platform, so the token is
-    # checked here rather than by the platform.
+    # Answers from local tables without calling the platform, so the platform
+    # never sees the token. get_current_user_id only parses it for a user id and
+    # does not verify its signature; that needs the platform's signing key,
+    # which this service does not hold.
     dependencies=[Depends(get_current_user_id)],
 )
 def get_device_readings(
