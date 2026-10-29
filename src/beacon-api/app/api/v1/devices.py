@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks, Query
 import logging
+from datetime import date
 from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional
+from app.api.v1.operations import get_current_user_id
 from app.db.session import get_db, SessionLocal
+from app.schemas.data_sync import DeviceReadingsResponse
 from app.schemas.device import (
     DeviceResponse, 
     SingleDeviceResponse, 
@@ -14,8 +17,9 @@ from app.schemas.device import (
     KeyValuePayload,
     DeviceSyncResponse,
 )
-from app.services import device_service, site_service
+from app.services import device_readings_service, device_service, site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_devices
+from app.utils.networks import is_network_enabled
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -208,6 +212,7 @@ from typing import Optional
 
 @router.get("/performance", response_model=DevicePerformanceResponse)
 async def get_device_performance(
+    background_tasks: BackgroundTasks,
     device_name: List[str] = Query(...),
     start_date_time: str = Query(..., alias="startDateTime"),
     end_date_time: str = Query(..., alias="endDateTime"),
@@ -221,9 +226,15 @@ async def get_device_performance(
             detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.",
         )
     try:
-        return await device_service.get_device_performance(
+        result = await device_service.get_device_performance(
             db, device_name, start_date_time, end_date_time, frequency=freq,
         )
+        # A single device viewed up to today: bring its readings up to date for
+        # the next request. Multi-device views would fan out, so they don't.
+        names = [n.strip() for raw in device_name for n in raw.split(",") if n.strip()]
+        if len(names) == 1 and device_readings_service.covers_today(end_date_time):
+            device_readings_service.refresh_viewed_device(db, background_tasks, names[0])
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -317,9 +328,49 @@ def get_synced_devices(
         logger.exception(f"Unexpected error fetching synced devices: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.get(
+    "/{device_id}/readings",
+    response_model=DeviceReadingsResponse,
+    # Answers from local tables without calling the platform, so the token is
+    # checked here rather than by the platform.
+    dependencies=[Depends(get_current_user_id)],
+)
+def get_device_readings(
+    device_id: str,
+    background_tasks: BackgroundTasks,
+    day: Optional[date] = Query(default=None, alias="date", description="UTC day (YYYY-MM-DD); defaults to today"),
+    frequency: str = Query(default="raw", description="raw | hourly"),
+    refresh: bool = Query(default=True, description="Refresh today's readings in the background when they are stale"),
+    limit: int = Query(default=10000, ge=1, le=10000, description="Max records to return"),
+    db: Session = Depends(get_db),
+):
+    """
+    Stored readings of one device (registry id or name) for a UTC day, oldest
+    first. Answers straight from the local tables; for today, a device whose
+    newest reading is stale is refreshed from ThingSpeak or its manufacturer
+    in the background, and ``refresh`` says whether to ask again shortly.
+    """
+    freq = (frequency or "raw").lower()
+    if freq not in {"raw", "hourly"}:
+        raise HTTPException(status_code=400, detail="Invalid 'frequency'. Must be one of: raw, hourly.")
+
+    try:
+        dev = device_readings_service.find_device(db, device_id)
+        if dev is None or not is_network_enabled(dev.network_id):
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        return device_readings_service.get_device_readings(
+            db, background_tasks, dev, day=day, frequency=freq, refresh=refresh, limit=limit,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching readings for device {device_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 @router.get("/{device_id}", response_model=SingleDeviceResponse)
 async def get_device(
     device_id: str,
+    background_tasks: BackgroundTasks,
     authorization: str = Header(...),
     db: Session = Depends(get_db)
 ):
@@ -335,12 +386,14 @@ async def get_device(
     
     try:
         result = await device_service.get_device_by_id(db, token, device_id)
-        
+
         if not result.get("success", True):
             status_code = result.get("status_code", 400)
             message = result.get("message", "Error fetching data from platform")
             raise HTTPException(status_code=status_code, detail=message)
-            
+
+        # Someone is looking at this device: bring its readings up to date
+        device_readings_service.refresh_viewed_device(db, background_tasks, device_id)
         return result
     except HTTPException:
         raise
