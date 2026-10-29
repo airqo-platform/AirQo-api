@@ -482,6 +482,22 @@ The admin interface provides enhanced organization for Clean Air content:
 
 ## ⚡ Performance Features
 
+### Live Publications Feed
+
+The Django admin is the source of truth for the external research feed:
+
+- Open **Publications → Live publication feed settings** to enable or disable
+  live publications and update the OpenAlex author IDs.
+- The same form controls affiliations, relevance filtering, official provider
+  endpoints, and the Crossref contact email.
+- The settings are stored in the database and exposed through the read-only
+  `/website/api/v2/live-publication-feed-settings/` endpoint consumed by the
+  website server.
+- `OPENALEX_API_KEY` remains a server-only frontend secret. It is never stored
+  in the database or returned by the API.
+- Apply all publications migrations before deploying the frontend so the
+  settings contract is available during rollout.
+
 ### Database Optimizations
 
 - **Query Optimization**: Automatic select_related() and prefetch_related()
