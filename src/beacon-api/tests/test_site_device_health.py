@@ -22,6 +22,7 @@ from app.models.sync import (
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import JSONB
 from main import app
+from app.services.site_service import _sensor_agreement
 
 
 @compiles(JSONB, "sqlite")
@@ -187,6 +188,45 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
         response = self.client.get("/api/v1/sites/?frequency=weekly")
         self.assertEqual(response.status_code, 400)
 
+    # --- sites summary -----------------------------------------------------
+
+    def test_sites_summary_scoped_to_group(self):
+        response = self.client.get(
+            f"/api/v1/sites/summary?group=ministry&startDateTime={START}&endDateTime={END}"
+        )
+        self.assertEqual(response.status_code, 200)
+        summary = response.json()["summary"]
+        # The group's airqo devices: aq_01 (site_1, 2 of 4 hours, paired sensors) and aq_04
+        # (site_3, no readings). site_2 only holds a kcca device.
+        self.assertEqual(summary["total_sites"], 2)
+        self.assertEqual(summary["total_devices"], 2)
+        self.assertEqual(summary["uptime"], 25.0)
+        self.assertEqual(summary["error_margin"], 10.0)
+        self.assertEqual(summary["error_margin_devices"], 1)
+        self.assertEqual(summary["correlation"], 1.0)
+        self.assertEqual(summary["correlation_devices"], 1)
+        self.assertEqual(summary["start_date_time"], START)
+
+    def test_sites_summary_counts_a_device_once(self):
+        summary = self.client.get(
+            f"/api/v1/sites/summary?startDateTime={START}&endDateTime={END}"
+        ).json()["summary"]
+        # Unscoped: aq_02 sits at site_1 and site_4 but is one device
+        self.assertEqual(summary["total_sites"], 3)
+        self.assertEqual(summary["total_devices"], 3)
+        self.assertEqual(summary["uptime"], 16.67)
+
+    def test_sites_summary_validates_its_window(self):
+        self.assertEqual(self.client.get("/api/v1/sites/summary").status_code, 422)
+        bad_dates = self.client.get("/api/v1/sites/summary?startDateTime=yesterday&endDateTime=today")
+        self.assertEqual(bad_dates.status_code, 400)
+        reversed_window = self.client.get(f"/api/v1/sites/summary?startDateTime={END}&endDateTime={START}")
+        self.assertEqual(reversed_window.status_code, 400)
+        unknown_group = self.client.get(
+            f"/api/v1/sites/summary?group=nope&startDateTime={START}&endDateTime={END}"
+        )
+        self.assertEqual(unknown_group.status_code, 404)
+
     # --- devices -----------------------------------------------------------
 
     def test_synced_devices_without_performance(self):
@@ -221,6 +261,33 @@ class TestSiteAndDeviceHealth(unittest.TestCase):
     def test_synced_devices_invalid_frequency_is_400(self):
         response = self.client.get("/api/v1/devices/synced?group=ministry&frequency=weekly")
         self.assertEqual(response.status_code, 400)
+
+
+class TestSensorAgreement(unittest.TestCase):
+    def test_days_are_averaged_and_flat_days_have_no_correlation(self):
+        records = [
+            # 2026-10-01 in UTC, although the first reading is stamped in EAT
+            {"datetime": "2026-10-01T03:00:00+03:00", "pm2.5 sensor1": 1.0, "pm2.5 sensor2": 2.0},
+            {"datetime": "2026-10-01T01:00:00Z", "pm2.5 sensor1": 2.0, "pm2.5 sensor2": 4.0},
+            # A day where sensor 2 reads flat: counts towards error margin, not correlation
+            {"datetime": "2026-10-02T00:00:00Z", "pm2.5 sensor1": 5.0, "pm2.5 sensor2": 0.0},
+            {"datetime": "2026-10-02T01:00:00Z", "pm2.5 sensor1": 7.0, "pm2.5 sensor2": 0.0},
+            # Unpaired readings are skipped
+            {"datetime": "2026-10-03T00:00:00Z", "pm2.5 sensor1": 9.0, "pm2.5 sensor2": None},
+            # So are pairs with a reading outside the valid range
+            {"datetime": "2026-10-04T00:00:00Z", "pm2.5 sensor1": -1.29e24, "pm2.5 sensor2": 8.0},
+            {"datetime": "2026-10-04T01:00:00Z", "pm2.5 sensor1": 40.0, "pm2.5 sensor2": 2253.0},
+        ]
+        error_margin, correlation = _sensor_agreement(records)
+        self.assertEqual(error_margin, (1.5 + 6.0) / 2)
+        self.assertEqual(correlation, 1.0)
+
+    def test_no_paired_readings(self):
+        self.assertEqual(_sensor_agreement([]), (None, None))
+        self.assertEqual(
+            _sensor_agreement([{"datetime": "2026-10-01T00:00:00Z", "pm2.5 sensor1": 3.0}]),
+            (None, None),
+        )
 
 
 if __name__ == "__main__":

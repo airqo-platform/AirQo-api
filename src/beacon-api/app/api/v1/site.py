@@ -1,9 +1,15 @@
 from fastapi import APIRouter, HTTPException, Header, Depends, BackgroundTasks, Query
 from typing import Optional, Annotated
+from datetime import datetime
 from sqlalchemy.orm import Session
 import logging
 
-from app.schemas.site import SyncedSiteResponse, SingleSyncedSiteResponse, SiteSyncResponse
+from app.schemas.site import (
+    SyncedSiteResponse,
+    SingleSyncedSiteResponse,
+    SiteSyncResponse,
+    SitesPerformanceSummaryResponse,
+)
 from app.services import site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
@@ -97,6 +103,46 @@ def get_sites(
         return result
     except Exception as e:
         logger.exception(f"Unexpected error fetching synced sites: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/summary", response_model=SitesPerformanceSummaryResponse)
+def get_sites_summary(
+    start_date_time: Annotated[str, Query(alias="startDateTime")],
+    end_date_time: Annotated[str, Query(alias="endDateTime")],
+    group: Optional[str] = Query(None, description="Comma-separated group title(s)"),
+    db: Session = Depends(get_db),
+):
+    """Uptime, error margin and correlation of every device at the sites, as single values.
+
+    Covers the sites and devices ``GET /sites/?includePerformance=true`` lists, across all
+    its pages, from the hourly readings between the two dates. Error margin and correlation
+    compare PM2.5 sensor 1 with sensor 2, so only devices with readings from both count.
+    """
+    try:
+        start_dt = datetime.fromisoformat(start_date_time.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_date_time.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="startDateTime and endDateTime must be ISO 8601 dates.")
+    if (start_dt.tzinfo is None) != (end_dt.tzinfo is None) or end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="endDateTime must be after startDateTime.")
+
+    group_device_ids = _resolve_group_device_ids(db, group)
+
+    try:
+        summary = site_service.get_sites_performance_summary(
+            db,
+            start_date_time,
+            end_date_time,
+            group_device_ids=group_device_ids,
+        )
+        return {
+            "success": True,
+            "message": "Sites performance summary computed successfully",
+            "summary": summary,
+        }
+    except Exception as e:
+        logger.exception(f"Unexpected error computing the sites performance summary: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
