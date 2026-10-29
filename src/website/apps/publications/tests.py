@@ -2,15 +2,62 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import Client
-from django.test import TransactionTestCase
+from django.core.cache import cache
+from django.http import QueryDict
+from django.test import Client, SimpleTestCase, TestCase, TransactionTestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.publications.models import (
     LivePublicationFeedSettings,
     LivePublicationOverride,
+    Publication,
 )
+from apps.api.v2.utils import CachedViewSetMixin
+
+
+class PublicationApiPerformanceTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        Publication.objects.create(
+            title="Air quality monitoring in Kampala",
+            authors="AirQo Research Team",
+        )
+        Publication.objects.create(
+            title="Low-cost sensors for clean air",
+            authors="AirQo Research Team",
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_list_keeps_slug_selected_without_per_row_deferred_queries(self):
+        with self.assertNumQueries(2):
+            response = self.client.get(
+                reverse("v2-publications-list"),
+                {"page_size": 2},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertTrue(all(item["has_slug"] for item in response.data["results"]))
+
+
+class CachedViewSetKeyTests(SimpleTestCase):
+    def test_cache_key_preserves_and_normalizes_repeated_query_parameters(self):
+        mixin = CachedViewSetMixin()
+        first = QueryDict("identifier=one&identifier=two")
+        reordered = QueryDict("identifier=two&identifier=one")
+        different = QueryDict("identifier=one")
+
+        self.assertEqual(
+            mixin.get_cache_key("overrides", query_params=first),
+            mixin.get_cache_key("overrides", query_params=reordered),
+        )
+        self.assertNotEqual(
+            mixin.get_cache_key("overrides", query_params=first),
+            mixin.get_cache_key("overrides", query_params=different),
+        )
 
 
 class LivePublicationOverrideApiTests(TransactionTestCase):
