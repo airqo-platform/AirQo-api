@@ -26,6 +26,7 @@ class SiteSelectionView:
                     "latitude": site["latitude"],
                     "longitude": site["longitude"],
                     "natural": site.get("natural", None),
+                    "geocoding_status": site.get("geocoding_status", "not_requested"),
                 }
                 for site in deployment.sites
             ],
