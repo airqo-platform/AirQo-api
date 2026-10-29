@@ -47,8 +47,9 @@ class PublicationViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQue
     list_only_fields: Optional[List[str]] = [
         # Model fields for list view optimization
         'id', 'title', 'authors', 'category', 'link', 'link_title',
-        'resource_file', 'order', 'created', 'modified'
-        # Note: Slug fields added automatically by mixin
+        'resource_file', 'order', 'created', 'modified', 'slug'
+        # The serializer exposes slug-derived fields, so keep slug selected
+        # to avoid one deferred query per row in list responses.
     ]
 
     def get_serializer_class(self):  # type: ignore[override]
@@ -66,7 +67,7 @@ class PublicationViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQue
         """Cached list view"""
         cache_key = self.get_cache_key('publication_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -77,7 +78,7 @@ class PublicationViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQue
         identifier = str(kwargs.get('slug', ''))
         cache_key = self.get_cache_key('publication_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
