@@ -629,7 +629,7 @@ jobs:
         run: |
           az keyvault secret show \
             --vault-name ${{ env.KEYVAULT }} \
-            --name sta-env-calibrate \
+            --name sta-env-calibrate-api \
             --query value -o tsv > secrets.json
 
       - name: Build and push image
