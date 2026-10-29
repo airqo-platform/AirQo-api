@@ -257,7 +257,11 @@ def get_device_metrics_for_map_view(
     this function executes a single GROUP BY query returning only 1 summary row per channel.
 
     Returns:
-        {channel_id_str: {"uptime": float, "data_completeness": float, "error_margin": float}}
+        {channel_id_str: {"uptime": float, "data_completeness": float, "error_margin": float,
+                          "has_error_margin": bool}}
+
+    ``error_margin`` is 0.0 both when the sensors agree and when one of them has no readings;
+    ``has_error_margin`` tells the two apart.
     """
     frequency = (frequency or "hourly").lower()
     if frequency not in _FREQ_CONFIG:
@@ -326,14 +330,13 @@ def get_device_metrics_for_map_view(
             uptime = round(min(bucket_count / total_buckets, 1.0) * 100.0, 2)
             avg_s1 = row.avg_s1
             avg_s2 = row.avg_s2
-            if avg_s1 is not None and avg_s2 is not None:
-                err = round(abs(avg_s1 - avg_s2), 4)
-            else:
-                err = 0.0
+            has_error_margin = avg_s1 is not None and avg_s2 is not None
+            err = round(abs(avg_s1 - avg_s2), 4) if has_error_margin else 0.0
             metrics_by_channel[cid] = {
                 "uptime": uptime,
                 "data_completeness": uptime,
                 "error_margin": err,
+                "has_error_margin": has_error_margin,
             }
 
     return metrics_by_channel
