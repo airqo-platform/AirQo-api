@@ -7,12 +7,17 @@ const {
   validationResult,
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const numeral = require("numeral");
 const Decimal = require("decimal.js");
+
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not
+// mongoose's isValidObjectId, which also accepts arbitrary 12-byte
+// strings — a plausible-length cohort_slug (e.g. "nairobi-2026") would be
+// misclassified as an ObjectId and silently fail to resolve.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 
 const countDecimalPlaces = (value) => {
   try {
@@ -261,7 +266,7 @@ const commonValidations = {
         // Handles comma-separated strings or arrays
         let values = Array.isArray(value) ? value : value.toString().split(",");
         for (const v of values) {
-          if (v && !isValidObjectId(v)) {
+          if (v && !isObjectIdShape(v)) {
             throw new Error(`Invalid ${field} format: ${v}`); // More specific error message
           }
         }
@@ -273,12 +278,50 @@ const commonValidations = {
             ? value
             : value.toString().split(",");
           return values
-            .map((v) => (isValidObjectId(v) ? ObjectId(v) : v))
+            .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v))
             .filter((v) => v); // Filter out invalid/empty values after conversion
         }
         return value;
       }),
   ],
+
+  // Comma-separated list variant of validCohortIdentifier: each entry may be
+  // an ObjectId or a self-service cohort_slug. Used only for the cohort_id
+  // query filter — grid_id/device_id/site_id keep using optionalObjectId
+  // above, since they have no slug equivalent.
+  // Returns the bare validator chain (not wrapped in an array) — matches
+  // optionalObjectId's shape above; measurements.routes.js registers these
+  // via plain Express arrays, which flatten nested arrays fine, but a
+  // sibling copy of this same shape in readings/signals.validators.js broke
+  // on their hand-rolled route runner, which doesn't. Keep the shape
+  // consistent so this can't happen again if reused elsewhere.
+  optionalCohortIdentifier: (field) =>
+    query(field)
+      .optional()
+      .custom((value) => {
+        const values = Array.isArray(value) ? value : value.toString().split(",");
+        for (const v of values) {
+          const candidate = typeof v === "string" ? v.toLowerCase().trim() : v;
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
+            throw new Error(
+              `${field} must be a valid object ID or a valid cohort_slug (lowercase letters, numbers and hyphens) - ${v}`,
+            );
+          }
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        if (!value) return value;
+        const values = Array.isArray(value) ? value : value.toString().split(",");
+        return values
+          .map((v) => (typeof v === "string" ? v.toLowerCase().trim() : v))
+          .filter((v) => v)
+          .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
+      }),
 
   checkConflictingParams: (
     param1,
@@ -330,6 +373,35 @@ const commonValidations = {
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
+      }),
+  ],
+
+  // Accepts either a Mongo ObjectId (existing behaviour, unchanged) or a
+  // self-service cohort_slug (new, opt-in). Only used for cohort_id — the
+  // grid_id/device_id/etc callers of validObjectId above are untouched.
+  validCohortIdentifier: (field) => [
+    param(field)
+      .exists()
+      .withMessage(`${field} should be provided`)
+      .bail()
+      .notEmpty()
+      .withMessage(`the provided ${field} cannot be empty`)
+      .bail()
+      .trim()
+      .toLowerCase()
+      .custom((value) => {
+        if (isObjectIdShape(value)) {
+          return true;
+        }
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+          throw new Error(
+            `the ${field} must be a valid object ID or a valid cohort_slug (lowercase letters, numbers and hyphens)`,
+          );
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return isObjectIdShape(value) ? ObjectId(value) : value;
       }),
   ],
 
@@ -413,7 +485,7 @@ const measurementsValidations = {
     commonValidations.errorHandler,
   ],
   listHistoricalMeasurements: [
-    commonValidations.optionalObjectId("cohort_id"),
+    commonValidations.optionalCohortIdentifier("cohort_id"),
     commonValidations.optionalObjectId("grid_id"),
     commonValidations.optionalObjectId("device_id"),
     commonValidations.optionalObjectId("site_id"),
@@ -459,7 +531,7 @@ const measurementsValidations = {
     },
   ],
   listRecentMeasurements: [
-    commonValidations.optionalObjectId("cohort_id"),
+    commonValidations.optionalCohortIdentifier("cohort_id"),
     commonValidations.optionalObjectId("grid_id"),
     commonValidations.optionalObjectId("device_id"),
     commonValidations.optionalObjectId("site_id"),
@@ -570,16 +642,16 @@ const measurementsValidations = {
   ],
   listHistoricalCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
 
   listRecentCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
   listCohortMeasurements: [
     ...baseValidations,
-    commonValidations.validObjectId("cohort_id"),
+    commonValidations.validCohortIdentifier("cohort_id"),
   ],
   listHistoricalDeviceMeasurements: [
     ...baseValidations,

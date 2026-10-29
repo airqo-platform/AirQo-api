@@ -95,6 +95,12 @@ Configure via environment variables or `.env` file:
 | `ENVIRONMENT` | Deployment environment | `development` |
 | `DEBUG` | Enable debug mode | `True` |
 | `LOG_LEVEL` | Logging level | `INFO` |
+| `ENABLED_NETWORKS` | Comma-separated sensor manufacturers (networks) to mirror; empty = all | `` |
+| `EXTERNAL_SYNC_ENABLED` | Backfill non-AirQo device readings after the nightly ThingSpeak sync | `True` |
+| `EXTERNAL_FEED_POLL_MINUTES` | Minutes between live-feed polls of non-AirQo devices; 0 disables | `60` |
+| `EXTERNAL_FEED_NETWORKS` | Networks whose registry adapter can serve a live reading | `airgradient,iqair` |
+| `AIRGRADIENT_API_TOKEN` | AirGradient account token for direct history of privately shared devices | `` |
+| `AIRGRADIENT_BASE_URL` | AirGradient public API base | `https://api.airgradient.com/public/api/v1` |
 
 ### Firmware & Storage Settings
 
@@ -132,6 +138,19 @@ All API endpoints are available under the `/api/v1` prefix (recommended) but can
 | `GET` | `/api/v1/devices/stats` | Comprehensive device statistics |
 | `GET` | `/api/v1/devices/map-data` | Device locations with latest readings |
 | `GET` | `/api/v1/devices/{device_id}` | Get specific device details |
+
+#### Networks / Sensor Manufacturers (`/api/v1/networks`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/networks/` | List networks (airqo, airgradient, iqair, metone ...) with per-network device counts; `group=` scopes counts to an organisation, `only_with_devices=true` drops empty ones |
+| `POST` | `/api/v1/networks/sync` | Mirror the platform's networks list into `sync_network` |
+| `POST` | `/api/v1/networks/profiles/seed` | Seed per-manufacturer device profiles (with diagnostic component models) and assign them to devices |
+| `GET` | `/api/v1/networks/profiles` | Manufacturer profiles and their diagnostic readiness |
+| `POST` | `/api/v1/data-sync/sync-external` | Backfill readings for non-AirQo devices (direct manufacturer history, then analytics raw-data) |
+| `POST` | `/api/v1/data-sync/poll-external-feeds` | Store the latest reading of every non-AirQo device from the registry's live feed |
+
+See [docs/MULTI_MANUFACTURER_DEVICES.md](docs/MULTI_MANUFACTURER_DEVICES.md) for how devices from other manufacturers are represented.
+Readings for those devices are keyed by registry device id rather than a ThingSpeak channel, so use the device `_id` with `/data-sync/raw?channel_id=` when inspecting them.
 
 #### AirQlouds (`/api/v1/airqlouds`)
 | Method | Endpoint | Description |
@@ -306,6 +325,7 @@ alembic stamp head
 ## Related Documentation
 
 - [API Endpoints Reference](API_ENDPOINTS.md) - Detailed endpoint documentation
+- [Changelog](CHANGELOG.md) - Release history, database migrations, and features
 
 ## License
 

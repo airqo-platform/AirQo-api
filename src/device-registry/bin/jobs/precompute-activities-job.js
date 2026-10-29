@@ -413,25 +413,23 @@ async function precomputeActivitiesAndMetrics() {
   try {
     logText("Starting activities precomputation job");
 
-    // Process for each tenant
-    const tenants =
-      (process.env.PRECOMPUTE_TENANTS &&
-        process.env.PRECOMPUTE_TENANTS.split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)) ||
-      (constants.SUPPORTED_TENANTS || ["airqo"]);
+    // Single tenant on purpose — the real multi-tenant design was
+    // abandoned; "airqo" is the database's permanent identity, not a
+    // placeholder. PRECOMPUTE_TENANTS/SUPPORTED_TENANTS were never actually
+    // configured anywhere (grep confirms neither appears in any env
+    // template), so this always resolved to ["airqo"] in practice anyway —
+    // don't reintroduce a tenant list/loop here.
+    const tenant = constants.DEFAULT_TENANT || "airqo";
 
-    for (const tenant of tenants) {
-      logText(`Processing tenant: ${tenant}`);
+    logText(`Processing tenant: ${tenant}`);
 
-      await Promise.all([
-        processor.precomputeSiteActivities(tenant),
-        processor.precomputeDeviceActivities(tenant),
-      ]);
+    await Promise.all([
+      processor.precomputeSiteActivities(tenant),
+      processor.precomputeDeviceActivities(tenant),
+    ]);
 
-      // Optional cleanup
-      await processor.cleanupStaleCache(tenant);
-    }
+    // Optional cleanup
+    await processor.cleanupStaleCache(tenant);
 
     const summary = {
       processedSites: processor.processedSites,

@@ -14,18 +14,33 @@ from app.schemas.device import (
     KeyValuePayload,
     DeviceSyncResponse,
 )
-from app.services import device_service
+from app.services import device_service, site_service
+from app.services.diagnostics.summaries import apply_diagnostics_to_devices
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 async def _run_sync_devices(token: str):
-    """Background task to run device sync with its own DB session."""
+    """Background task to run device sync, then site sync, with its own DB session.
+
+    Devices only carry a site_id; coordinates live on sync_site, so sites are
+    refreshed afterwards to cover devices deployed to newly created sites.
+    """
     db = SessionLocal()
     try:
-        await device_service.sync_devices(db, token)
-    except Exception as e:
-        logger.exception(f"Background device sync failed: {e}")
+        try:
+            await device_service.sync_devices(db, token)
+        except Exception as e:
+            logger.exception(f"Background device sync failed: {e}")
+            db.rollback()
+        try:
+            result = await site_service.sync_sites(db, token)
+            if result.get("success", True):
+                logger.info(f"[Site Sync] Sync after device sync completed: {result.get('message')}")
+            else:
+                logger.error(f"[Site Sync] Sync after device sync failed: {result.get('message')}")
+        except Exception as e:
+            logger.exception(f"Site sync after device sync failed: {e}")
     finally:
         db.close()
 
@@ -47,7 +62,7 @@ async def sync_devices(
     
     return {
         "success": True, 
-        "message": "Device sync process started in the background. It may take a few minutes to complete.",
+        "message": "Device and site sync process started in the background. It may take a few minutes to complete.",
         "updates_count": 0,
         "new_count": 0
     }
@@ -230,22 +245,72 @@ def get_synced_devices(
     limit: int = 30,
     skip: int = 0,
     search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Comma-separated sensor manufacturer(s) / network(s), e.g. airqo,airgradient",
+    ),
+    include_performance: Annotated[bool, Query(alias="includePerformance")] = False,
+    start_date_time: Annotated[Optional[str], Query(alias="startDateTime")] = None,
+    end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
+    frequency: str = "hourly",
+    include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
 ):
-    """List devices from the local sync_device table, filtered by group."""
+    """List devices from the local sync_device table, filtered by group.
+
+    ``network`` narrows the list to one or more sensor manufacturers.
+    When ``includePerformance=true`` and both date bounds are provided, each
+    device on the page is enriched with locally-computed metrics.
+    When ``includeDiagnostics=true``, each device carries its most recent
+    stored daily diagnosis under ``diagnostics``.
+    """
+    freq = (frequency or "hourly").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid frequency. Expected one of: raw, hourly, daily.",
+        )
+
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
 
     cohort_ids = resolve_group_cohort_ids(db, group)
     group_device_ids = resolve_group_device_ids(db, cohort_ids)
+    with_performance = bool(include_performance and start_date_time and end_date_time)
+
+    query_params = {"group": group, "search": search, "network": network}
+    if with_performance:
+        query_params.update({
+            "includePerformance": "true",
+            "startDateTime": start_date_time,
+            "endDateTime": end_date_time,
+            "frequency": freq,
+        })
+    if include_diagnostics:
+        query_params["includeDiagnostics"] = "true"
 
     try:
-        return device_service.get_synced_device_details(
+        result = device_service.get_synced_device_details(
             db,
             skip=skip,
             limit=limit,
             search=search,
             group_device_ids=group_device_ids,
-            query_params={"group": group, "search": search},
+            query_params=query_params,
+            network=network,
         )
+
+        if with_performance:
+            device_service.apply_local_performance_synced_devices(
+                result.get("devices", []),
+                db,
+                start_date_time,
+                end_date_time,
+                frequency=freq,
+            )
+
+        if include_diagnostics:
+            apply_diagnostics_to_devices(result.get("devices", []), db, id_key="_id")
+
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -290,7 +355,11 @@ async def get_devices(
     db: Session = Depends(get_db),
     limit: int = 30,
     skip: int = 0,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    network: Optional[str] = Query(
+        default=None,
+        description="Sensor manufacturer / network to filter by (passed through to the platform)",
+    ),
 ):
     # The token should be in the format "JWT <token>"
     if not authorization.startswith("JWT "):
@@ -331,6 +400,8 @@ async def get_devices(
             params["device_id__in"] = ",".join(group_device_ids)
         if search:
             params["search"] = search
+        if network:
+            params["network"] = network
 
         result = await device_service.get_device_details(db, token, params)
         
@@ -350,6 +421,8 @@ async def get_devices(
             fallback_params = {}
             if search:
                 fallback_params["search"] = search
+            if network:
+                fallback_params["network"] = network
 
             fallback_result = await device_service.get_device_details(db, token, fallback_params)
             if not fallback_result.get("success", True):

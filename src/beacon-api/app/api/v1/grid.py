@@ -10,6 +10,7 @@ from app.schemas.grid import (
     SingleSyncedGridResponse,
 )
 from app.services import grid_service, grid_sync_service
+from app.services.diagnostics.summaries import apply_diagnostics_to_grids
 from app.db.session import get_db, SessionLocal
 
 router = APIRouter()
@@ -112,6 +113,7 @@ def get_synced_grids(
     end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
     frequency: Optional[str] = "hourly",
     admin_level: Annotated[Optional[str], Query(alias="admin_level")] = None,
+    include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
     db: Annotated[Session, Depends(get_db)] = None,
 ):
     """List grids from the local sync table (source of truth), filtered by group.
@@ -123,6 +125,8 @@ def get_synced_grids(
     Optional ``admin_level`` filters grids by admin level.
     When ``includePerformance=true`` and both date bounds are provided, each
     grid and its underlying devices are enriched with locally-computed metrics.
+    When ``includeDiagnostics=true``, each device carries its most recent
+    stored daily diagnosis, and each site and grid a ``diagnostics_summary``.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -157,6 +161,9 @@ def get_synced_grids(
                 frequency=freq,
             )
 
+        if include_diagnostics:
+            apply_diagnostics_to_grids(result.get("grids", []), db)
+
         return result
     except HTTPException:
         raise
@@ -173,6 +180,7 @@ def get_synced_grid(
     start_date_time: Annotated[Optional[str], Query(alias="startDateTime")] = None,
     end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
     frequency: Optional[str] = "hourly",
+    include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
     db: Annotated[Session, Depends(get_db)] = None,
 ):
     """Get a single grid from the local sync table along with its sites and underlying devices."""
@@ -206,11 +214,13 @@ def get_synced_grid(
                 raise HTTPException(
                     status_code=404,
                     detail=(
-                        f"Grid {grid_id} has no active devices with network_id '{grid_sync_service.AIRQO_NETWORK}' "
+                        f"Grid {grid_id} has no active devices on an enabled network "
                         "for includePerformance"
                     ),
                 )
             result["grid"] = grids[0]
+        if include_diagnostics and result.get("grid"):
+            apply_diagnostics_to_grids([result["grid"]], db)
         return result
     except HTTPException:
         raise

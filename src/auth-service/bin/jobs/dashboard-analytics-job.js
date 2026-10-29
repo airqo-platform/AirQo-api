@@ -7,10 +7,16 @@ const logger = log4js.getLogger(
 );
 const { stringify } = require("@utils/common");
 const DashboardAnalyticsModel = require("@models/DashboardAnalytics");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
+
+const jobName = "dashboard-analytics-job";
 
 const calculateAndCacheAnalytics = async () => {
   try {
     const tenant = constants.DEFAULT_TENANT || "airqo";
+
+    const gotLock = await acquireCronLock(tenant, jobName);
+    if (!gotLock) return;
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const twoMonthsAgo = new Date();

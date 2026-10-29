@@ -88,33 +88,11 @@ const enhancedIdValidations = {
         return ObjectId(value);
       }),
   ],
-  networkId: [
-    param("network_id")
-      .exists()
-      .withMessage("Network ID is required")
-      .bail()
-      .isMongoId()
-      .withMessage("Network ID must be a valid MongoDB ObjectId")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ],
   optionalGroupId: [
     query("group_id")
       .optional()
       .isMongoId()
       .withMessage("Group ID must be a valid MongoDB ObjectId")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ],
-  optionalNetworkId: [
-    query("network_id")
-      .optional()
-      .isMongoId()
-      .withMessage("Network ID must be a valid MongoDB ObjectId")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
@@ -129,6 +107,74 @@ const createNestedValidations = (prefix) => {
       .optional()
       .isString()
       .withMessage("Title must be a string"),
+    body(`${prefix}.subTitle`)
+      .optional()
+      .isString()
+      .withMessage("Subtitle must be a string"),
+    body(`${prefix}.locationColors`)
+      .optional()
+      .isArray()
+      .withMessage("locationColors must be an array"),
+    // Each entry's id/color are optional only in the sense that the whole
+    // array is optional — once an entry exists, both fields are required on
+    // the schema (chartConfigSchema), so catching a missing one here as a
+    // clean 422 avoids it reaching the DB layer and surfacing as a 500.
+    body(`${prefix}.locationColors.*.id`)
+      .exists()
+      .withMessage("locationColors[].id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("locationColors[].id must be a valid ObjectId"),
+    body(`${prefix}.locationColors.*.color`)
+      .exists()
+      .withMessage("locationColors[].color is required")
+      .bail()
+      .isString()
+      .withMessage("locationColors[].color must be a string"),
+    // Optional display-name snapshot for the chart's device_ids/site_ids —
+    // stored and returned verbatim, same optionality/shape as locationColors.
+    body(`${prefix}.sites`)
+      .optional()
+      .isArray()
+      .withMessage("sites must be an array"),
+    body(`${prefix}.sites.*.site_id`)
+      .exists()
+      .withMessage("sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("sites[].site_id must be a valid ObjectId"),
+    body(`${prefix}.sites.*.name`)
+      .exists()
+      .withMessage("sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("sites[].name must not exceed 200 characters"),
+    body(`${prefix}.devices`)
+      .optional()
+      .isArray()
+      .withMessage("devices must be an array"),
+    body(`${prefix}.devices.*.device_id`)
+      .exists()
+      .withMessage("devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("devices[].device_id must be a valid ObjectId"),
+    body(`${prefix}.devices.*.name`)
+      .exists()
+      .withMessage("devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("devices[].name must not exceed 200 characters"),
     body(`${prefix}.xAxisLabel`)
       .optional()
       .isString()
@@ -1048,7 +1094,6 @@ const commonValidations = {
   ...validateArrayOfObjectIds("grid_ids"),
   ...validateArrayOfObjectIds("site_ids"),
   ...validateArrayOfObjectIds("device_ids"),
-  ...validateArrayOfObjectIds("network_ids"),
   ...validateArrayOfObjectIds("group_ids"),
 
   //  validations with specific required fields
@@ -1065,6 +1110,69 @@ const chartConfigValidation = [
     .isInt({ min: 1, max: 8 })
     .withMessage("Invalid fieldId"),
   body("title").optional().isString().withMessage("Title must be a string"),
+  body("subTitle")
+    .optional()
+    .isString()
+    .withMessage("Subtitle must be a string"),
+  body("locationColors")
+    .optional()
+    .isArray()
+    .withMessage("locationColors must be an array"),
+  // Same reasoning as createNestedValidations above: the array is optional,
+  // but once an entry is present both fields are required on the schema.
+  body("locationColors.*.id")
+    .exists()
+    .withMessage("locationColors[].id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("locationColors[].id must be a valid ObjectId"),
+  body("locationColors.*.color")
+    .exists()
+    .withMessage("locationColors[].color is required")
+    .bail()
+    .isString()
+    .withMessage("locationColors[].color must be a string"),
+  // Optional display-name snapshot for device_ids/site_ids — stored and
+  // returned verbatim, same optionality/shape as locationColors.
+  body("sites").optional().isArray().withMessage("sites must be an array"),
+  body("sites.*.site_id")
+    .exists()
+    .withMessage("sites[].site_id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("sites[].site_id must be a valid ObjectId"),
+  body("sites.*.name")
+    .exists()
+    .withMessage("sites[].name is required")
+    .bail()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("sites[].name must be a non-empty string")
+    .bail()
+    .isLength({ max: 200 })
+    .withMessage("sites[].name must not exceed 200 characters"),
+  body("devices")
+    .optional()
+    .isArray()
+    .withMessage("devices must be an array"),
+  body("devices.*.device_id")
+    .exists()
+    .withMessage("devices[].device_id is required")
+    .bail()
+    .isMongoId()
+    .withMessage("devices[].device_id must be a valid ObjectId"),
+  body("devices.*.name")
+    .exists()
+    .withMessage("devices[].name is required")
+    .bail()
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage("devices[].name must be a non-empty string")
+    .bail()
+    .isLength({ max: 200 })
+    .withMessage("devices[].name must not exceed 200 characters"),
   body("xAxisLabel")
     .optional()
     .isString()
@@ -1241,6 +1349,43 @@ const chartConfigValidation = [
     .withMessage("Additional series color must be a string"),
 ];
 
+// A chart is scoped by device_ids/site_ids on the chart itself now (not a
+// single :deviceId path param), mirroring the group chart config design —
+// one chart can compare multiple locations at once, but has to be about at
+// least one.
+const chartScopeArrayValidations = [
+  ...validateArrayOfObjectIds("device_ids"),
+  ...validateArrayOfObjectIds("site_ids"),
+];
+
+const chartAtLeastOneScopeRequired = body().custom((_, { req }) => {
+  const { device_ids, site_ids } = req.body;
+  if (isEmpty(device_ids) && isEmpty(site_ids)) {
+    throw new Error(
+      "At least one of device_ids or site_ids is required, and must not be empty",
+    );
+  }
+  return true;
+});
+
+// On update, device_ids/site_ids are optional — a request may only touch
+// display fields and leave scope untouched. But if both are explicitly sent
+// and both empty, that's an unambiguous attempt to clear the scope
+// entirely, so it's rejected here. This can't catch every way to end up
+// with an empty scope (e.g. clearing just one array while the existing
+// chart's other array is already empty) — that needs the current document,
+// so it's guarded again in preference.util.js after merging with it.
+const chartScopeNotBothClearedOnUpdate = body().custom((_, { req }) => {
+  const { device_ids, site_ids } = req.body;
+  const bothProvided = Array.isArray(device_ids) && Array.isArray(site_ids);
+  if (bothProvided && isEmpty(device_ids) && isEmpty(site_ids)) {
+    throw new Error(
+      "device_ids and site_ids cannot both be cleared — at least one must remain",
+    );
+  }
+  return true;
+});
+
 const preferenceValidations = {
   validatePreferenceData: [
     ...commonValidations.tenant,
@@ -1375,12 +1520,8 @@ const preferenceValidations = {
   // Replace the existing createChart validation with this improved version
   createChart: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .bail()
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
+    ...chartScopeArrayValidations,
+    chartAtLeastOneScopeRequired,
     body("chartConfig")
       .exists()
       .withMessage("chartConfig object is required")
@@ -1394,29 +1535,114 @@ const preferenceValidations = {
       .isInt({ min: 1, max: 8 })
       .withMessage("fieldId must be an integer between 1 and 8"),
     ...createNestedValidations("chartConfig"),
+    // updateChart accepts sites/devices at the request body's top level;
+    // accept that shape here too (as a fallback to chartConfig.sites/
+    // chartConfig.devices) so create and update behave the same way.
+    body("sites").optional().isArray().withMessage("sites must be an array"),
+    body("sites.*.site_id")
+      .exists()
+      .withMessage("sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("sites[].site_id must be a valid ObjectId"),
+    body("sites.*.name")
+      .exists()
+      .withMessage("sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("sites[].name must not exceed 200 characters"),
+    body("devices")
+      .optional()
+      .isArray()
+      .withMessage("devices must be an array"),
+    body("devices.*.device_id")
+      .exists()
+      .withMessage("devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("devices[].device_id must be a valid ObjectId"),
+    body("devices.*.name")
+      .exists()
+      .withMessage("devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("devices[].name must not exceed 200 characters"),
   ],
   updateChart: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
     param("chartId")
       .exists()
       .withMessage("Chart ID is required")
       .isMongoId()
       .withMessage("Invalid Chart ID"),
+    ...chartScopeArrayValidations,
+    chartScopeNotBothClearedOnUpdate,
     // Use all validations from chartConfigValidation
     ...chartConfigValidation,
+    // createChart accepts sites/devices nested inside a chartConfig wrapper;
+    // accept that shape here too (as a fallback to the top-level sites/
+    // devices above) so create and update behave the same way.
+    body("chartConfig")
+      .optional()
+      .isObject()
+      .withMessage("chartConfig must be an object"),
+    body("chartConfig.sites")
+      .optional()
+      .isArray()
+      .withMessage("chartConfig.sites must be an array"),
+    body("chartConfig.sites.*.site_id")
+      .exists()
+      .withMessage("chartConfig.sites[].site_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("chartConfig.sites[].site_id must be a valid ObjectId"),
+    body("chartConfig.sites.*.name")
+      .exists()
+      .withMessage("chartConfig.sites[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("chartConfig.sites[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage("chartConfig.sites[].name must not exceed 200 characters"),
+    body("chartConfig.devices")
+      .optional()
+      .isArray()
+      .withMessage("chartConfig.devices must be an array"),
+    body("chartConfig.devices.*.device_id")
+      .exists()
+      .withMessage("chartConfig.devices[].device_id is required")
+      .bail()
+      .isMongoId()
+      .withMessage("chartConfig.devices[].device_id must be a valid ObjectId"),
+    body("chartConfig.devices.*.name")
+      .exists()
+      .withMessage("chartConfig.devices[].name is required")
+      .bail()
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage("chartConfig.devices[].name must be a non-empty string")
+      .bail()
+      .isLength({ max: 200 })
+      .withMessage(
+        "chartConfig.devices[].name must not exceed 200 characters"
+      ),
   ],
   deleteChart: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
     param("chartId")
       .exists()
       .withMessage("Chart ID is required")
@@ -1425,19 +1651,21 @@ const preferenceValidations = {
   ],
   getChartConfigurations: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
+    query("group_id")
+      .optional()
       .isMongoId()
-      .withMessage("Invalid Device ID"),
+      .withMessage("group_id must be a valid Group ID"),
+    query("device_id")
+      .optional()
+      .isMongoId()
+      .withMessage("device_id must be a valid Device ID"),
+    query("site_id")
+      .optional()
+      .isMongoId()
+      .withMessage("site_id must be a valid Site ID"),
   ],
   getChartConfigurationById: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
     param("chartId")
       .exists()
       .withMessage("Chart ID is required")
@@ -1446,11 +1674,6 @@ const preferenceValidations = {
   ],
   copyChart: [
     ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
     param("chartId")
       .exists()
       .withMessage("Chart ID is required")
@@ -1500,32 +1723,6 @@ const preferenceValidations = {
     ...themeValidations.theme,
   ],
 
-  // User network theme validations
-  getUserNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...enhancedIdValidations.networkId,
-  ],
-
-  updateUserNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...enhancedIdValidations.networkId,
-    ...themeValidations.theme,
-  ],
-
-  // User default network theme validations (no network_id param)
-  getUserDefaultNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-  ],
-
-  updateUserDefaultNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.userId,
-    ...themeValidations.theme,
-  ],
-
   // ===========================================
   // ORGANIZATION THEME VALIDATIONS
   // ===========================================
@@ -1542,18 +1739,6 @@ const preferenceValidations = {
     ...themeValidations.theme,
   ],
 
-  // Network theme validations
-  getNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.networkId,
-  ],
-
-  updateNetworkTheme: [
-    ...commonValidations.tenant,
-    ...enhancedIdValidations.networkId,
-    ...themeValidations.theme,
-  ],
-
   // ===========================================
   // EFFECTIVE THEME VALIDATION
   // ===========================================
@@ -1562,8 +1747,21 @@ const preferenceValidations = {
     ...commonValidations.tenant,
     ...enhancedIdValidations.userId,
     ...enhancedIdValidations.optionalGroupId,
-    ...enhancedIdValidations.optionalNetworkId,
   ],
+};
+
+// Exposed for reuse by group-chart-config.validators.js — the group-scoped
+// default chart config uses the exact same chart-field validation rules as
+// the personal one, so this avoids duplicating them. Namespaced under
+// `sharedHelpers` rather than added at the top level, since the rest of
+// this object is a route-name -> middleware-array contract (used directly
+// as e.g. `router.post("/", preferenceValidations.create, ...)`) and these
+// three aren't mountable route middleware on their own.
+preferenceValidations.sharedHelpers = {
+  chartConfigValidation,
+  createNestedValidations,
+  commonValidations,
+  validateArrayOfObjectIds,
 };
 
 module.exports = preferenceValidations;

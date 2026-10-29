@@ -36,7 +36,7 @@ const AccessRequestSchema = new Schema(
     },
     requestType: {
       type: String,
-      enum: ["network", "group"],
+      enum: ["group"],
       required: [true, "Request type is required"],
     },
     targetId: {
@@ -45,7 +45,7 @@ const AccessRequestSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "approved", "rejected", "cancelled"],
       default: "pending",
     },
     invitationToken: {
@@ -63,6 +63,31 @@ const AccessRequestSchema = new Schema(
     },
     expires_at: {
       type: Date,
+    },
+    role_id: {
+      type: ObjectId,
+      ref: "role",
+    },
+    message: {
+      type: String,
+      trim: true,
+      maxlength: 1000, // matches groupValidations.sendGroupInvitations' body("invitations.*.message") limit
+    },
+    cancelled_by: {
+      type: ObjectId,
+      ref: "user",
+    },
+    cancelled_at: {
+      type: Date,
+    },
+    source: {
+      type: String,
+      enum: ["manual", "domain_match", "join_link"],
+      default: "manual",
+    },
+    source_link_id: {
+      type: ObjectId,
+      ref: "group_join_link",
     },
   },
   {
@@ -123,6 +148,22 @@ AccessRequestSchema.statics = {
           localField: "email",
           foreignField: "email",
           as: "user",
+        })
+        .lookup({
+          from: "groups",
+          let: { targetId: "$targetId" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$targetId"] } } },
+            {
+              $project: {
+                _id: 1,
+                grp_title: 1,
+                organization_slug: 1,
+                grp_profile_picture: 1,
+              },
+            },
+          ],
+          as: "group",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)

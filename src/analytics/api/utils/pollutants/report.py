@@ -1,86 +1,158 @@
-import json
-from datetime import datetime
-import requests
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
-from config import BaseConfig as Config
+from api.utils.bigquery_jobs import (
+    translate_incomplete_queries,
+    query_job_config,
+    shared_bigquery_client,
+)
+from api.utils.exceptions import QueryNotCompleted
 import numpy as np
-from timezonefinder import TimezoneFinder
-import pytz
+
+from api.utils.utils import Utils
+from config import settings
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def convert_utc_to_local(timestamps, site_latitude, site_longitude):
-    tf = TimezoneFinder()
-    local_times = []
+def fetch_grid_sites(grid_id) -> list:
+    """
+    Resolves a grid ID to its site IDs from the BigQuery grids_sites table.
 
-    for timestamp, latitude, longitude in zip(
-        timestamps, site_latitude, site_longitude
-    ):
-        timezone_str = tf.timezone_at(lat=latitude, lng=longitude)
-        timezone = pytz.timezone(timezone_str)
-        local_time = timestamp.astimezone(timezone)
-        local_times.append(local_time)
+    Replaces the external Grid API round trip — grid membership already lands
+    in BigQuery via the metadata sync, and this is the same table the download
+    path's grid_ids filter joins against.
 
-    return local_times
+    Args:
+        grid_id(str): The grid identifier.
+
+    Returns:
+        list: Site IDs belonging to the grid; empty on query failure.
+    """
+    grids_sites_table = Utils.table_name(settings.bigquery_grids_sites)
+    query = f"SELECT DISTINCT site_id FROM {grids_sites_table} WHERE grid_id = @grid_id"
+    return _fetch_membership(
+        query,
+        bigquery.ScalarQueryParameter("grid_id", "STRING", grid_id),
+        column="site_id",
+        context=f"grid {grid_id}",
+    )
 
 
-def fetch_air_quality_data(grid_id, start_time, end_time) -> list:
-    # Convert start_time and end_time to ISO format
-    start_time_iso = start_time.isoformat() + "Z"
-    end_time_iso = end_time.isoformat() + "Z"
+def fetch_cohort_devices(cohort_id) -> list:
+    """
+    Resolves a cohort ID to its device IDs from the cohorts_devices table.
 
-    grid_params = {
-        "token": Config.AIRQO_API_TOKEN,
-        "startTime": start_time_iso,
-        "endTime": end_time_iso,
-        "recent": "no",
-    }
+    Args:
+        cohort_id(str): The cohort identifier.
 
-    grid_url = f"{Config.GRID_URL}{grid_id}"
+    Returns:
+        list: Device IDs belonging to the cohort; empty on query failure.
+    """
+    cohorts_devices_table = Utils.table_name(settings.bigquery_cohorts_devices)
+    devices_table = Utils.table_name(settings.bigquery_devices_devices)
+    query = (
+        f"SELECT DISTINCT {devices_table}.device_id "
+        f"FROM {devices_table} "
+        f"WHERE {devices_table}.id IN ("
+        f"SELECT device_id FROM {cohorts_devices_table} "
+        f"WHERE cohort_id = @cohort_id)"
+    )
+    return _fetch_membership(
+        query,
+        bigquery.ScalarQueryParameter("cohort_id", "STRING", cohort_id),
+        column="device_id",
+        context=f"cohort {cohort_id}",
+    )
 
+
+def _fetch_membership(query, parameter, column: str, context: str) -> list:
+    """
+    Run a membership lookup and return one column as a list.
+    """
+    job_config = query_job_config(query_parameters=[parameter])
     try:
-        grid_response = requests.get(grid_url, params=grid_params)
-        grid_response.raise_for_status()  # Raise an exception for 4xx and 5xx status codes
-
-        data = grid_response.json()
-
-        # Extracting only the 'site_id' from each measurement
-        site_ids = [
-            measurement.get("site_id") for measurement in data.get("measurements", [])
-        ]
-
-        return site_ids
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching air quality data: ")
+        # The lookup reads only the grid or cohort identifier, so
+        # depends_on_request=False marks it, and a timeout here gets the
+        # response that asks the caller to try again.
+        with translate_incomplete_queries(
+            f"membership lookup for {context}", depends_on_request=False
+        ):
+            data = (
+                shared_bigquery_client()
+                .query(query, job_config=job_config)
+                .to_dataframe()
+            )
+        return data[column].tolist()
+    except QueryNotCompleted:
+        raise
+    except Exception:
+        logger.exception(f"Error fetching membership for {context}")
         return []
 
 
-# Create a BigQuery client
-client = bigquery.Client()
+# Membership resolves to sites for a grid and to devices for a cohort; the
+# consolidated table carries both columns, so only the predicate differs.
+_REPORT_FILTER_COLUMNS = {"site_id", "device_id"}
 
 
-def query_bigquery(site_ids, start_time, end_time):
-    # Construct the BigQuery SQL query
+def query_bigquery(entity_ids, start_time, end_time, id_column: str = "site_id"):
+    """
+    Fetches hourly consolidated PM measurements for the given members/window.
+
+    All user-derived values (member IDs, timestamps) are bound as query
+    parameters — never interpolated into the SQL text. ``id_column`` selects
+    the predicate and is checked against a fixed set, since it is the one
+    part that reaches the SQL text.
+
+    Args:
+        entity_ids: Site IDs (grid reports) or device IDs (cohort reports).
+        start_time: Start of the reporting window.
+        end_time: End of the reporting window.
+        id_column: "site_id" or "device_id".
+
+    Returns:
+        pd.DataFrame of UTC-timestamped rows, or None when no data.
+
+    The query runs under settings.bigquery_report_max_bytes_billed, the byte
+    ceiling of the /report data query.
+
+    Raises:
+        QueryTooLarge: If the query exceeds the bytes-billed ceiling.
+        QueryTimedOut: If BigQuery stops the query at the job timeout.
+        QueryCancelled: If the query is cancelled before it finishes.
+        QueryForbidden: If BigQuery refuses the query with HTTP 403.
+        QueryRateLimited: If BigQuery refuses the query for rate.
+    """
+    if id_column not in _REPORT_FILTER_COLUMNS:
+        raise ValueError(f"Invalid report filter column: {id_column}")
+
+    table = Utils.table_name(settings.bigquery_hourly_consolidated)
     query = f"""
         SELECT site_id, timestamp, site_name, site_latitude, site_longitude, pm2_5_raw_value,
         pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value, country, region, city, county
-        FROM {Config.BIGQUERY_HOURLY_CONSOLIDATED}
-        WHERE site_id IN UNNEST({site_ids})
-        AND timestamp BETWEEN TIMESTAMP('{start_time.isoformat()}')
-        AND TIMESTAMP('{end_time.isoformat()}')
+        FROM {table}
+        WHERE {id_column} IN UNNEST(@entity_ids)
+        AND timestamp BETWEEN @start_time AND @end_time
         AND NOT pm2_5_raw_value IS NULL
     """
+    job_config = query_job_config(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("entity_ids", "STRING", list(entity_ids)),
+            bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", start_time),
+            bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", end_time),
+        ],
+        maximum_bytes_billed=settings.bigquery_report_max_bytes_billed,
+    )
 
     try:
-        # Execute the query
-        query_job = client.query(query)
-
-        # Fetch and return the results as a Pandas DataFrame
-        data = query_job.to_dataframe()
-        if data.empty:
-            print("No data available for the given parameters.")
-            return None
+        with translate_incomplete_queries("grid/cohort report data"):
+            data = (
+                shared_bigquery_client()
+                .query(query, job_config=job_config)
+                .to_dataframe()
+            )
         if (
             np.isnan(data["site_latitude"]).any()
             or np.isnan(data["site_longitude"]).any()
@@ -89,21 +161,37 @@ def query_bigquery(site_ids, start_time, end_time):
                 ~np.isnan(data["site_latitude"]) & ~np.isnan(data["site_longitude"])
             ]
 
-            # Convert timestamp to local time based on latitude and longitude
-        data["timestamp"] = convert_utc_to_local(
-            data["timestamp"], data["site_latitude"], data["site_longitude"]
-        )
+        # Emptiness is checked after the coordinate filter, not before: rows
+        # without coordinates cannot be aggregated by site, so a frame left
+        # empty by that filter is as much "no data" as an empty result set.
+        if data.empty:
+            logger.info("No consolidated data for the given members/window.")
+            return None
 
         return data
-    except Exception as e:
-        print(f"Error querying BigQuery: {e}")
+    except QueryNotCompleted:
+        # The function raises a query that BigQuery refused for size, refused
+        # with HTTP 403, refused for rate, stopped at the job timeout or
+        # cancelled.  The service answers it with the response for its cause.
+        raise
+    except Exception:
+        logger.exception("Error querying BigQuery for report data")
         return None
 
 
 def results_to_dataframe(results):
+    """
+    Add the date/hour/month breakdown columns the aggregations group on.
+
+    Timestamps stay in UTC, matching every other endpoint in this service.
+    ``utc=True`` is required rather than cosmetic: without it pandas refuses a
+    tz-aware column with "Tz-aware datetime.datetime cannot be converted to
+    datetime64 unless utc=True". Every breakdown below — hour, day name, month
+    — therefore reads as UTC.
+    """
     df = (
         pd.DataFrame(results)
-        .assign(timestamp=lambda x: pd.to_datetime(x["timestamp"]))
+        .assign(timestamp=lambda x: pd.to_datetime(x["timestamp"], utc=True))
         .assign(
             dates=lambda x: x["timestamp"].dt.date.astype(str),
             date=lambda x: pd.to_datetime(x["dates"]),

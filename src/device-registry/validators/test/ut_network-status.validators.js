@@ -199,8 +199,16 @@ describe("networkStatusValidations", () => {
       expect(validationResult(req).isEmpty()).to.be.true;
     });
 
+    it("should pass with a valid cohort_slug (not just an ObjectId)", async () => {
+      const req = mockRequest({ cohort_id: "wri-nairobi-2026" });
+      await runMiddlewareChain(validations.list, req);
+      expect(validationResult(req).isEmpty()).to.be.true;
+    });
+
     it("should fail with an invalid cohort_id", async () => {
-      const req = mockRequest({ cohort_id: "not-an-object-id" });
+      // Neither a 24-char hex ObjectId nor a valid cohort_slug shape
+      // (uppercase/underscore aren't allowed in either).
+      const req = mockRequest({ cohort_id: "Not An Object Id!" });
       await runMiddlewareChain(validations.list, req);
       expect(validationResult(req).isEmpty()).to.be.false;
     });

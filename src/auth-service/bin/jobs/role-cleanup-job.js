@@ -5,6 +5,7 @@ const cron = require("node-cron");
 const moment = require("moment-timezone");
 const UserModel = require("@models/User");
 const userUtil = require("@utils/user.util");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const TIMEZONE = "Africa/Nairobi";
 const JOB_NAME = "role-cleanup-job";
@@ -100,6 +101,9 @@ class NonBlockingJobProcessor {
 const cleanupUserRolesJob = async () => {
   const processor = new NonBlockingJobProcessor(JOB_NAME);
   const tenant = constants.DEFAULT_TENANT || "airqo";
+
+  const gotLock = await acquireCronLock(tenant, JOB_NAME);
+  if (!gotLock) return;
 
   try {
     processor.start();

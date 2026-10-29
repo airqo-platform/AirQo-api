@@ -1,8 +1,11 @@
+import asyncio
 import logging
 from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers import SchedulerAlreadyRunningError
 from app.services.thingspeak_sync_service import sync_device_data
+from app.services.external_sync_service import sync_external_device_data, poll_external_feeds
+from app.services.diagnostics.daily import run_daily_diagnostics_async, cleanup_old_daily_diagnostics
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +24,40 @@ async def scheduled_thingspeak_sync():
         logger.info(f"Scheduled ThingSpeak data sync completed: {summary}")
     except Exception as exc:
         logger.exception(f"ThingSpeak sync failed: {exc}")
+
+    # Devices from other manufacturers have no ThingSpeak channel; their
+    # readings are backfilled from the platform's analytics raw-data endpoint.
+    if settings.EXTERNAL_SYNC_ENABLED:
+        logger.info("Starting scheduled external-manufacturer data sync...")
+        try:
+            summary = await sync_external_device_data()
+            logger.info(f"Scheduled external-manufacturer data sync completed: {summary}")
+        except Exception as exc:
+            logger.exception(f"External-manufacturer data sync failed: {exc}")
+
+    # Diagnose the days the sync just completed. Runs even if the sync failed so
+    # earlier days that are still undiagnosed get caught up.
+    if settings.DAILY_DIAGNOSTICS_ENABLED:
+        await scheduled_daily_diagnostics()
+
+async def scheduled_daily_diagnostics():
+    logger.info("Starting scheduled daily device diagnostics...")
+    try:
+        summary = await run_daily_diagnostics_async()
+        logger.info(f"Scheduled daily diagnostics completed: {summary['message']}")
+        deleted = await asyncio.to_thread(cleanup_old_daily_diagnostics)
+        if deleted:
+            logger.info(f"Removed {deleted} expired daily diagnostics.")
+    except Exception as exc:
+        logger.exception(f"Daily diagnostics failed: {exc}")
+
+async def scheduled_external_feed_poll():
+    """Latest reading for every external device, straight from the manufacturer via the registry feed."""
+    try:
+        summary = await poll_external_feeds()
+        logger.info(f"External feed poll completed: {summary.get('message')}")
+    except Exception as exc:
+        logger.exception(f"External feed poll failed: {exc}")
 
 async def expire_inactive_webrtc_sessions_job():
     logger.info("Running scheduled job to expire inactive WebRTC sessions...")
@@ -56,6 +93,17 @@ def start_scheduler():
         replace_existing=True,
         timezone=SCHEDULER_TIMEZONE,
     )
+
+    # Poll the live feed of external-manufacturer devices (0 disables)
+    poll_minutes = int(getattr(settings, "EXTERNAL_FEED_POLL_MINUTES", 0) or 0)
+    if getattr(settings, "EXTERNAL_SYNC_ENABLED", True) and poll_minutes > 0:
+        scheduler.add_job(
+            scheduled_external_feed_poll,
+            'interval',
+            minutes=poll_minutes,
+            id='external_feed_poll',
+            replace_existing=True,
+        )
 
     # Run the WebRTC session expiration job every hour
     scheduler.add_job(

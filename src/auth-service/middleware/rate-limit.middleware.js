@@ -66,10 +66,15 @@ const WHITELISTED_IPS = constants.RATE_LIMIT_WHITELIST
 // ============================================
 
 /**
- * Safely attempt to initialize Redis store
- * Returns null if anything fails - will use in-memory store
+ * Safely attempt to initialize a Redis store for one rate limiter.
+ * Returns null if anything fails - will use in-memory store instead.
+ *
+ * `name` becomes the store's key prefix and MUST be unique per limiter —
+ * express-rate-limit validates that a store instance isn't shared across
+ * multiple limiters (each needs its own counters), so this is called fresh
+ * per limiter rather than once at module load and reused.
  */
-const initializeRedisStore = () => {
+const initializeRedisStore = (name) => {
   if (!USE_REDIS) {
     logger.info("📊 Rate Limiting: In-memory store (Redis disabled)");
     return null;
@@ -81,7 +86,12 @@ const initializeRedisStore = () => {
     let redis;
 
     try {
-      RedisStore = require("rate-limit-redis");
+      // rate-limit-redis exports RedisStore as a named export, not a default
+      // export — `require("rate-limit-redis")` alone gives the whole exports
+      // object, not the class, which previously made every `new RedisStore()`
+      // below throw "RedisStore is not a constructor" and silently fall back
+      // to the in-memory store regardless of Redis's actual availability.
+      ({ RedisStore } = require("rate-limit-redis"));
     } catch (error) {
       logger.warn(
         "⚠️ rate-limit-redis package not found. Using in-memory store."
@@ -112,32 +122,33 @@ const initializeRedisStore = () => {
     }
 
     // Attempt to create the store
+    // NOTE: `redis` here is the wrapper exported by @config/redis (redisGetAsync,
+    // redisUtils, etc.) — it has no sendCommand of its own. The raw node-redis
+    // client (which does) is exported separately as `redis.redis`. Using the
+    // wrapper directly here previously made every rate-limited request throw
+    // `TypeError: redis.sendCommand is not a function` whenever Redis was
+    // actually up and reachable — the opposite of the intended fallback.
     const store = new RedisStore({
       // @ts-expect-error - RedisStore accepts the v4 client
-      sendCommand: (...args) => redis.sendCommand(args),
-      prefix: "rl:",
+      sendCommand: (...args) => redis.redis.sendCommand(args),
+      prefix: `rl:${name}:`,
     });
 
     logger.info(
-      "✅ Rate Limiting: Using Redis store for distributed rate limiting"
+      `✅ Rate Limiting: Using Redis store for "${name}" (distributed rate limiting)`
     );
     return store;
   } catch (error) {
-    logger.error(`❌ Failed to initialize Redis store: ${error.message}`);
+    logger.error(`❌ Failed to initialize Redis store for "${name}": ${error.message}`);
     logger.warn("⚠️ Falling back to in-memory store");
     logObject("Redis store initialization error", error);
     return null;
   }
 };
 
-// Initialize store (null = in-memory fallback)
-let rateStore = null;
-try {
-  rateStore = initializeRedisStore();
-} catch (error) {
-  logger.error(`Critical error during rate store init: ${error.message}`);
-  rateStore = null; // Ensure we fall back to memory
-}
+// Fallback prefix for callers that don't supply a `name` (e.g. dynamically
+// created custom limiters) — still unique per call, just not human-readable.
+let _anonymousStoreCounter = 0;
 
 // ============================================
 // HELPER FUNCTIONS
@@ -290,6 +301,10 @@ const onRateLimitError = (error, req, res, next) => {
 
 /**
  * Create a safe rate limiter with error handling
+ *
+ * `config.name` identifies this limiter for its Redis store's key prefix —
+ * pass a short unique string (e.g. "strict", "auth"). Each call gets its own
+ * store instance; see initializeRedisStore's doc comment for why.
  */
 const createSafeRateLimiter = (config) => {
   // Extract keyGenerator separately so callers can override the default
@@ -297,11 +312,17 @@ const createSafeRateLimiter = (config) => {
   // skip, and handler too, which is undesirable — so we only allow
   // keyGenerator to be customised.
   // Extract message so the custom handler can surface it in the 429 body.
-  const { keyGenerator: configKeyGenerator, message: configMessage, ...restConfig } = config;
+  const {
+    keyGenerator: configKeyGenerator,
+    message: configMessage,
+    name: configName,
+    ...restConfig
+  } = config;
+  const storeName = configName || `anon_${++_anonymousStoreCounter}`;
   try {
     return rateLimit({
       ...restConfig,
-      store: rateStore,
+      store: initializeRedisStore(storeName),
       skip: skipFunction,
       handler: (req, res) => rateLimitHandler(req, res, configMessage),
       keyGenerator: configKeyGenerator || keyGenerator,
@@ -311,6 +332,11 @@ const createSafeRateLimiter = (config) => {
       skipFailedRequests: false,
       skipSuccessfulRequests: false,
       requestWasSuccessful: (req, res) => res.statusCode < 400,
+      // Belt-and-suspenders: if the store (Redis) throws for any reason —
+      // this specific bug, a future one, or Redis just being flaky — allow
+      // the request through instead of 500ing it. Rate limiting degrading is
+      // acceptable; rate limiting taking down the endpoint is not.
+      passOnStoreError: true,
     });
   } catch (error) {
     logger.error(`Failed to create rate limiter: ${error.message}`);
@@ -327,6 +353,7 @@ const createSafeRateLimiter = (config) => {
  * 200 requests per hour per IP
  */
 const strictRateLimiter = createSafeRateLimiter({
+  name: "strict",
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 200,
   standardHeaders: true,
@@ -339,6 +366,7 @@ const strictRateLimiter = createSafeRateLimiter({
  * 100 requests per hour per IP
  */
 const standardRateLimiter = createSafeRateLimiter({
+  name: "standard",
   windowMs: 60 * 60 * 1000,
   max: 100,
   standardHeaders: true,
@@ -350,6 +378,7 @@ const standardRateLimiter = createSafeRateLimiter({
  * 5 attempts per 15 minutes
  */
 const authRateLimiter = createSafeRateLimiter({
+  name: "auth",
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -362,6 +391,7 @@ const authRateLimiter = createSafeRateLimiter({
  * 50 requests per hour per IP
  */
 const writeRateLimiter = createSafeRateLimiter({
+  name: "write",
   windowMs: 60 * 60 * 1000,
   max: 50,
   standardHeaders: true,
@@ -373,6 +403,7 @@ const writeRateLimiter = createSafeRateLimiter({
  * 300 requests per hour per IP
  */
 const readRateLimiter = createSafeRateLimiter({
+  name: "read",
   windowMs: 60 * 60 * 1000,
   max: 300,
   standardHeaders: true,
@@ -389,6 +420,7 @@ const readRateLimiter = createSafeRateLimiter({
  * each, while blocking any single IP that hammers the endpoint indiscriminately.
  */
 const tokenVerifyIpRateLimiter = createSafeRateLimiter({
+  name: "token_verify_ip",
   windowMs: 60 * 60 * 1000,
   max: 5000,
   standardHeaders: true,
@@ -409,6 +441,7 @@ const tokenVerifyIpRateLimiter = createSafeRateLimiter({
  * Falls back to IP key if the token param is absent for any reason.
  */
 const tokenVerifyRateLimiter = createSafeRateLimiter({
+  name: "token_verify",
   windowMs: 60 * 60 * 1000,
   max: 2000,
   standardHeaders: true,
@@ -437,6 +470,7 @@ const tokenVerifyRateLimiter = createSafeRateLimiter({
  * These endpoints intentionally block JWT — see specificRoutes in passport.js.
  */
 const queryTokenRateLimiter = createSafeRateLimiter({
+  name: "query_token",
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
@@ -448,8 +482,9 @@ const queryTokenRateLimiter = createSafeRateLimiter({
 /**
  * Custom rate limiter factory
  */
-const createCustomRateLimiter = ({ windowMs, max, message }) => {
+const createCustomRateLimiter = ({ windowMs, max, message, name }) => {
   return createSafeRateLimiter({
+    name,
     windowMs,
     max,
     message: message || "Too many requests, please try again later.",
@@ -471,6 +506,7 @@ const userKeyGenerator = (req) => {
 
 // Pre-built per-tier limiters (hourly window, keyed by user ID)
 const freeTierLimiter = createSafeRateLimiter({
+  name: "tier_free",
   windowMs: 60 * 60 * 1000,
   max: 100,
   standardHeaders: true,
@@ -480,6 +516,7 @@ const freeTierLimiter = createSafeRateLimiter({
 });
 
 const standardTierLimiter = createSafeRateLimiter({
+  name: "tier_standard",
   windowMs: 60 * 60 * 1000,
   max: 500,
   standardHeaders: true,
@@ -489,6 +526,7 @@ const standardTierLimiter = createSafeRateLimiter({
 });
 
 const premiumTierLimiter = createSafeRateLimiter({
+  name: "tier_premium",
   windowMs: 60 * 60 * 1000,
   max: 2000,
   standardHeaders: true,

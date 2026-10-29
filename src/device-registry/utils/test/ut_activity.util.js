@@ -14,6 +14,7 @@ describe("createActivity", () => {
   let SiteModelStub;
   let ActivityModelStub;
   let GridModelStub;
+  let ReadingModelStub;
   let createSiteUtilStub;
   let mongooseStub;
   let sandbox;
@@ -26,6 +27,7 @@ describe("createActivity", () => {
     SiteModelStub = sandbox.stub();
     ActivityModelStub = sandbox.stub();
     GridModelStub = sandbox.stub();
+    ReadingModelStub = sandbox.stub();
     createSiteUtilStub = {
       create: sandbox.stub(),
       list: sandbox.stub(),
@@ -42,6 +44,7 @@ describe("createActivity", () => {
       "@models/Site": SiteModelStub,
       "@models/Activity": ActivityModelStub,
       "@models/Grid": GridModelStub,
+      "@models/Reading": ReadingModelStub,
       "@utils/site.util": createSiteUtilStub,
       mongoose: mongooseStub,
     });
@@ -763,6 +766,154 @@ describe("createActivity", () => {
           "airgradient"
         );
       });
+    });
+
+    // Add more test cases as needed to cover different scenarios
+  });
+  describe("decommission", () => {
+    it("should handle device not found for decommission", async () => {
+      DeviceModelStub.returns({
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+      });
+      const result = await createActivity.decommission(
+        { query: { tenant: "airqo", deviceName: "unknown" }, body: {} },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(400);
+    });
+
+    it("should reject a device that is already decommissioned", async () => {
+      DeviceModelStub.returns({
+        findOne: sandbox.stub().returns({
+          lean: sandbox
+            .stub()
+            .resolves({ _id: "device_id_123", name: "aq_01", status: "decommissioned" }),
+        }),
+      });
+      const result = await createActivity.decommission(
+        { query: { tenant: "airqo", deviceName: "aq_01" }, body: {} },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(400);
+    });
+
+    it("should decommission a device: update it, log the activity, and mark readings inactive", async () => {
+      const deviceId = new ObjectId();
+      // site_id/grid_id null keeps this test focused on the core write path —
+      // the post-decommission site.network resync only runs when site_id is set.
+      const preDevice = {
+        _id: deviceId,
+        name: "aq_01",
+        status: "deployed",
+        isActive: true,
+        site_id: null,
+        grid_id: null,
+        mobility: true,
+        network: "airqo",
+        device_number: 12345,
+      };
+
+      const findOneAndUpdateStub = sandbox.stub().resolves({
+        _id: deviceId,
+        name: "aq_01",
+        long_name: "AQ 01",
+        device_number: 12345,
+        isActive: false,
+        status: "decommissioned",
+        recall_date: new Date(),
+        site_id: null,
+        grid_id: null,
+        network: "airqo",
+        category: "lowcost",
+        previous_sites: [],
+        previous_grids: [],
+      });
+
+      DeviceModelStub.returns({
+        findOne: sandbox
+          .stub()
+          .returns({ lean: sandbox.stub().resolves(preDevice) }),
+        findOneAndUpdate: findOneAndUpdateStub,
+      });
+
+      const readingsUpdateManyStub = sandbox
+        .stub()
+        .resolves({ modifiedCount: 4 });
+      ReadingModelStub.returns({ updateMany: readingsUpdateManyStub });
+
+      const activityCreateStub = sandbox.stub().resolves({
+        _id: new ObjectId(),
+        device: "aq_01",
+        device_id: deviceId,
+        date: new Date(),
+        description: "device decommissioned",
+        activityType: "decommission",
+        site_id: null,
+        grid_id: null,
+        host_id: null,
+        network: "airqo",
+        createdAt: new Date(),
+      });
+      ActivityModelStub.returns({
+        create: activityCreateStub,
+        // Backing the fire-and-forget cache refresh: an empty result short-
+        // circuits it before it touches DeviceModel/SiteModel again.
+        find: sandbox.stub().returns({
+          sort: sandbox.stub().returnsThis(),
+          lean: sandbox.stub().resolves([]),
+        }),
+      });
+
+      const result = await createActivity.decommission(
+        {
+          query: { tenant: "airqo", deviceName: "aq_01" },
+          body: {
+            reason: "ThingSpeak channel deleted upstream",
+            date: recentDate(),
+            user_id: new ObjectId().toString(),
+            firstName: "Jane",
+            lastName: "Doe",
+            userName: "jdoe",
+            email: "jane@example.com",
+          },
+        },
+        sandbox.stub()
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(200);
+      expect(result.data.updatedDevice.status).to.equal("decommissioned");
+      expect(result.data.updatedDevice.isActive).to.be.false;
+      expect(result.data.createdActivity.activityType).to.equal(
+        "decommission"
+      );
+
+      expect(findOneAndUpdateStub.calledOnce).to.be.true;
+      expect(findOneAndUpdateStub.firstCall.args[0]).to.deep.equal({
+        name: "aq_01",
+      });
+      expect(findOneAndUpdateStub.firstCall.args[1].$set).to.include({
+        status: "decommissioned",
+        isActive: false,
+      });
+
+      expect(readingsUpdateManyStub.calledOnce).to.be.true;
+      expect(readingsUpdateManyStub.firstCall.args[0]).to.deep.equal({
+        device_id: deviceId.toString(),
+      });
+
+      expect(activityCreateStub.calledOnce).to.be.true;
+      expect(activityCreateStub.firstCall.args[0]).to.include({
+        device: "aq_01",
+        activityType: "decommission",
+      });
+
+      // The device must be flipped to decommissioned before the activity
+      // record is written, matching the atomic-with-rollback contract.
+      expect(findOneAndUpdateStub.calledBefore(activityCreateStub)).to.be
+        .true;
     });
 
     // Add more test cases as needed to cover different scenarios

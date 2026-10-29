@@ -7,10 +7,24 @@ const {
   validationResult,
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isValidObjectId } = require("mongoose");
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// isValidObjectId, which also accepts arbitrary 12-byte strings and would
+// misclassify a short, non-ObjectId id (e.g. a cohort_id slug) as valid.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
 const constants = require("@config/constants");
 
 const commonValidations = {
+  // ISO 3166-1 alpha-2 only (matches the network-coverage iso2 validator) —
+  // case-insensitive in, normalized to lowercase for the query layer, which
+  // resolves it back to the country name stored on siteDetails.country.
+  country: [
+    query("country")
+      .optional()
+      .trim()
+      .customSanitizer((value) => value.toLowerCase())
+      .matches(/^[a-z]{2}$/)
+      .withMessage("Invalid country code: expected ISO 3166-1 alpha-2"),
+  ],
   tenant: [
     query("tenant")
       .optional()
@@ -35,7 +49,7 @@ const commonValidations = {
           ? value
           : value?.toString().split(",");
         for (const v of values) {
-          if (v && !isValidObjectId(v)) {
+          if (v && !isObjectIdShape(v)) {
             throw new Error(`${field}: ${errorMessage} - ${v}`);
           }
         }
@@ -50,7 +64,7 @@ const commonValidations = {
             values = value?.toString().split(",");
           }
           return values
-            .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
+            .map((v) => (isObjectIdShape(v) ? ObjectId(v) : null))
             .filter((v) => v !== null);
         }
         return value;
@@ -78,7 +92,7 @@ const commonValidations = {
           ? value
           : value?.toString().split(",");
         for (const v of values) {
-          if (v && !isValidObjectId(v)) {
+          if (v && !isObjectIdShape(v)) {
             throw new Error(`${field}: ${errorMessage} - ${v}`);
           }
         }
@@ -93,10 +107,78 @@ const commonValidations = {
             values = value?.toString().split(",");
           }
           return values
-            .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
+            .map((v) => (isObjectIdShape(v) ? ObjectId(v) : null))
             .filter((v) => v !== null);
         }
         return value;
+      });
+  },
+
+  // cohort_id-only siblings of objectId/requiredObjectId: each entry may be
+  // an ObjectId or a self-service cohort_slug. Not used for grid_id/device_id
+  // /site_id, which have no slug equivalent.
+  // NOTE: must return the bare validator chain, NOT an array — readings
+  // routes run their validation list through a hand-rolled runner
+  // (routes/v2/readings.routes.js `checkValidation`) that only recognizes
+  // a function or an object with `.run` at each position; a nested array
+  // (like `objectId`'s siblings avoid) is silently skipped, so cohort_id
+  // would never actually be validated/sanitized.
+  optionalCohortIdentifier: (field) =>
+    query(field)
+      .optional()
+      .custom((value) => {
+        const values = Array.isArray(value) ? value : value?.toString().split(",");
+        for (const v of values) {
+          const candidate = typeof v === "string" ? v.toLowerCase().trim() : v;
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
+            throw new Error(`Invalid ${field} format: ${v}`);
+          }
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        if (!value) return value;
+        const values = Array.isArray(value) ? value : value.toString().split(",");
+        return values
+          .map((v) => (typeof v === "string" ? v.toLowerCase().trim() : v))
+          .filter((v) => v)
+          .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
+      }),
+  requiredCohortIdentifier: (
+    field,
+    location = query,
+    errorMessage = "must be a valid object ID or cohort_slug",
+  ) => {
+    return location(field)
+      .exists()
+      .withMessage(`${field} is required`)
+      .notEmpty()
+      .withMessage(`${field} cannot be empty`)
+      .custom((value) => {
+        const values = Array.isArray(value) ? value : value?.toString().split(",");
+        for (const v of values) {
+          const candidate = typeof v === "string" ? v.toLowerCase().trim() : v;
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
+            throw new Error(`${field}: ${errorMessage} - ${v}`);
+          }
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        if (!value) return value;
+        const values = Array.isArray(value) ? value : value.toString().split(",");
+        return values
+          .map((v) => (typeof v === "string" ? v.toLowerCase().trim() : v))
+          .filter((v) => v !== "")
+          .map((v) => (isObjectIdShape(v) ? ObjectId(v) : v));
       });
   },
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -387,7 +469,7 @@ const commonValidations = {
       .custom((value) => {
         let values = Array.isArray(value) ? value : value.toString().split(",");
         for (const v of values) {
-          if (v && !isValidObjectId(v)) {
+          if (v && !isObjectIdShape(v)) {
             throw new Error(`${field} ${errorMessage}`);
           }
         }
@@ -565,7 +647,7 @@ const readingsValidations = {
       ...commonValidations.primary,
       ...commonValidations.metadata,
       ...commonValidations.test,
-      commonValidations.objectId("cohort_id"),
+      commonValidations.optionalCohortIdentifier("cohort_id"),
       commonValidations.objectId("grid_id"),
       commonValidations.objectId("device_id"),
       commonValidations.objectId("site_id"),
@@ -581,6 +663,33 @@ const readingsValidations = {
 
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  // Same result as `recent`, but for callers that want to POST a long site_id
+  // list in the body instead of a comma-separated query string. site_ids is
+  // required here (unlike the optional query `site_id` on GET, since it's the
+  // whole point of this endpoint) — once that's confirmed non-empty and all
+  // valid ObjectIds, it's copied onto req.query.site_id and handed to the
+  // `recent` validator so POST gets the identical conflicting-param checks
+  // (e.g. device_id + site_id) and sanitization that GET already applies.
+  recentBySiteIds: (req, res, next) => {
+    const validationRules = [
+      body("site_ids")
+        .exists()
+        .withMessage("site_ids is required")
+        .bail()
+        .isArray({ min: 1 })
+        .withMessage("site_ids must be a non-empty array"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("each entry in site_ids must be a valid ObjectId"),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, () => {
+      req.query.site_id = req.body.site_ids;
+      readingsValidations.recent(req, res, next);
+    });
   },
 
   listAverages: (req, res, next) => {
@@ -613,7 +722,7 @@ const readingsValidations = {
         ["cohort_id", "device_id"],
         "At least one of cohort_id or device_id is required.",
       ),
-      commonValidations.objectId("cohort_id"),
+      commonValidations.optionalCohortIdentifier("cohort_id"),
       commonValidations.objectId("device_id"),
       ...commonValidations.checkConflictingParams("cohort_id", "device_id"),
       ...commonValidations.checkForEmptyArrays(["cohort_id", "device_id"]),
@@ -680,6 +789,7 @@ const readingsValidations = {
   rankings: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
+      ...commonValidations.country,
       query("level")
         .optional()
         .trim()
@@ -706,6 +816,7 @@ const readingsValidations = {
   rankingsHistory: (req, res, next) => {
     const validationRules = [
       ...commonValidations.tenant,
+      ...commonValidations.country,
       query("level")
         .optional()
         .trim()
@@ -744,6 +855,34 @@ const readingsValidations = {
     const middleware = createValidationMiddleware(validationRules);
     executeMiddlewareSequentially(middleware, req, res, next);
   },
+
+  rankingsCountries: (req, res, next) => {
+    const validationRules = [...commonValidations.tenant];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  // POST /readings/comparisons — latest reading per requested site, one
+  // entry guaranteed per id (site_ids.* not deduped here; the util layer
+  // dedupes server-side per the comparisons contract).
+  comparisons: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      body("site_ids")
+        .exists()
+        .withMessage("site_ids is required")
+        .bail()
+        .isArray({ min: 1, max: 100 })
+        .withMessage("site_ids must contain between 1 and 100 entries"),
+      body("site_ids.*")
+        .isMongoId()
+        .withMessage("each entry in site_ids must be a valid ObjectId"),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
 };
 
 const validateGetRepresentativeAQForGrid = [
@@ -754,7 +893,7 @@ const validateGetRepresentativeAQForGrid = [
 
 const validateGetRepresentativeAQForCohort = [
   ...commonValidations.tenant,
-  commonValidations.requiredObjectId("cohort_id", param),
+  commonValidations.requiredCohortIdentifier("cohort_id", param),
   commonValidations.errorHandler,
 ];
 

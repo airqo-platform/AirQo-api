@@ -7,6 +7,7 @@ const {
 } = require("@bin/jobs/update-raw-online-status-job");
 const constants = require("@config/constants");
 const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const createDeviceUtil = require("@utils/device.util");
 const createFeedUtil = require("@utils/feed.util");
 
@@ -49,6 +50,10 @@ describe("updateRawOnlineStatusJob", () => {
     decryptKeyStub = sinon.stub(createDeviceUtil, "decryptKey");
     fetchThingspeakDataStub = sinon.stub(createFeedUtil, "fetchThingspeakData");
     sinon.stub(DeviceModel("airqo"), "estimatedDocumentCount").resolves(1);
+    // updateRawOnlineStatus now also flushes best-effort DeviceUptime
+    // samples (see flushUptimeSamples) — stub it so tests never issue a
+    // real insertMany, matching the pattern for every other model call above.
+    sinon.stub(DeviceUptimeModel("airqo"), "insertMany").resolves([]);
   });
 
   afterEach(() => {
@@ -117,14 +122,19 @@ describe("updateRawOnlineStatusJob", () => {
       });
 
       // Default call for the cursor
+      const setOptionsStub = sinon.stub().returns({ cursor: () => cursor });
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: setOptionsStub }),
+          }),
         }),
       });
 
       await updateRawOnlineStatus();
 
+      expect(setOptionsStub.calledOnceWith({ noCursorTimeout: true })).to.be
+        .true;
       expect(deviceModelStub.calledOnce).to.be.true;
       const bulkWriteArgs = deviceModelStub.firstCall.args[0];
       const updateOperation = bulkWriteArgs[0].updateOne.update;
@@ -152,7 +162,9 @@ describe("updateRawOnlineStatusJob", () => {
       // Default call for the cursor
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -186,7 +198,9 @@ describe("updateRawOnlineStatusJob", () => {
       // Default call for the cursor
       findStub.returns({
         select: () => ({
-          lean: () => ({ batchSize: () => ({ cursor: () => cursor }) }),
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
         }),
       });
 
@@ -196,6 +210,125 @@ describe("updateRawOnlineStatusJob", () => {
       const bulkWriteArgs = deviceModelStub.firstCall.args[0];
       const updateOperation = bulkWriteArgs[0].updateOne.update;
       expect(updateOperation.$set).to.have.property("isOnline", true);
+    });
+
+    it("should flag channelStatus 'not_found' when ThingSpeak returns 404", async () => {
+      const device = mockDevice("ready");
+      const cursor = {
+        [Symbol.asyncIterator]: async function*() {
+          yield device;
+        },
+        close: sinon.stub(),
+      };
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
+        }),
+      });
+      findStub.returns({
+        select: () => ({
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
+        }),
+      });
+
+      const notFoundError = new Error("Request failed with status code 404");
+      notFoundError.response = { status: 404 };
+      fetchThingspeakDataStub.rejects(notFoundError);
+
+      await updateRawOnlineStatus();
+
+      expect(deviceModelStub.calledOnce).to.be.true;
+      const bulkWriteArgs = deviceModelStub.firstCall.args[0];
+      const updateOperation = bulkWriteArgs[0].updateOne.update;
+      expect(updateOperation.$set).to.have.property(
+        "channelStatus",
+        "not_found"
+      );
+      expect(updateOperation.$set).to.have.property("channelStatusCheckedAt");
+    });
+
+    it("should skip the ThingSpeak call while channelStatus 'not_found' is within its cooldown", async () => {
+      const device = mockDevice("ready", {
+        channelStatus: "not_found",
+        channelStatusCheckedAt: new Date(),
+      });
+      const cursor = {
+        [Symbol.asyncIterator]: async function*() {
+          yield device;
+        },
+        close: sinon.stub(),
+      };
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
+        }),
+      });
+      findStub.returns({
+        select: () => ({
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
+        }),
+      });
+
+      await updateRawOnlineStatus();
+
+      expect(fetchThingspeakDataStub.called).to.be.false;
+      expect(deviceModelStub.calledOnce).to.be.true;
+      const bulkWriteArgs = deviceModelStub.firstCall.args[0];
+      const updateOperation = bulkWriteArgs[0].updateOne.update;
+      expect(updateOperation.$set).to.not.have.property("channelStatus");
+    });
+
+    it("should not poll ThingSpeak for a decommissioned device that shares a device_number with an active one", async () => {
+      const activeDevice = mockDevice("ready", { _id: "active_id", name: "active_device" });
+      const decommissionedDevice = mockDevice("decommissioned", {
+        _id: "decommissioned_id",
+        name: "decommissioned_device",
+      });
+      const cursor = {
+        [Symbol.asyncIterator]: async function*() {
+          yield activeDevice;
+          yield decommissionedDevice;
+        },
+        close: sinon.stub(),
+      };
+      const findStub = sinon.stub(DeviceModel("airqo"), "find");
+
+      // Simulates the real (unfiltered-by-status) query: it resolves a
+      // readKey for device_number 12345 because the active device shares it.
+      findStub.withArgs({ device_number: { $in: [12345] } }).returns({
+        select: () => ({
+          lean: () =>
+            Promise.resolve([{ device_number: 12345, readKey: "testKey" }]),
+        }),
+      });
+      findStub.returns({
+        select: () => ({
+          lean: () => ({
+            batchSize: () => ({ setOptions: () => ({ cursor: () => cursor }) }),
+          }),
+        }),
+      });
+
+      await updateRawOnlineStatus();
+
+      // Only the active device should ever reach the ThingSpeak fetch.
+      expect(fetchThingspeakDataStub.calledOnce).to.be.true;
+      expect(deviceModelStub.calledOnce).to.be.true;
+      const bulkWriteArgs = deviceModelStub.firstCall.args[0];
+      // processIndividualDevice returns null for the decommissioned device,
+      // so only one bulk op (the active device's) should be written.
+      expect(bulkWriteArgs.length).to.equal(1);
+      expect(bulkWriteArgs[0].updateOne.filter._id).to.equal("active_id");
     });
   });
 });

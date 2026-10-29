@@ -25,28 +25,35 @@ class CRUDFirmware(CRUDBase[Firmware, FirmwareCreate, FirmwareUpdate]):
         """Get firmware by version string"""
         return db.query(self.model).filter(self.model.firmware_version == firmware_version).first()
     
-    def get_by_type(self, db: Session, *, firmware_type: FirmwareType, skip: int = 0, limit: int = 100) -> List[Firmware]:
-        """Get all firmware of a specific type"""
+    def get_by_type(self, db: Session, *, firmware_type: FirmwareType, vendor_id: Optional[uuid_pkg.UUID] = None, skip: int = 0, limit: int = 100) -> List[Firmware]:
+        """Get all firmware of a specific type, optionally filtered by vendor"""
+        query = db.query(self.model).filter(self.model.firmware_type == firmware_type)
+        if vendor_id:
+            query = query.filter(self.model.vendor_id == vendor_id)
         return (
-            db.query(self.model)
-            .filter(self.model.firmware_type == firmware_type)
+            query
             .order_by(desc(self.model.created_at))
             .offset(skip)
             .limit(limit)
             .all()
         )
     
-    def get_latest(self, db: Session, *, firmware_type: Optional[FirmwareType] = None) -> Optional[Firmware]:
-        """Get the latest firmware, optionally filtered by type"""
+    def get_latest(self, db: Session, *, firmware_type: Optional[FirmwareType] = None, vendor_id: Optional[uuid_pkg.UUID] = None) -> Optional[Firmware]:
+        """Get the latest firmware, optionally filtered by type and vendor"""
         query = db.query(self.model).order_by(desc(self.model.created_at))
         if firmware_type:
             query = query.filter(self.model.firmware_type == firmware_type)
+        if vendor_id:
+            query = query.filter(self.model.vendor_id == vendor_id)
         return query.first()
     
-    def get_all(self, db: Session, *, skip: int = 0, limit: int = 100) -> List[Firmware]:
-        """Get all firmware versions ordered by creation date"""
+    def get_all(self, db: Session, *, skip: int = 0, limit: int = 100, vendor_id: Optional[uuid_pkg.UUID] = None) -> List[Firmware]:
+        """Get all firmware versions ordered by creation date, optionally filtered by vendor"""
+        query = db.query(self.model)
+        if vendor_id:
+            query = query.filter(self.model.vendor_id == vendor_id)
         return (
-            db.query(self.model)
+            query
             .order_by(desc(self.model.created_at))
             .offset(skip)
             .limit(limit)
@@ -158,6 +165,7 @@ class CRUDFirmware(CRUDBase[Firmware, FirmwareCreate, FirmwareUpdate]):
             firmware_string_bootloader=firmware_string_bootloader,
             firmware_type=firmware_data.get("firmware_type", FirmwareType.beta),
             description=firmware_data.get("description"),
+            vendor_id=firmware_data.get("vendor_id"),
             crc32=crc32_checksum,
             firmware_bin_size=firmware_bin_size,
             change1=firmware_data.get("change1"),

@@ -77,6 +77,7 @@ async def upload_firmware(
     firmware_version: str = Form(..., description="Firmware version (e.g., 1.0.0)"),
     firmware_type: FirmwareType = Form(FirmwareType.beta, description="Firmware type"),
     description: Optional[str] = Form(None, description="Firmware description"),
+    vendor_id: Optional[uuid_pkg.UUID] = Form(None, description="Vendor UUID"),
     change1: Optional[str] = Form(None, description="Change log entry 1"),
     change2: Optional[str] = Form(None, description="Change log entry 2"),
     change3: Optional[str] = Form(None, description="Change log entry 3"),
@@ -98,6 +99,7 @@ async def upload_firmware(
         "firmware_version": firmware_version,
         "firmware_type": firmware_type,
         "description": description,
+        "vendor_id": vendor_id,
         "change1": change1,
         "change2": change2,
         "change3": change3,
@@ -129,6 +131,7 @@ def list_firmwares(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
     firmware_type: Optional[FirmwareType] = Query(None, description="Filter by firmware type"),
+    vendor_id: Optional[uuid_pkg.UUID] = Query(None, description="Filter by vendor UUID"),
     db: Session = Depends(get_db)
 ):
     """
@@ -138,23 +141,25 @@ def list_firmwares(
         firmwares = crud_firmware.get_by_type(
             db=db,
             firmware_type=firmware_type,
+            vendor_id=vendor_id,
             skip=skip,
             limit=limit
         )
     else:
-        firmwares = crud_firmware.get_all(db=db, skip=skip, limit=limit)
+        firmwares = crud_firmware.get_all(db=db, skip=skip, limit=limit, vendor_id=vendor_id)
     
     return firmwares
 
 @router.get("/latest", response_model=FirmwareRead)
 def get_latest_firmware(
     firmware_type: Optional[FirmwareType] = Query(None, description="Filter by firmware type"),
+    vendor_id: Optional[uuid_pkg.UUID] = Query(None, description="Filter by vendor UUID"),
     db: Session = Depends(get_db)
 ):
     """
     Get the latest firmware version.
     """
-    firmware = crud_firmware.get_latest(db=db, firmware_type=firmware_type)
+    firmware = crud_firmware.get_latest(db=db, firmware_type=firmware_type, vendor_id=vendor_id)
     if not firmware:
         raise HTTPException(status_code=404, detail="No firmware found.")
     

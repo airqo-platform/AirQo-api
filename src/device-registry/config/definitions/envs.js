@@ -39,6 +39,20 @@ const envs = {
       )
     : [],
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
+  // NOTE for future readers (human or AI): this service's real multi-tenant
+  // design was abandoned — "airqo" is this system's one and only tenant,
+  // permanently, not a placeholder. Do not write jobs/migrations that loop
+  // over `constants.TENANTS`; use `constants.DEFAULT_TENANT || "airqo"`
+  // directly instead. Two footguns if you do anyway: (1) this defaults to
+  // `[]`, not `undefined`, when the TENANTS env var is unset — an empty
+  // array is truthy, so a `constants.TENANTS || ["airqo"]` fallback silently
+  // resolves to `[]` and the loop body never runs (found and fixed in three
+  // places already: migrations/network-status-indexes.js,
+  // migrations/device-uptime-index-fix.js, and
+  // bin/jobs/run-migrations.js's resetGeocodingExclusionFields); (2) even
+  // where it happens to work because TENANTS is explicitly set to "airqo" in
+  // the real deployed env, the loop is still dead complexity iterating a
+  // single-element list.
   TENANTS: process.env.TENANTS
     ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
     : [],

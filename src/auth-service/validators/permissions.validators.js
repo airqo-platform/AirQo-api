@@ -45,17 +45,11 @@ const create = [
         return processedValue;
       }),
     body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("network_id should not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .not()
+      .exists()
+      .withMessage(
+        "network_id is no longer supported — permissions are always group-scoped, use group_id",
+      ),
     body("group_id")
       .optional()
       .notEmpty()
@@ -99,16 +93,11 @@ const update = [
       .exists()
       .withMessage("permission should not exist in the request body"),
     body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("network_id should not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .not()
+      .exists()
+      .withMessage(
+        "network_id is no longer supported — permissions are always group-scoped, use group_id",
+      ),
     body("description")
       .optional()
       .notEmpty()

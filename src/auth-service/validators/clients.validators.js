@@ -144,13 +144,12 @@ const update = [
       .bail()
       .isIP()
       .withMessage("Invalid IP address"),
+    // An empty array is allowed on update so a client's IP allowlist can be
+    // cleared; the stored list fully replaces the previous one.
     body("ip_addresses")
       .optional()
       .custom((value) => Array.isArray(value))
-      .withMessage("the ip_addresses should be an array")
-      .bail()
-      .notEmpty()
-      .withMessage("the ip_addresses should not be empty IF provided"),
+      .withMessage("the ip_addresses should be an array"),
     body("ip_addresses.*").isIP().withMessage("Invalid IP address provided"),
     body("redirect_url")
       .optional()

@@ -18,7 +18,7 @@ router.use(headers);
 // Admins (isSystemSuperAdmin) may list across all users via ?user_id=.
 const scopeListToUser = async (req, res, next) => {
   try {
-    const tenant = req.query.tenant || constants.DEFAULT_TENANT;
+    const tenant = req.query.tenant || constants.DEFAULT_TENANT || "airqo";
     const isAdmin = await RBACService.getInstance(tenant).isSystemSuperAdmin(req.user._id);
     if (!isAdmin) req.query.user_id = req.user._id.toString();
     next();
@@ -31,7 +31,7 @@ const scopeListToUser = async (req, res, next) => {
 // Silently overrides any body.user_id supplied by a non-admin.
 const scopeCreateToUser = async (req, res, next) => {
   try {
-    const tenant = req.query.tenant || constants.DEFAULT_TENANT;
+    const tenant = req.query.tenant || constants.DEFAULT_TENANT || "airqo";
     const isAdmin = await RBACService.getInstance(tenant).isSystemSuperAdmin(req.user._id);
     if (!isAdmin) req.body.user_id = req.user._id.toString();
     next();
@@ -45,7 +45,7 @@ const scopeCreateToUser = async (req, res, next) => {
 const requireClientOwnership = async (req, res, next) => {
   try {
     const { user } = req;
-    const tenant = req.query.tenant || constants.DEFAULT_TENANT;
+    const tenant = req.query.tenant || constants.DEFAULT_TENANT || "airqo";
     const { client_id } = req.params;
 
     const isAdmin = await RBACService.getInstance(tenant).isSystemSuperAdmin(user._id);

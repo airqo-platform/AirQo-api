@@ -14,6 +14,9 @@ const logger = log4js.getLogger(
 const opsLogger = log4js.getLogger("ops-alerts");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const { paddleClient, isPaddleConfigured } = require("@config/paddle");
+const {
+  opsAlertDeduplicator,
+} = require("@utils/common/ops-alert-dedup.util");
 
 // Standard response returned by any function that calls Paddle when credentials
 // are not configured. Lets the service start and all non-Paddle endpoints work.
@@ -26,6 +29,42 @@ const PADDLE_NOT_CONFIGURED = {
       "Contact the system administrator.",
   },
   status: httpStatus.SERVICE_UNAVAILABLE,
+};
+
+// Paddle answers "forbidden" when the API key in use has expired, lacks the
+// permission for the requested operation, or belongs to another Paddle account.
+// That is an environment configuration problem, not a server fault, so surface
+// it as 503 with a clear message instead of a generic 500. Clients poll the
+// status endpoint, so the ops alert is cooled down per operation.
+const paddleForbiddenResponse = async (error, operation, tenant) => {
+  if (!error || error.code !== "forbidden") return null;
+  const hint =
+    "check that PADDLE_API_KEY has not expired, has the required permissions " +
+    "and belongs to the same Paddle account and environment " +
+    `(${constants.PADDLE_ENVIRONMENT || "sandbox"}) as the subscription`;
+  logger.warn(`Paddle rejected ${operation.detail} with "forbidden" — ${hint}`);
+  const shouldAlert = await opsAlertDeduplicator.shouldAlert(
+    `paddle-forbidden:${operation.name}`,
+    { tenant },
+  );
+  if (shouldAlert) {
+    opsLogger.error("PADDLE_REQUEST_FORBIDDEN", {
+      environment: constants.ENVIRONMENT,
+      operation: operation.detail,
+      message: error.message,
+      hint,
+    });
+  }
+  return {
+    success: false,
+    message: "The payment provider rejected this request",
+    errors: {
+      message:
+        "Subscription management is temporarily unavailable. " +
+        "Please try again later or contact support.",
+    },
+    status: httpStatus.SERVICE_UNAVAILABLE,
+  };
 };
 
 /**
@@ -143,6 +182,29 @@ const transactions = {
       const responseFromRegisterTransaction = await TransactionModel(
         tenant,
       ).register(creationBody, next);
+
+      // Fallback for the race where two deliveries of the same webhook reach
+      // here concurrently, both passing the earlier existence check in
+      // processWebhook. Match only the exact duplicate-key message that
+      // TransactionModel.register() produces from a Mongo E11000 error (see
+      // models/Transaction.js) — not any validation error that happens to
+      // land on the paddle_transaction_id field (e.g. a missing/invalid id),
+      // which must still surface as a real failure.
+      if (
+        responseFromRegisterTransaction.success === false &&
+        responseFromRegisterTransaction.status === httpStatus.CONFLICT &&
+        responseFromRegisterTransaction.errors?.paddle_transaction_id ===
+          "paddle_transaction_id must be unique"
+      ) {
+        logger.info(
+          `Duplicate webhook delivery for transaction ${paddleEventData.id} — already recorded, acknowledging`,
+        );
+        return {
+          success: true,
+          message: "Event already processed",
+          status: httpStatus.OK,
+        };
+      }
 
       // Log the registration for debugging
       logObject(
@@ -552,13 +614,38 @@ const transactions = {
   sendTransactionCompletionNotification: async (_transactionMetadata) => {
     // Email notification not yet implemented.
   },
-  notifyAdminOfTransactionError: async (error, eventData) => {
-    opsLogger.error("TRANSACTION_COMPLETION_FAILED", {
+  notifyAdminOfTransactionError: async (
+    error,
+    eventData,
+    tenant,
+    alertType = "TRANSACTION_COMPLETION_FAILED",
+  ) => {
+    const transactionId = eventData?.id;
+
+    // A transaction that keeps failing to register (for a reason other than
+    // "already exists") has no persisted row for processWebhook's existence
+    // check to short-circuit on, so Paddle's ~20-25min webhook redelivery
+    // would otherwise re-fire this alert unchanged for hours. Cool down
+    // repeat alerts for the same transaction instead of paging on every retry.
+    // Key on alertType too, so a declined payment's cooldown can't silence a
+    // later completion failure for the same transaction.
+    const shouldAlert = transactionId
+      ? await opsAlertDeduplicator.shouldAlert(
+          `transaction-error:${alertType}:${transactionId}`,
+          { tenant },
+        )
+      : true;
+    if (!shouldAlert) return;
+
+    // Staging (Paddle sandbox) and production alert into the same Slack
+    // channel, so tag the environment to tell them apart.
+    opsLogger.error(alertType, {
+      environment: constants.ENVIRONMENT,
       message: error.message,
-      transactionId: eventData?.id,
+      transactionId,
     });
   },
-  handleFailedTransaction: async (eventData) => {
+  handleFailedTransaction: async (eventData, tenant) => {
     try {
       logObject("Failed Transaction Event", eventData);
 
@@ -578,6 +665,8 @@ const transactions = {
       await transactions.notifyAdminOfTransactionError(
         new Error(`Payment failed for transaction ${eventData.id}`),
         eventData,
+        tenant,
+        "TRANSACTION_PAYMENT_FAILED",
       );
     } catch (error) {
       logger.error("Failed transaction processing error", {
@@ -637,7 +726,7 @@ const transactions = {
       });
 
       // You might want to implement retry logic or send an alert
-      await transactions.notifyAdminOfTransactionError(error, eventData);
+      await transactions.notifyAdminOfTransactionError(error, eventData, tenant);
     }
   },
 
@@ -731,6 +820,31 @@ const transactions = {
         ) / 100,
       };
 
+      // Paddle redelivers a webhook until it receives a 2xx response. If this
+      // transaction was already recorded by an earlier delivery, acknowledge
+      // it immediately — before running any handler — so retries don't
+      // re-trigger business logic (tier/scope updates) or duplicate
+      // ops-alerts (e.g. repeated "payment failed" notifications).
+      if (
+        (event.eventType === "transaction.completed" ||
+          event.eventType === "transaction.payment_failed") &&
+        normalizedTransaction.id
+      ) {
+        const alreadyRecorded = await TransactionModel(tenant).exists({
+          paddle_transaction_id: normalizedTransaction.id,
+        });
+        if (alreadyRecorded) {
+          logger.info(
+            `Duplicate webhook delivery for transaction ${normalizedTransaction.id} — already recorded, acknowledging`,
+          );
+          return {
+            success: true,
+            message: "Event already processed",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
       // Non-transaction events are acknowledged and returned early so
       // transactions.create is never reached for them.
       switch (event.eventType) {
@@ -741,7 +855,10 @@ const transactions = {
           );
           break;
         case "transaction.payment_failed":
-          await transactions.handleFailedTransaction(normalizedTransaction);
+          await transactions.handleFailedTransaction(
+            normalizedTransaction,
+            tenant,
+          );
           break;
         case "subscription.updated":
           await transactions.handleSubscriptionUpdated(event.data, tenant);
@@ -757,6 +874,7 @@ const transactions = {
       );
     } catch (error) {
       opsLogger.warn("webhook-debug", {
+        environment: constants.ENVIRONMENT,
         bodyType: Buffer.isBuffer(request.body) ? "Buffer" : typeof request.body,
         bodyLength: Buffer.isBuffer(request.body)
           ? request.body.length
@@ -1428,15 +1546,15 @@ const transactions = {
    */
   getSubscriptionStatus: async (request) => {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    let freshUser;
+    const tenant =
+      (request.query && request.query.tenant) ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
     try {
-      const tenant =
-        (request.query && request.query.tenant) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
-
       // Re-fetch from DB: request.user is decoded from the JWT and may predate
       // the webhook that wrote currentSubscriptionId onto the user document.
-      const freshUser = await UserModel(tenant)
+      freshUser = await UserModel(tenant)
         .findById(request.user._id)
         .select("currentSubscriptionId subscriptionStatus")
         .lean();
@@ -1473,7 +1591,18 @@ const transactions = {
         },
       };
     } catch (error) {
-      logger.error(`getSubscriptionStatus error --- ${stringify(error)}`);
+      const forbidden = await paddleForbiddenResponse(
+        error,
+        {
+          name: "subscriptions.get",
+          detail: `subscriptions.get for user ${request.user._id}, subscriptionId ${freshUser && freshUser.currentSubscriptionId}`,
+        },
+        tenant,
+      );
+      if (forbidden) return forbidden;
+      logger.error(
+        `getSubscriptionStatus error for user ${request.user._id}, subscriptionId ${freshUser && freshUser.currentSubscriptionId} --- ${stringify(error)}`,
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -1485,11 +1614,11 @@ const transactions = {
 
   changeSubscriptionTier: async (request, next) => {
     if (!isPaddleConfigured) return PADDLE_NOT_CONFIGURED;
+    const tenant =
+      (request.query && request.query.tenant) ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
     try {
-      const tenant =
-        (request.query && request.query.tenant) ||
-        constants.DEFAULT_TENANT ||
-        "airqo";
       const { tier: requestedTier } = request.body;
 
       const TIER_PRICE_MAP = {
@@ -1587,6 +1716,15 @@ const transactions = {
         },
       };
     } catch (error) {
+      const forbidden = await paddleForbiddenResponse(
+        error,
+        {
+          name: "subscriptions.update",
+          detail: `subscriptions.update (change tier) for user ${request.user._id}`,
+        },
+        tenant,
+      );
+      if (forbidden) return forbidden;
       logger.error(`changeSubscriptionTier error --- ${stringify(error)}`);
       return {
         success: false,

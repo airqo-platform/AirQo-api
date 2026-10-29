@@ -19,6 +19,12 @@ router.post(
   siteController.findNearestLocations
 );
 
+router.post(
+  "/routes/directions",
+  metadataValidations.findRouteDirections,
+  siteController.findRouteDirections
+);
+
 router.get(
   "/sites",
   metadataValidations.listSites,

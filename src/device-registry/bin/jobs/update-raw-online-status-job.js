@@ -5,6 +5,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/update-raw-online-status-job`,
 );
 const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const SiteModel = require("@models/Site");
 const createFeedUtil = require("@utils/feed.util");
 const { getNetworkAdapter } = require("@utils/network.util");
@@ -21,6 +22,10 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes grace period for future fe
 const BATCH_SIZE = 50; // Reduced for better yielding
 const MAX_EXECUTION_TIME = 10 * 60 * 1000; // 10 minutes max execution
 const YIELD_INTERVAL = 5; // Yield every 5 operations
+// How long to skip re-polling a channel after it 404s (deleted upstream)
+// before trying again — bounds both wasted requests and repeat alerts to
+// once a day per device while still auto-healing if the channel returns.
+const CHANNEL_NOT_FOUND_RECHECK_MS = 24 * 60 * 60 * 1000;
 
 const JOB_NAME = "update-raw-online-status-job";
 const JOB_SCHEDULE = "35 * * * *"; // At minute 35 of every hour
@@ -191,15 +196,22 @@ const mockNext = (error) => {
   logger.error(`Error passed to mock 'next' function in job: ${error.message}`);
 };
 
-const processDeviceBatch = async (devices, processor) => {
+const processDeviceBatch = async (devices, processor, uptimeSampleSink) => {
   const CONCURRENCY_LIMIT = 5; // Reduced from 8 to prevent overwhelming ThingSpeak
 
   // 1. Get device numbers for airqo devices only — ThingSpeak channels only
   // exist for network="airqo". Other networks (airgradient, iqair, etc.) store
   // their manufacturer location/serial ID in device_number but have no ThingSpeak
-  // channel, so including them here produces wasted DB look-ups.
+  // channel, so including them here produces wasted DB look-ups. Decommissioned
+  // devices are permanently retired — polling their (possibly deleted) channel
+  // serves no purpose.
   const deviceNumbers = devices
-    .filter((d) => d.network === "airqo" && d.device_number)
+    .filter(
+      (d) =>
+        d.network === "airqo" &&
+        d.device_number &&
+        d.status !== "decommissioned",
+    )
     .map((d) => d.device_number);
 
   // 2. Fetch all necessary device details in a single query with timeout
@@ -279,6 +291,40 @@ const processDeviceBatch = async (devices, processor) => {
 
     // Perform bulk write for STATUS updates (no conditional PM2.5 filter)
     const bulkOps = batchResult.results.filter(Boolean);
+
+    // Record each device's just-computed raw online/offline status, keyed by
+    // network, into the caller-owned sink (flushed periodically across the
+    // whole job run — see updateRawOnlineStatus). This is the ONE place in
+    // the codebase that checks every device's live status regardless of
+    // network — via ThingSpeak for "airqo" devices, via the network
+    // adapter's online_check_via_feed for external manufacturers
+    // (AirGradient, IQAir, etc.), and via stale-data fallback otherwise — so
+    // it is what makes online-status data (and therefore the leaderboard/
+    // verified-partner status) exist for non-AirQo networks at all, not just
+    // "airqo". Read back from the already-built bulkOps rather than
+    // threading a new field through every return branch above, so the
+    // online/offline determination logic itself is untouched — this only
+    // observes its output.
+    if (constants.ENABLE_ONLINE_STATUS_UPTIME_SAMPLING && uptimeSampleSink) {
+      const deviceById = new Map(chunk.map((d) => [String(d._id), d]));
+      bulkOps.forEach((op) => {
+        const device = deviceById.get(String(op.updateOne.filter._id));
+        const rawOnlineStatus = op.updateOne.update?.$set?.rawOnlineStatus;
+        if (!device || !device.name || rawOnlineStatus === undefined) {
+          return;
+        }
+        uptimeSampleSink.push({
+          created_at: new Date(),
+          device_name: device.name,
+          network: device.network,
+          channel_id: device.device_number || undefined,
+          uptime: rawOnlineStatus ? 100 : 0,
+          downtime: rawOnlineStatus ? 0 : 100,
+          status: rawOnlineStatus ? "online" : "offline",
+        });
+      });
+    }
+
     if (bulkOps.length > 0) {
       try {
         const BULK_TIMEOUT = 15000; // 15 seconds
@@ -351,6 +397,33 @@ const processDeviceBatch = async (devices, processor) => {
   }
 };
 
+// Flushes accumulated uptime samples in one insertMany. Non-fatal and
+// best-effort by design: a slow/failed insert here never blocks or fails the
+// actual device status update above — it only means those samples are
+// missing from the uptime leaderboard/verification data. Logged at `warn`,
+// not `error`, precisely because it's a known-non-critical write; the
+// underlying database health should be judged on the primary status-update
+// writes (DeviceModel/SiteModel bulkWrite), not on this one.
+const flushUptimeSamples = async (samples) => {
+  if (!samples || samples.length === 0) return;
+  try {
+    const BULK_TIMEOUT = 15000;
+    await Promise.race([
+      DeviceUptimeModel("airqo").insertMany(samples, { ordered: false }),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Uptime sample insert timeout")),
+          BULK_TIMEOUT,
+        ),
+      ),
+    ]);
+  } catch (error) {
+    logger.warn(
+      `Uptime sample insert error (${samples.length} sample(s) dropped): ${error.message}`,
+    );
+  }
+};
+
 // Builds the rawOnlineStatus bulk-write op for a site driven by a primary device.
 // Returns a single updateOne op object, or null only when the device itself is
 // ineligible (missing site_id or isPrimaryInLocation is false).
@@ -417,6 +490,16 @@ const processIndividualDevice = async (
   deviceDetailsMap,
   siteDataMap,
 ) => {
+  // Decommissioned devices are permanently retired — never poll their channel.
+  // Checked here (not just filtered out of deviceNumbers upstream) because
+  // deviceDetailsMap is keyed by device_number, not device _id: if a
+  // decommissioned device shares a device_number with an active one,
+  // deviceDetailsMap would still resolve a readKey for it via the active
+  // device's entry, letting it slip through to the ThingSpeak path.
+  if (device.status === "decommissioned") {
+    return null;
+  }
+
   // ============================================================================
   // PRE-CHECK: Evaluate existing lastRawData to detect stale data
   // This ensures we mark devices offline even if ThingSpeak fetch fails
@@ -697,6 +780,62 @@ const processIndividualDevice = async (
     return null;
   }
 
+  // Skip devices whose channel recently 404'd (deleted upstream) — no point
+  // re-hitting a channel we already know is gone. Falls through to the
+  // stale-data logic below (same treatment as "no readKey") once the flag
+  // goes stale, so a restored channel is picked back up automatically.
+  if (
+    device.channelStatus === "not_found" &&
+    device.channelStatusCheckedAt &&
+    Date.now() - new Date(device.channelStatusCheckedAt).getTime() <
+      CHANNEL_NOT_FOUND_RECHECK_MS
+  ) {
+    const isCurrentlyRawOnline = device.rawOnlineStatus;
+    const isNowRawOnline = hasExistingRawData
+      ? !shouldMarkOfflineFromStaleData
+      : false;
+
+    const { setUpdate, incUpdate } = getUptimeAccuracyUpdateObject({
+      isCurrentlyOnline: isCurrentlyRawOnline,
+      isNowOnline: isNowRawOnline,
+      currentStats: device.onlineStatusAccuracy,
+      reason: "channel_not_found_cooldown",
+    });
+
+    const updateFields = { rawOnlineStatus: isNowRawOnline };
+    if (
+      STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
+      isDeviceActuallyMobile(device)
+    ) {
+      updateFields.isOnline = isNowRawOnline;
+    }
+
+    const finalSetUpdate = { ...updateFields, ...setUpdate };
+    const updateDoc = { $set: finalSetUpdate };
+    if (incUpdate) {
+      updateDoc.$inc = incUpdate;
+    }
+
+    const siteUpdates = [];
+    const siteStatusOp = buildSiteStatusUpdate(
+      device,
+      siteDataMap,
+      isNowRawOnline,
+      null,
+    );
+    if (siteStatusOp) siteUpdates.push(siteStatusOp);
+
+    return {
+      deviceUpdate: {
+        updateOne: {
+          filter: { _id: device._id },
+          update: updateDoc,
+        },
+      },
+      siteUpdates,
+    };
+  }
+
   let apiKey;
   try {
     const decryptResponse = await createDeviceUtil.decryptKey(
@@ -744,7 +883,13 @@ const processIndividualDevice = async (
     let isRawOnline = false;
     let lastFeedTime = null;
     let latestRawPm25 = null;
-    let updateFields = {};
+    // A successful fetch (no 404 thrown) proves the channel exists again —
+    // clear any earlier "not_found" flag so the cooldown skip above stops
+    // applying.
+    let updateFields =
+      device.channelStatus === "not_found"
+        ? { channelStatus: null, channelStatusCheckedAt: null }
+        : {};
     const dateValidStatus =
       thingspeakData && thingspeakData.feeds && thingspeakData.feeds[0]
         ? classifyFeedTimestamp(thingspeakData.feeds[0].created_at)
@@ -916,15 +1061,29 @@ const processIndividualDevice = async (
       siteUpdates: siteUpdates,
     };
   } catch (error) {
-    logger.error(
-      `Error processing raw status for device ${device.name}: ${error.message}`,
-    );
+    // A 404 here means ThingSpeak has no such channel — almost always a
+    // deleted channel, a known/diagnosed condition rather than a transient
+    // fault. Route it through the dedup logger (demoted, deduplicated) and
+    // flag the device so subsequent runs skip re-polling it for a while,
+    // instead of re-alerting at error level every hour indefinitely.
+    const isChannelNotFound = error.response && error.response.status === 404;
+    if (isChannelNotFound) {
+      (global.dedupLogger || logger).warn(
+        `Channel not found (404) for device ${device.name} (channel ${device.device_number}); ` +
+          `flagging channelStatus=not_found and suppressing re-polls for 24h.`,
+      );
+    } else {
+      logger.error(
+        `Error processing raw status for device ${device.name}: ${error.message}`,
+      );
+    }
     return createFailureUpdate(
       device,
-      "fetch_error",
+      isChannelNotFound ? "channel_not_found" : "fetch_error",
       shouldMarkOfflineFromStaleData,
       hasExistingRawData,
       siteDataMap,
+      isChannelNotFound,
     );
   }
 };
@@ -936,6 +1095,7 @@ const createFailureUpdate = (
   shouldMarkOfflineFromStaleData = false,
   hasExistingRawData = false,
   siteDataMap = null,
+  markChannelNotFound = false,
 ) => {
   const isCurrentlyRawOnline = device.rawOnlineStatus;
   // Use stale data check to determine if should be offline
@@ -953,6 +1113,11 @@ const createFailureUpdate = (
   const updateFields = {
     rawOnlineStatus: isNowRawOnline,
   };
+
+  if (markChannelNotFound) {
+    updateFields.channelStatus = "not_found";
+    updateFields.channelStatusCheckedAt = new Date();
+  }
 
   if (
     STATUSES_FOR_PRIMARY_UPDATE.includes(device.status) ||
@@ -1018,20 +1183,39 @@ const updateRawOnlineStatus = async () => {
     const countLog = totalDevices > 0 ? `~${totalDevices}` : "all";
     logText(`Found ${countLog} devices to process in batches of ${BATCH_SIZE}`);
 
-    // Use cursor with smaller memory footprint
+    // Use cursor with smaller memory footprint. noCursorTimeout is required
+    // because processing a single batch (ThingSpeak/external-API fetches at
+    // concurrency 5, each up to 30s) can exceed MongoDB's default idle-cursor
+    // timeout between getMore calls, which otherwise kills the cursor mid-run
+    // ("cursor id ... not found"). Safe here since the cursor is always
+    // closed in the finally block below regardless of how the loop exits.
     const cursor = DeviceModel("airqo")
       .find({})
       .select(
-        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired",
+        "_id name device_number status isOnline rawOnlineStatus lastRawData onlineStatusAccuracy mobility deployment_type grid_id site_id isPrimaryInLocation network api_code access_code authRequired channelStatus channelStatusCheckedAt",
       )
       .lean()
       .batchSize(BATCH_SIZE) // Add batch size for cursor
+      .setOptions({ noCursorTimeout: true })
       .cursor();
 
     let batch = [];
     let totalProcessed = 0;
     let errorCount = 0;
     const MAX_ERRORS = 50; // Stop if too many errors
+
+    // Uptime samples accumulate here across every batch in this run and are
+    // flushed periodically (not per-batch) — for a fleet of a few thousand
+    // devices that cuts DB round trips for this write from ~1 per 50 devices
+    // down to ~1 per 1000, which matters a lot more now that this job checks
+    // every device every hour instead of a narrow subset every 2h.
+    const pendingUptimeSamples = [];
+    const UPTIME_SAMPLE_FLUSH_THRESHOLD = 1000;
+    const maybeFlushUptimeSamples = async () => {
+      if (pendingUptimeSamples.length < UPTIME_SAMPLE_FLUSH_THRESHOLD) return;
+      const toFlush = pendingUptimeSamples.splice(0);
+      await flushUptimeSamples(toFlush);
+    };
 
     try {
       for await (const device of cursor) {
@@ -1044,7 +1228,7 @@ const updateRawOnlineStatus = async () => {
 
         if (batch.length >= BATCH_SIZE) {
           try {
-            await processDeviceBatch(batch, processor);
+            await processDeviceBatch(batch, processor, pendingUptimeSamples);
             totalProcessed += batch.length;
 
             logText(
@@ -1067,6 +1251,7 @@ const updateRawOnlineStatus = async () => {
           }
 
           batch = [];
+          await maybeFlushUptimeSamples();
 
           // Yield between batches to prevent blocking
           await processor.yieldControl();
@@ -1077,17 +1262,32 @@ const updateRawOnlineStatus = async () => {
       }
     } finally {
       await cursor.close();
-    }
 
-    // Process the final batch if it's not empty
-    if (batch.length > 0 && !processor.shouldStopExecution()) {
+      // Handle the final (possibly partial) batch and flush any pending
+      // uptime samples here, inside the finally, so both still run even if
+      // cursor iteration above threw — otherwise an error mid-stream would
+      // discard up to UPTIME_SAMPLE_FLUSH_THRESHOLD-1 collected samples
+      // when it propagates. Same effective position/order as before on the
+      // success path; this only adds coverage for the error path. Own
+      // try/catch so a failure here can't mask an original error that's
+      // already propagating out of the try block above.
       try {
-        await processDeviceBatch(batch, processor);
-        totalProcessed += batch.length;
-        logText(`Final batch processed. Total: ${totalProcessed}`);
-      } catch (finalBatchError) {
+        if (batch.length > 0 && !processor.shouldStopExecution()) {
+          try {
+            await processDeviceBatch(batch, processor, pendingUptimeSamples);
+            totalProcessed += batch.length;
+            logText(`Final batch processed. Total: ${totalProcessed}`);
+          } catch (finalBatchError) {
+            logger.error(
+              `Final batch processing error: ${finalBatchError.message}`,
+            );
+          }
+        }
+
+        await flushUptimeSamples(pendingUptimeSamples.splice(0));
+      } catch (cleanupError) {
         logger.error(
-          `Final batch processing error: ${finalBatchError.message}`,
+          `Error finalizing batch/uptime-sample flush: ${cleanupError.message}`,
         );
       }
     }

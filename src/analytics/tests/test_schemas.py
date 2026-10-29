@@ -1,0 +1,688 @@
+"""
+Tests for Pydantic request schema validation.
+
+Focuses on the boundary conditions: what should be accepted, what must be
+rejected, and which error messages are produced.  No external I/O required.
+"""
+
+from __future__ import annotations
+
+import pytest
+from datetime import datetime, timedelta, timezone
+from pydantic import ValidationError
+
+from api.schemas.requests import (
+    DailyAveragesRequest,
+    DataExportRequest,
+    DataSummaryRequest,
+    DashboardChartRequest,
+    DeviceDailyAveragesRequest,
+    DeviceExceedancesRequest,
+    ExceedancesRequest,
+    ForecastDataExportRequest,
+    AirQualityReportRequest,
+    RawDataExportRequest,
+    ScheduledExportRequest,
+    Network,
+    DeviceCategory,
+    Frequency,
+    ChartType,
+)
+
+
+def _past(days: int = 7) -> str:
+    return (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
+
+
+def _now() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+def _future(days: int = 1) -> str:
+    return (datetime.now(tz=timezone.utc) + timedelta(days=days)).isoformat()
+
+
+def _span(days: int) -> tuple:
+    """Start and end strings exactly ``days`` apart, taken from one instant."""
+    end = datetime.now(tz=timezone.utc)
+    return (end - timedelta(days=days)).isoformat(), end.isoformat()
+
+
+BASE = {
+    "startDateTime": _past(7),
+    "endDateTime": _now(),
+    "network": "airqo",
+    "device_category": "lowcost",
+    "pollutants": ["pm2_5"],
+    "sites": ["site1"],
+    "frequency": "daily",
+}
+
+
+class TestDataExportRequestValid:
+    def test_accepts_device_names_filter(self):
+        payload = {**BASE, "sites": None, "device_names": ["sensor-01"]}
+        req = DataExportRequest(**payload)
+        assert req.device_names == ["sensor-01"]
+
+    def test_output_format_aqcsv(self):
+        req = DataExportRequest(**{**BASE, "outputFormat": "aqcsv"})
+        assert req.output_format == "aqcsv"
+
+
+class TestDataExportRequestInvalid:
+    def test_start_in_future_rejected(self):
+        with pytest.raises(ValidationError) as exc:
+            DataExportRequest(
+                **{**BASE, "startDateTime": _future(1), "endDateTime": _future(2)}
+            )
+        assert "future" in str(exc.value).lower()
+
+    def test_no_filter_rejected(self):
+        payload = {**BASE, "sites": None}
+        with pytest.raises(ValidationError) as exc:
+            DataExportRequest(**payload)
+        assert (
+            "exactly one" in str(exc.value).lower()
+            or "provide" in str(exc.value).lower()
+        )
+
+    def test_oversized_date_range_rejected(self):
+        """An unbounded window is a full scan of a partitioned table, billable
+        and reachable unauthenticated on v3."""
+        from config import settings
+
+        payload = {
+            **BASE,
+            "startDateTime": _past(settings.max_query_days + 10),
+            "endDateTime": _now(),
+        }
+        with pytest.raises(ValidationError) as exc:
+            DataExportRequest(**payload)
+        assert "must not exceed" in str(exc.value)
+
+    def test_date_range_at_the_cap_is_accepted(self):
+        from config import settings
+
+        start, end = _span(settings.max_query_days)
+        payload = {**BASE, "startDateTime": start, "endDateTime": end}
+        assert DataExportRequest(**payload) is not None
+
+    @pytest.mark.parametrize(
+        "model,frequency,limit",
+        [(RawDataExportRequest, "raw", 31), (DataExportRequest, "hourly", 90)],
+    )
+    def test_raw_and_hourly_use_their_own_limits(self, model, frequency, limit):
+        """Pinned as literals on purpose, because the README states these
+        defaults of MAX_RAW_QUERY_DAYS and MAX_HOURLY_QUERY_DAYS."""
+        base = {**BASE, "frequency": frequency, "datatype": "raw"}
+
+        start, end = _span(limit)
+        at_limit = model(**{**base, "startDateTime": start, "endDateTime": end})
+        assert at_limit.frequency == frequency
+
+        with pytest.raises(ValidationError):
+            model(**{**base, "startDateTime": _past(limit + 1), "endDateTime": _now()})
+
+    def test_limit_counts_the_full_span(self):
+        """A window of the limit plus one hour is rejected."""
+        from config import settings
+
+        limit = settings.hourly_query_days()
+        end = datetime.now(tz=timezone.utc)
+        start = end - timedelta(days=limit, hours=1)
+        with pytest.raises(ValidationError):
+            DataExportRequest(
+                **{
+                    **BASE,
+                    "frequency": "hourly",
+                    "datatype": "raw",
+                    "startDateTime": start.isoformat(),
+                    "endDateTime": end.isoformat(),
+                }
+            )
+
+    def test_mixed_naive_and_aware_window_is_checked(self):
+        """A naive start with an aware end reaches the day count as one pair."""
+        with pytest.raises(ValidationError):
+            DataExportRequest(
+                **{
+                    **BASE,
+                    "frequency": "hourly",
+                    "startDateTime": "2026-01-01T00:00:00",
+                    "endDateTime": "2026-06-01T00:00:00+00:00",
+                }
+            )
+
+    def test_daily_default_uses_max_query_days(self):
+        """A request that sends no frequency takes the daily default and the
+        MAX_QUERY_DAYS limit."""
+        from config import settings
+
+        payload = {k: v for k, v in BASE.items() if k != "frequency"}
+
+        start, end = _span(settings.max_query_days)
+        req = DataExportRequest(
+            **{**payload, "startDateTime": start, "endDateTime": end}
+        )
+        assert req.frequency == Frequency.DAILY
+
+        with pytest.raises(ValidationError):
+            DataExportRequest(
+                **{
+                    **payload,
+                    "startDateTime": _past(settings.max_query_days + 1),
+                    "endDateTime": _now(),
+                }
+            )
+
+    def test_frequency_rules_are_checked_before_the_window(self):
+        """A request with an invalid frequency is rejected before its window
+        is checked, so the caller sees the frequency error first."""
+        from unittest.mock import patch
+        from config import settings
+
+        with patch("api.schemas.requests._check_window_limit") as window_check:
+            with pytest.raises(ValidationError):
+                DataExportRequest(
+                    **{
+                        **BASE,
+                        "frequency": "raw",
+                        "datatype": "calibrated",
+                        "startDateTime": _past(settings.max_query_days + 1),
+                        "endDateTime": _now(),
+                    }
+                )
+
+        window_check.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "changes,offered",
+        [
+            ({"frequency": "hourly"}, True),
+            ({"frequency": "daily"}, False),
+        ],
+    )
+    def test_offers_coarser_frequency(self, changes, offered):
+        """A download offers a coarser frequency when its frequency is hourly."""
+        assert (
+            DataExportRequest(**{**BASE, **changes}).offers_coarser_frequency()
+            is offered
+        )
+
+    def test_raw_data_request_offers_no_coarser_frequency(self):
+        payload = {k: v for k, v in BASE.items() if k != "frequency"}
+        assert RawDataExportRequest(**payload).offers_coarser_frequency() is False
+
+    def test_hourly_limit_never_exceeds_max_query_days(self, monkeypatch):
+        """A MAX_HOURLY_QUERY_DAYS above MAX_QUERY_DAYS is clamped, so hourly
+        requests never span more days than daily requests."""
+        from config import settings
+
+        monkeypatch.setattr(settings, "max_hourly_query_days", 1000)
+        monkeypatch.setattr(settings, "max_query_days", 365)
+
+        assert settings.hourly_query_days() == 365
+        with pytest.raises(ValidationError):
+            DataExportRequest(
+                **{
+                    **BASE,
+                    "frequency": "hourly",
+                    "startDateTime": _past(366),
+                    "endDateTime": _now(),
+                }
+            )
+
+    @pytest.mark.parametrize(
+        "setting,accessor",
+        [
+            ("max_raw_query_days", "raw_query_days"),
+            ("max_aggregation_query_days", "aggregation_query_days"),
+        ],
+    )
+    def test_raw_and_aggregation_limits_never_exceed_max_query_days(
+        self, monkeypatch, setting, accessor
+    ):
+        """A MAX_RAW_QUERY_DAYS or MAX_AGGREGATION_QUERY_DAYS above
+        MAX_QUERY_DAYS is clamped."""
+        from config import settings
+
+        monkeypatch.setattr(settings, setting, 1000)
+        monkeypatch.setattr(settings, "max_query_days", 365)
+
+        assert getattr(settings, accessor)() == 365
+
+    def test_oversized_filter_list_rejected(self):
+        from config import settings
+
+        payload = {
+            **BASE,
+            "sites": [f"s{i}" for i in range(settings.max_filter_values + 1)],
+        }
+        with pytest.raises(ValidationError) as exc:
+            DataExportRequest(**payload)
+        assert "must not exceed" in str(exc.value)
+
+    def test_filter_list_at_the_cap_is_accepted(self):
+        from config import settings
+
+        payload = {
+            **BASE,
+            "sites": [f"s{i}" for i in range(settings.max_filter_values)],
+        }
+        assert DataExportRequest(**payload) is not None
+
+    def test_multiple_grid_ids_rejected(self):
+        """Capped to one grid per request for now (grids can contain many
+        devices) — TODO in the schema: remove after reviewing grid sizes."""
+        payload = {**BASE, "sites": None, "grid_ids": ["g1", "g2"]}
+        with pytest.raises(ValidationError) as exc:
+            DataExportRequest(**payload)
+        assert "one grid" in str(exc.value).lower()
+
+    def test_invalid_pollutant_rejected(self):
+        with pytest.raises(ValidationError):
+            DataExportRequest(**{**BASE, "pollutants": ["no2"]})
+
+    def test_invalid_frequency_rejected(self):
+        with pytest.raises(ValidationError):
+            DataExportRequest(**{**BASE, "frequency": "quarterly"})
+
+
+class TestRawDataExportRequest:
+    def test_valid_raw_request(self):
+        req = RawDataExportRequest(
+            startDateTime=_past(3),
+            endDateTime=_now(),
+            network="airqo",
+            device_category="lowcost",
+            pollutants=["pm2_5"],
+            sites=["site1"],
+        )
+        assert req.frequency == "raw"
+        assert req.datatype == "raw"
+
+    def test_window_limited_to_raw_query_days(self):
+        """The raw-data request carries the MAX_RAW_QUERY_DAYS limit."""
+        from config import settings
+
+        limit = settings.raw_query_days()
+        body = {
+            "network": "airqo",
+            "device_category": "lowcost",
+            "pollutants": ["pm2_5"],
+            "sites": ["site1"],
+        }
+        start, end = _span(limit)
+        assert RawDataExportRequest(startDateTime=start, endDateTime=end, **body)
+        with pytest.raises(ValidationError):
+            RawDataExportRequest(
+                startDateTime=_past(limit + 1), endDateTime=_now(), **body
+            )
+
+    def test_sql_injection_in_site_id_is_just_a_string(self):
+        """Site IDs with SQL-like content must be accepted by Pydantic
+        (sanitisation happens at the BigQuery parameterized-query layer).
+        The schema must NOT reject them with a 422 — that would leak
+        implementation details."""
+        req = RawDataExportRequest(
+            startDateTime=_past(1),
+            endDateTime=_now(),
+            network="airqo",
+            device_category="lowcost",
+            pollutants=["pm2_5"],
+            sites=["site1'; DROP TABLE sites; --"],
+        )
+        assert req.sites is not None
+
+
+class TestDownloadPollutants:
+    @pytest.mark.parametrize("model", [DataExportRequest, RawDataExportRequest])
+    @pytest.mark.parametrize("pollutants", [None, []])
+    def test_at_least_one_pollutant_required(self, model, pollutants):
+        body = {k: v for k, v in BASE.items() if k not in ("pollutants", "frequency")}
+        if pollutants is not None:
+            body["pollutants"] = pollutants
+        with pytest.raises(ValidationError) as exc:
+            model(**body)
+        assert [error["loc"] for error in exc.value.errors()] == [("pollutants",)]
+
+    @pytest.mark.parametrize(
+        "model,overrides,valid",
+        [
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5"]},
+                True,
+            ),
+            (
+                RawDataExportRequest,
+                {"device_category": "bam", "pollutants": ["pm2_5", "pm10"]},
+                False,
+            ),
+            (
+                DataExportRequest,
+                {
+                    "device_category": "bam",
+                    "frequency": "hourly",
+                    "pollutants": ["pm2_5", "pm10"],
+                },
+                True,
+            ),
+        ],
+    )
+    def test_pollutants_follow_the_requested_data(self, model, overrides, valid):
+        """
+        The requested data decides which pollutants a download request accepts.
+        """
+        body = {k: v for k, v in BASE.items() if k != "frequency"}
+        body.update(overrides)
+        if valid:
+            assert model(**body).pollutants == overrides["pollutants"]
+        else:
+            with pytest.raises(ValidationError) as exc:
+                model(**body)
+            assert [error["type"] for error in exc.value.errors()] == ["value_error"]
+
+
+class TestDashboardChartRequest:
+    def test_invalid_chart_type_rejected(self):
+        with pytest.raises(ValidationError):
+            DashboardChartRequest(
+                startDateTime=_past(7),
+                endDateTime=_now(),
+                network="airqo",
+                device_category="lowcost",
+                pollutants=["pm2_5"],
+                sites=["site1"],
+                frequency="daily",
+                chartType="radar",  # not in enum
+            )
+
+
+class TestAirQualityReportRequest:
+    """The report body: snake_case keys, window non-zero and within
+    MAX_AGGREGATION_QUERY_DAYS. The entity is chosen in the body — exactly one of
+    grid_id / cohort_id."""
+
+    def test_mixed_naive_aware_datetimes_normalised(self):
+        """A naive start with an aware end must not TypeError in validation."""
+        req = AirQualityReportRequest(
+            grid_id="g",
+            start_time="2024-01-01T00:00:00",
+            end_time="2024-02-01T00:00:00+00:00",
+        )
+        assert req.start_time.tzinfo is not None
+
+
+class TestDashboardAggregationRequests:
+    """Wire contract from the Flask dashboard endpoints: singular pollutant,
+    startDate/endDate aliases, plain sites/devices lists."""
+
+    _WINDOW = {
+        "startDate": "2024-01-01T00:00:00.000000Z",
+        "endDate": "2024-02-01T00:00:00.000000Z",
+    }
+
+    def test_daily_averages_accepts_flask_pollutants(self):
+        for pollutant in ("pm2_5", "pm10", "no2", "pm1"):
+            DailyAveragesRequest(pollutant=pollutant, sites=["s1"], **self._WINDOW)
+
+    def test_daily_averages_invalid_pollutant_rejected(self):
+        with pytest.raises(ValidationError):
+            DailyAveragesRequest(pollutant="so2", sites=["s1"], **self._WINDOW)
+
+    def test_daily_averages_empty_sites_rejected(self):
+        """Flask 500'd on an empty list inside the privacy helper — now a 422."""
+        with pytest.raises(ValidationError):
+            DailyAveragesRequest(pollutant="pm2_5", sites=[], **self._WINDOW)
+
+    def test_device_daily_averages_uses_devices_key(self):
+        req = DeviceDailyAveragesRequest(
+            pollutant="pm10", devices=["d1"], **self._WINDOW
+        )
+        assert req.devices == ["d1"]
+
+    def test_exceedances_standard_lowercased(self):
+        req = ExceedancesRequest(
+            pollutant="pm2_5", standard="WHO", sites=["s1"], **self._WINDOW
+        )
+        assert req.standard == "who"
+
+    def test_exceedances_unknown_standard_rejected(self):
+        with pytest.raises(ValidationError):
+            ExceedancesRequest(
+                pollutant="pm2_5", standard="epa", sites=["s1"], **self._WINDOW
+            )
+
+    def test_exceedances_pollutant_narrowed_to_standards_mapping(self):
+        """no2/pm1 have no exceedance bands — Flask raised KeyError (500)."""
+        with pytest.raises(ValidationError):
+            ExceedancesRequest(
+                pollutant="no2", standard="aqi", sites=["s1"], **self._WINDOW
+            )
+
+    def test_device_exceedances_uses_devices_key(self):
+        req = DeviceExceedancesRequest(
+            pollutant="pm10", standard="who", devices=["d1"], **self._WINDOW
+        )
+        assert req.devices == ["d1"]
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda w: DailyAveragesRequest(pollutant="pm2_5", sites=["s1"], **w),
+            lambda w: DeviceDailyAveragesRequest(
+                pollutant="pm2_5", devices=["d1"], **w
+            ),
+            lambda w: ExceedancesRequest(
+                pollutant="pm2_5", standard="aqi", sites=["s1"], **w
+            ),
+            lambda w: DeviceExceedancesRequest(
+                pollutant="pm2_5", standard="aqi", devices=["d1"], **w
+            ),
+        ],
+    )
+    def test_window_limited_to_aggregation_query_days(self, build):
+        """Each dashboard aggregation request carries the
+        MAX_AGGREGATION_QUERY_DAYS limit."""
+        from config import settings
+
+        limit = settings.aggregation_query_days()
+        start, end = _span(limit)
+        assert build({"startDate": start, "endDate": end})
+        with pytest.raises(ValidationError):
+            build({"startDate": _past(limit + 1), "endDate": _now()})
+
+    def test_mixed_naive_and_aware_window_is_checked(self):
+        """A naive start with an aware end reaches the day count as one pair."""
+        with pytest.raises(ValidationError):
+            DailyAveragesRequest(
+                pollutant="pm2_5",
+                sites=["s1"],
+                startDate="2024-01-01T00:00:00",
+                endDate="2024-03-01T00:00:00+00:00",
+            )
+
+
+class TestForecastDataExportRequest:
+    def _window(self, days: int) -> dict:
+        start, end = _span(days)
+        return {"startDateTime": start, "endDateTime": end, "country": "ug"}
+
+    def test_window_limited_to_aggregation_query_days(self):
+        from api.schemas.requests import ForecastDataExportRequest
+        from config import settings
+
+        limit = settings.aggregation_query_days()
+        assert ForecastDataExportRequest(**self._window(limit))
+        with pytest.raises(ValidationError):
+            ForecastDataExportRequest(**self._window(limit + 1))
+
+    def test_mixed_naive_and_aware_window_is_checked(self):
+        from api.schemas.requests import ForecastDataExportRequest
+
+        with pytest.raises(ValidationError):
+            ForecastDataExportRequest(
+                startDateTime="2024-01-01T00:00:00",
+                endDateTime="2024-03-01T00:00:00+00:00",
+                country="ug",
+            )
+
+
+class TestDataSummaryRequest:
+    _WINDOW = {
+        "start_time": "2024-01-01T00:00:00",
+        "end_time": "2024-01-05T00:00:00",
+    }
+
+    def test_whitespace_entity_treated_as_absent(self):
+        """Flask treated '' as absent via .strip() — preserve."""
+        from api.schemas.requests import DataSummaryRequest
+
+        req = DataSummaryRequest(**self._WINDOW, grid_id="  ", cohort_id="c1")
+        assert req.entity() == ("cohort", "c1")
+
+    def test_mixed_naive_and_aware_window_is_checked(self):
+        from api.schemas.requests import DataSummaryRequest
+
+        with pytest.raises(ValidationError):
+            DataSummaryRequest(
+                start_time="2024-01-01T00:00:00",
+                end_time="2024-03-01T00:00:00+00:00",
+                grid_id="g1",
+            )
+
+    def test_body_matches_the_report_request(self):
+        """/summary and /report take the same window and entity keys."""
+        from api.schemas.requests import (
+            AirQualityReportRequest,
+            DataSummaryRequest,
+        )
+
+        shared = {"start_time", "end_time", "grid_id", "cohort_id"}
+        assert shared <= set(DataSummaryRequest.model_fields)
+        assert shared <= set(AirQualityReportRequest.model_fields)
+
+
+class TestScheduledExportRequest:
+    def _payload(self, **overrides):
+        payload = {
+            **BASE,
+            "userId": "user-1",
+            "frequency": "hourly",
+            "exportFormat": "csv",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_weekly_frequency_rejected(self):
+        """Scheduled exports only support hourly/daily/raw (outer contract)."""
+        with pytest.raises(ValidationError):
+            ScheduledExportRequest(**self._payload(frequency="weekly"))
+
+    def test_invalid_export_format_rejected(self):
+        with pytest.raises(ValidationError):
+            ScheduledExportRequest(**self._payload(exportFormat="parquet"))
+
+    def test_inherits_filter_exclusivity(self):
+        with pytest.raises(ValidationError, match="[Oo]nly one filter"):
+            ScheduledExportRequest(**self._payload(device_ids=["d1"]))
+
+    def test_grid_ids_rejected(self):
+        """The Celery worker's query builder cannot process grid_ids —
+        accepting one would register a request that fails on every beat
+        tick until retries are exhausted."""
+        payload = self._payload(sites=None, grid_ids=["g1"])
+        with pytest.raises(ValidationError, match="not yet supported"):
+            ScheduledExportRequest(**payload)
+
+
+class TestAirQualityReportEntitySelection:
+    """/report picks its entity in the body, not the path — the same way
+    DataSummaryRequest does."""
+
+    _WINDOW = {
+        "start_time": "2024-01-01T00:00:00",
+        "end_time": "2024-02-01T00:00:00",
+    }
+
+    def test_whitespace_entity_treated_as_absent(self):
+        """Same .strip() handling as DataSummaryRequest."""
+        req = AirQualityReportRequest(grid_id="  ", cohort_id="c1", **self._WINDOW)
+        assert req.entity() == ("cohort", "c1")
+
+    def test_reversed_window_rejected(self):
+        """A reversed window gives a negative day count, so the check rejects
+        it before the day count is compared with the limit."""
+        with pytest.raises(ValidationError, match="end_time must be after"):
+            AirQualityReportRequest(
+                grid_id="g1",
+                start_time="2024-02-01T00:00:00",
+                end_time="2024-01-01T00:00:00",
+            )
+
+
+class TestWindowLimitsAreIndependent:
+    """The raw, hourly and aggregation settings hold different values, so a
+    request that reads the wrong setting accepts or rejects the wrong window."""
+
+    _RAW = "max_raw_query_days"
+    _HOURLY = "max_hourly_query_days"
+    _AGGREGATION = "max_aggregation_query_days"
+    _LIMITS = {_RAW: 10, _HOURLY: 20, _AGGREGATION: 30}
+
+    _DATE_TIME = ("startDateTime", "endDateTime")
+    _DATE = ("startDate", "endDate")
+    _TIME = ("start_time", "end_time")
+
+    _SITES = {"pollutant": "pm2_5", "sites": ["s1"]}
+    _DEVICES = {"pollutant": "pm2_5", "devices": ["d1"]}
+
+    @pytest.mark.parametrize(
+        "setting,request_class,window_keys,fields",
+        [
+            (_HOURLY, DataExportRequest, _DATE_TIME, {**BASE, "frequency": "hourly"}),
+            (_RAW, RawDataExportRequest, _DATE_TIME, {**BASE, "frequency": "raw"}),
+            (_AGGREGATION, ForecastDataExportRequest, _DATE_TIME, {"country": "ug"}),
+            (_AGGREGATION, DailyAveragesRequest, _DATE, _SITES),
+            (_AGGREGATION, DeviceDailyAveragesRequest, _DATE, _DEVICES),
+            (_AGGREGATION, ExceedancesRequest, _DATE, {**_SITES, "standard": "aqi"}),
+            (
+                _AGGREGATION,
+                DeviceExceedancesRequest,
+                _DATE,
+                {**_DEVICES, "standard": "aqi"},
+            ),
+            (_AGGREGATION, AirQualityReportRequest, _TIME, {"grid_id": "g1"}),
+            (_AGGREGATION, DataSummaryRequest, _TIME, {"grid_id": "g1"}),
+        ],
+        ids=[
+            "data-download hourly",
+            "raw-data",
+            "forecast-data",
+            "daily-averages",
+            "daily-averages-devices",
+            "exceedances",
+            "exceedances-devices",
+            "report",
+            "summary",
+        ],
+    )
+    def test_each_request_reads_its_own_limit(
+        self, monkeypatch, setting, request_class, window_keys, fields
+    ):
+        from config import settings
+
+        for name, days in self._LIMITS.items():
+            monkeypatch.setattr(settings, name, days)
+
+        def build(start, end):
+            window = {window_keys[0]: start, window_keys[1]: end}
+            return request_class(**{**fields, **window})
+
+        limit = self._LIMITS[setting]
+        start, end = _span(limit)
+        assert build(start, end)
+        with pytest.raises(ValidationError):
+            build(_past(limit + 1), _now())

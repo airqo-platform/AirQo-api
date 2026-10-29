@@ -12,6 +12,15 @@ router.post(
   activityController.recall
 );
 
+// Permanently retires a device on the platform only (upstream channel is
+// left untouched) — the safe alternative to deleting a device outright when
+// its physical channel is gone for good.
+router.post(
+  "/decommission",
+  activitiesValidations.decommissionActivity,
+  activityController.decommission
+);
+
 // ENHANCED: Original deploy with better validation supporting both static and mobile deployments
 router.post(
   "/deploy",

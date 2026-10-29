@@ -7,6 +7,29 @@ const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance()
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 const Decimal = require("decimal.js");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// Types.ObjectId.isValid, which also accepts arbitrary 12-byte strings and
+// would misclassify a short, non-ObjectId id (e.g. a cohort_id slug) as valid.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
+// Optional body cohort_id: accepts either an ObjectId or a self-service
+// cohort_slug (lowercase letters, numbers, hyphens) — additive, not a
+// restriction. Real ObjectIds are still sanitized into ObjectId instances
+// exactly as before; only a slug string is left as-is.
+const optionalCohortIdentifierBody = () =>
+  body("cohort_id")
+    .optional()
+    .trim()
+    .toLowerCase()
+    .custom((value) => {
+      if (isObjectIdShape(value)) return true;
+      if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return true;
+      throw new Error(
+        "cohort_id must be a valid MongoDB ObjectId or cohort_slug",
+      );
+    })
+    .customSanitizer((value) => (isObjectIdShape(value) ? ObjectId(value) : value));
+
 const countDecimalPlaces = (value) => {
   try {
     const decimal = new Decimal(value);
@@ -714,12 +737,12 @@ const validateUpdateDevice = [
           "batch_id is required when collocation status is 'active'",
         );
       }
-      if (!mongoose.Types.ObjectId.isValid(value)) {
+      if (!isObjectIdShape(value)) {
         throw new Error(
           "batch_id must be a valid ObjectId when status is 'active'",
         );
       }
-    } else if (value && !mongoose.Types.ObjectId.isValid(value)) {
+    } else if (value && !isObjectIdShape(value)) {
       // If status is not 'active' but batch_id is provided, it must still be a valid MongoID.
       throw new Error("If provided, batch_id must be a valid ObjectId");
     }
@@ -1050,9 +1073,7 @@ const validateBulkUpdateDevices = [
     })
     .bail()
     .custom((value) => {
-      const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id),
-      );
+      const invalidIds = value.filter((id) => !isObjectIdShape(id));
       if (invalidIds.length > 0) {
         throw new Error("All deviceIds must be valid MongoDB ObjectIds");
       }
@@ -1142,12 +1163,7 @@ const validateClaimDevice = [
     .withMessage("user_id must be a valid MongoDB ObjectId")
     .customSanitizer((value) => ObjectId(value)),
 
-  body("cohort_id")
-    .optional()
-    .trim()
-    .isMongoId()
-    .withMessage("cohort_id must be a valid MongoDB ObjectId")
-    .customSanitizer((value) => ObjectId(value)),
+  optionalCohortIdentifierBody(),
 ];
 
 const validateTransferDevice = [
@@ -1232,12 +1248,7 @@ const validateBulkClaim = [
     .notEmpty()
     .withMessage("claim_token cannot be empty if provided"),
 
-  body("cohort_id")
-    .optional()
-    .trim()
-    .isMongoId()
-    .withMessage("cohort_id must be a valid MongoDB ObjectId")
-    .customSanitizer((value) => ObjectId(value)),
+  optionalCohortIdentifierBody(),
 ];
 
 const validateListOrphanedDevices = [
@@ -1578,7 +1589,12 @@ const validateGetDeviceCountSummary = [
       if (value) {
         const ids = value.split(",");
         for (const id of ids) {
-          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+          const candidate = id.trim().toLowerCase();
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
             throw new Error(`Invalid cohort ID format: ${id.trim()}`);
           }
         }
@@ -1634,12 +1650,7 @@ const validateBulkSoftCreate = [
     .customSanitizer((value) => ObjectId(value)),
 
   // cohort_id is optional
-  body("cohort_id")
-    .optional()
-    .trim()
-    .isMongoId()
-    .withMessage("cohort_id must be a valid MongoDB ObjectId")
-    .customSanitizer((value) => ObjectId(value)),
+  optionalCohortIdentifierBody(),
 
   // network_override is optional — forces all rows to a single network value.
   // Normalised to lowercase so "AirGradient" and "airgradient" are equivalent.

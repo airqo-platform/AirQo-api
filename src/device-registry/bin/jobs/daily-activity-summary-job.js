@@ -11,7 +11,7 @@ const moment = require("moment-timezone");
 
 const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "daily-activity-summary-job";
-const JOB_SCHEDULE = "0 8 * * *"; // At 8:00 AM every day
+const JOB_SCHEDULE = "18 8 * * *"; // At 8:18 AM every day (minute staggered off :00, shared by check-network-status-job's summary run and update-grid-flags-job's 08:00 run)
 
 const LOG_TYPE = "daily-activity-summary"; // Define a log type for throttling
 const logThrottleManager = new LogThrottleManager(); // Initialize LogThrottleManager

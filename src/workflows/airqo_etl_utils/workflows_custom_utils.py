@@ -2,10 +2,11 @@ import base64
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
-from airflow.hooks.base import BaseHook
-from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
+from airflow.providers.slack.hooks.slack_webhook import SlackWebhookHook
 
+from .date import DateUtils
 from .http_client import HttpClient
 from .utils import Utils
 
@@ -14,7 +15,7 @@ class AirflowUtils:
     @staticmethod
     def dag_default_configs() -> dict:
         return {
-            "start_date": datetime.now(timezone.utc) - timedelta(days=2),
+            "start_date": datetime(2026, 10, 1, tzinfo=timezone.utc),
             "owner": "AirQo",
             "owner_links": {"AirQo": "https://airqo.africa"},
             "on_failure_callback": AirflowUtils.dag_failure_notification,
@@ -22,7 +23,7 @@ class AirflowUtils:
 
     def __init__(self) -> None:
         super().__init__()
-        self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")
+        self.base_url = AirflowUtils.web_base_url()
         self.headers = {
             "Authorization": f"Basic {AirflowUtils.authentication_string()}",
             "Content-Type": "application/json",
@@ -39,53 +40,59 @@ class AirflowUtils:
         return base64_string
 
     @staticmethod
-    def dag_failure_notification(context):
-        log_url = f"{context.get('task_instance').log_url}"
-        log_url = f"{os.getenv('AIRFLOW__WEBSERVER__BASE_URL')}/{log_url[log_url.find('log'):]}"
-        msg = f"""
-                      :red_circle: Task Failed.
-                      *Dag*: {context.get("task_instance").dag_id}
-                      *Task*: {context.get("task_instance").task_id}
-                      *Execution Time*: {context.get("execution_date")}
-                      *Access Url*: {log_url}
-                      """
+    def web_base_url() -> str:
+        """
+        Returns the configured web base URL without a trailing slash. Reads the
+        [api] base_url variable first and the [webserver] base_url variable second.
+        """
+        return (
+            os.getenv("AIRFLOW__API__BASE_URL")
+            or os.getenv("AIRFLOW__WEBSERVER__BASE_URL")
+            or ""
+        ).rstrip("/")
 
-        slack_webhook_token = BaseHook.get_connection("slack").password
+    @staticmethod
+    def task_log_url(task_instance) -> str:
+        """
+        Returns the task instance log URL under the configured web base URL. A log URL
+        that was joined onto the host alone is rebuilt with the base URL's path.
+        """
+        log_url = str(task_instance.log_url)
+        base_url = AirflowUtils.web_base_url()
+        if not base_url or log_url.startswith(base_url):
+            return log_url
+        parts = urlsplit(log_url)
+        rebuilt = f"{base_url}{parts.path}"
+        return f"{rebuilt}?{parts.query}" if parts.query else rebuilt
 
-        failed_alert = SlackWebhookOperator(
-            task_id="slack_failed_notification",
-            http_conn_id="slack",
-            webhook_token=slack_webhook_token,
-            message=msg,
-            username="airflow",
+    @staticmethod
+    def task_notification_text(context, heading: str) -> str:
+        task_instance = context.get("task_instance") or context.get("ti")
+        run_time = DateUtils.get_dag_run_time(
+            dag_run=context.get("dag_run"), logical_date=context.get("logical_date")
+        )
+        return "\n".join(
+            [
+                heading,
+                f"*Dag*: {task_instance.dag_id}",
+                f"*Task*: {task_instance.task_id}",
+                f"*Run*: {context.get('run_id')}",
+                f"*Run Time*: {run_time}",
+                f"*Access Url*: {AirflowUtils.task_log_url(task_instance)}",
+            ]
         )
 
-        return failed_alert.execute(context=context)
+    @staticmethod
+    def dag_failure_notification(context):
+        text = AirflowUtils.task_notification_text(context, ":red_circle: Task Failed.")
+        return SlackWebhookHook(slack_webhook_conn_id="slack").send(text=text)
 
     @staticmethod
     def dag_success_notification(context):
-        log_url = f"{context.get('task_instance').log_url}"
-        base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")
-        log_url = f"{base_url}/{log_url[log_url.find('log'):]}"
-        msg = f"""
-                      :red_circle: Task Failed.
-                      *Dag*: {context.get("task_instance").dag_id}
-                      *Task*: {context.get("task_instance").task_id}
-                      *Execution Time*: {context.get("execution_date")}
-                      *Access Url*: {log_url}
-                      """
-
-        slack_webhook_token = BaseHook.get_connection("slack").password
-
-        success_alert = SlackWebhookOperator(
-            task_id="slack_success_notification",
-            http_conn_id="slack",
-            webhook_token=slack_webhook_token,
-            message=msg,
-            username="airflow",
+        text = AirflowUtils.task_notification_text(
+            context, ":large_green_circle: Task Succeeded."
         )
-
-        return success_alert.execute(context=context)
+        return SlackWebhookHook(slack_webhook_conn_id="slack").send(text=text)
 
     def __query_dag_runs(
         self, page_offset, dag_ids, execution_date_time, page_limit=100

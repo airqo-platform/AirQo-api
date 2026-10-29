@@ -10,26 +10,46 @@ from app.models.device_data import SyncRawDeviceData
 from app.models.sync import (
     SyncDevice,
     SyncSite,
-    Category,
     SyncMetadataValues,
     SyncConfigValues,
     SyncCohortDevice,
 )
+from app.models.device_schema import DeviceProfile
 from typing import List, Dict, Any, Tuple, Optional
+from uuid import UUID
 from app.utils.performance import PerformanceAnalysis
+from app.utils.field_mappings import ensure_dict
+from app.utils.networks import (
+    AIRQO_NETWORK,
+    device_data_source,
+    enabled_networks,
+    is_enabled_network_device,
+    normalize_network,
+)
 
 logger = logging.getLogger(__name__)
 
-# Only devices belonging to this network are exposed by the beacon API.
-# Platform responses can include devices from other networks; we filter them
-# out at every ingress point (list, single-device, and sync).
-AIRQO_NETWORK = "airqo"
+# Devices from every network ("sensor manufacturer") the platform returns are
+# mirrored, subject to the optional ENABLED_NETWORKS allow-list. Platform
+# payloads are filtered at every ingress point (list, single-device, sync).
 
 
-def _is_airqo_device(dev: Dict[str, Any]) -> bool:
-    """Return True if a platform device payload belongs to the airqo network."""
-    network = (dev.get("network") or "").strip().lower()
-    return network == AIRQO_NETWORK
+def online_threshold_utc() -> datetime:
+    """
+    A deployed device counts as online when its latest raw reading is newer
+    than this instant: the start of yesterday (UTC).
+    """
+    start_of_today_utc = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    return start_of_today_utc - timedelta(days=1)
+
+
+def _parse_network_filter(network: Optional[str]) -> List[str]:
+    """Comma-separated network names → lower-cased list (empty = no filter)."""
+    if not network:
+        return []
+    return [n for n in (normalize_network(part) for part in network.split(",")) if n]
 
 
 async def decrypt_read_keys(token: str, items: List[Dict[str, Any]]) -> Dict[int, str]:
@@ -110,10 +130,12 @@ def extract_device_category(dev: Dict[str, Any]) -> str:
 _AUTHORITATIVE_FIELDS = (
     "category", "site_id", "network_id", "device_name",
     "device_number", "writeKey", "readKey", "status",
+    "serial_number", "api_code", "auth_required",
 )
 
 _NON_AUTH_FILL_FIELDS = (
     "device_name", "network_id", "device_number", "writeKey", "readKey", "status",
+    "serial_number", "api_code",
 )
 
 
@@ -142,6 +164,10 @@ def _build_field_values(
         "writeKey": dev.get("writeKey"),
         "readKey": read_key or dev.get("readKey"),
         "status": dev.get("status"),
+        # Non-airqo manufacturers: identity used by the registry's adapter layer.
+        "serial_number": dev.get("serial_number"),
+        "api_code": dev.get("api_code"),
+        "auth_required": dev.get("authRequired"),
     }
 
 
@@ -162,13 +188,17 @@ def _apply_non_authoritative_update(
     db_device: SyncDevice,
     values: Dict[str, Any],
     status: Optional[str],
+    carries_site: bool,
 ) -> bool:
     """Update only missing/safe fields when source is partial. Returns True if changed."""
     updated = False
     if not db_device.category:
         db_device.category = values["category"]
         updated = True
-    if status is not None and db_device.site_id != values["site_id"]:
+    # Cohort payloads carry status but no site; a deployed device keeps its
+    # site_id unless the payload actually names one.
+    site_known = carries_site or status != "deployed"
+    if status is not None and site_known and db_device.site_id != values["site_id"]:
         db_device.site_id = values["site_id"]
         updated = True
     for field in _NON_AUTH_FILL_FIELDS:
@@ -177,6 +207,39 @@ def _apply_non_authoritative_update(
             setattr(db_device, field, new_val)
             updated = True
     return updated
+
+
+def _resolve_profile_id(
+    db: Session, category_str: Optional[str], network: Optional[str] = None,
+) -> Optional[UUID]:
+    """
+    Resolve a DeviceProfile ID from the device's network and category.
+
+    A manufacturer-specific profile named ``<network>_<category>`` (for
+    example ``airgradient_lowcost``) wins when it exists. The plain category
+    profiles (``lowcost``, ``lowcost_gas``, ``bam``) describe AirQo hardware
+    on ThingSpeak, so they are only used for airqo devices; a device from
+    another manufacturer without its own profile stays unassigned rather than
+    inheriting ThingSpeak field semantics.
+    """
+    cat_lower = (category_str or "lowcost").strip().lower()
+    net_lower = normalize_network(network)
+
+    if net_lower and net_lower != AIRQO_NETWORK:
+        profile = (
+            db.query(DeviceProfile)
+            .filter(func.lower(DeviceProfile.name) == f"{net_lower}_{cat_lower}")
+            .first()
+        )
+        return profile.id if profile else None
+
+    profile = db.query(DeviceProfile).filter(func.lower(DeviceProfile.name) == cat_lower).first()
+    if not profile:
+        if cat_lower == "gas":
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+        elif cat_lower in ("lowcost", "airqo-v5-dualpm"):
+            profile = db.query(DeviceProfile).filter(DeviceProfile.name.in_(["lowcost", "AirQo-v5-DualPM"])).first()
+    return profile.id if profile else None
 
 
 def upsert_device_to_sync(
@@ -199,6 +262,7 @@ def upsert_device_to_sync(
 
     site_id, status = _resolve_site_id(dev)
     values = _build_field_values(dev, read_key, site_id)
+    profile_id = _resolve_profile_id(db, values.get("category"), values.get("network_id"))
 
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
 
@@ -214,19 +278,31 @@ def upsert_device_to_sync(
             device_name=values["device_name"],
             network_id=values["network_id"],
             category=values["category"],
+            profile_id=profile_id,
             site_id=initial_site_id,
             device_number=values["device_number"],
             writeKey=values["writeKey"],
             readKey=values["readKey"],
             status=values.get("status"),
+            serial_number=values.get("serial_number"),
+            api_code=values.get("api_code"),
+            auth_required=values.get("auth_required"),
         )
         db.add(db_device)
         return db_device, True, False
 
     if is_authoritative:
         updated = _apply_authoritative_update(db_device, values)
+        if db_device.profile_id != profile_id:
+            db_device.profile_id = profile_id
+            updated = True
     else:
-        updated = _apply_non_authoritative_update(db_device, values, status)
+        # An empty site/site_id field is no more informative than a missing one.
+        carries_site = site_id is not None
+        updated = _apply_non_authoritative_update(db_device, values, status, carries_site)
+        if not db_device.profile_id and profile_id:
+            db_device.profile_id = profile_id
+            updated = True
 
     if updated:
         db.add(db_device)
@@ -494,10 +570,21 @@ async def _decrypt_keys_for_devices(
     return await decrypt_read_keys(token, items) if items else {}
 
 
+def _device_data_source_from_db(db_device: SyncDevice) -> str:
+    return device_data_source(
+        db_device.network_id,
+        db_device.device_number,
+        db_device.readKey,
+        db_device.serial_number,
+        db_device.api_code,
+    )
+
+
 def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
     return {
         "network_id": db_device.network_id,
         "site_id": db_device.site_id,
+        "profile_id": str(db_device.profile_id) if db_device.profile_id else None,
         "current_firmware": db_device.current_firmware,
         "previous_firmware": db_device.previous_firmware,
         "file_upload_state": db_device.file_upload_state,
@@ -506,6 +593,10 @@ def _beacon_data_from_db(db_device: SyncDevice) -> Dict[str, Any]:
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
         "status": db_device.status,
+        "serial_number": db_device.serial_number,
+        "api_code": db_device.api_code,
+        "auth_required": db_device.auth_required,
+        "data_source": _device_data_source_from_db(db_device),
     }
 
 
@@ -528,9 +619,14 @@ def _serialize_synced_device(db_device: SyncDevice) -> Dict[str, Any]:
         "network": db_device.network_id,
         "status": db_device.status,
         "category": db_device.category,
+        "profile_id": str(db_device.profile_id) if db_device.profile_id else None,
         "device_number": db_device.device_number,
         "writeKey": db_device.writeKey,
         "readKey": db_device.readKey,
+        "serial_number": db_device.serial_number,
+        "api_code": db_device.api_code,
+        "authRequired": db_device.auth_required,
+        "data_source": _device_data_source_from_db(db_device),
         "site": {"_id": db_device.site_id} if db_device.site_id else None,
         "beacon_data": _beacon_data_from_db(db_device),
         "category_hierarchy": _category_hierarchy_from_db(db_device),
@@ -621,13 +717,7 @@ def _build_synced_devices_meta(
         or 0
     )
 
-    start_of_today_utc = datetime.now(timezone.utc).replace(
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
-    online_threshold = start_of_today_utc - timedelta(days=1)
+    online_threshold = online_threshold_utc()
 
     latest_seen_subquery = (
         db.query(
@@ -717,6 +807,13 @@ def _beacon_data_from_platform(
         "writeKey": dev.get("writeKey"),
         "readKey": read_key_to_store,
         "status": dev.get("status"),
+        "serial_number": dev.get("serial_number"),
+        "api_code": dev.get("api_code"),
+        "auth_required": dev.get("authRequired"),
+        "data_source": device_data_source(
+            dev.get("network"), dev.get("device_number"), read_key_to_store,
+            dev.get("serial_number"), dev.get("api_code"),
+        ),
     }
 
 
@@ -755,8 +852,8 @@ async def get_device_details(db: Session, token: str, params: Dict[str, Any] = N
         return error
 
     devices = platform_data.get("devices", []) or []
-    # Restrict to airqo-network devices only.
-    devices = [d for d in devices if _is_airqo_device(d)]
+    # Drop devices outside the ENABLED_NETWORKS allow-list (no-op by default).
+    devices = [d for d in devices if is_enabled_network_device(d)]
     platform_data["devices"] = devices
     # Keep meta counts consistent with the filtered list when present.
     meta = platform_data.get("meta")
@@ -783,12 +880,24 @@ def get_synced_device_details(
     search: Optional[str] = None,
     group_device_ids: Optional[List[str]] = None,
     query_params: Optional[Dict[str, Any]] = None,
+    network: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Read devices from the local sync_device table using the platform-like response shape."""
+    """
+    Read devices from the local sync_device table using the platform-like
+    response shape. ``network`` narrows the list to one or more sensor
+    manufacturers (comma-separated, e.g. ``airqo,airgradient``).
+    """
     safe_skip = max(skip, 0)
     safe_limit = max(limit, 1)
 
-    base_query = db.query(SyncDevice).filter(func.lower(SyncDevice.network_id) == AIRQO_NETWORK)
+    base_query = db.query(SyncDevice)
+    allowed_networks = enabled_networks()
+    if allowed_networks:
+        # ENABLED_NETWORKS allow-list (empty = every network).
+        base_query = base_query.filter(func.lower(SyncDevice.network_id).in_(sorted(allowed_networks)))
+    requested_networks = _parse_network_filter(network)
+    if requested_networks:
+        base_query = base_query.filter(func.lower(SyncDevice.network_id).in_(requested_networks))
 
     if group_device_ids is not None and not group_device_ids:
         stats_query = base_query.filter(False)
@@ -841,6 +950,31 @@ def get_synced_device_details(
         "devices": serialized_devices,
     }
 
+def apply_local_performance_synced_devices(
+    devices: List[Dict[str, Any]],
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+    frequency: str = "hourly",
+) -> None:
+    """
+    Enrich serialized synced devices in place with locally-computed
+    ``uptime`` / ``data_completeness`` / ``averages`` / ``data``.
+    """
+    from app.services import cohort_service
+
+    names = [d.get("name") for d in devices if d.get("name")]
+    metrics = cohort_service.compute_device_performance(
+        db, names, start_date_time, end_date_time, frequency=frequency,
+    )
+    for device in devices:
+        m = metrics.get(device.get("name")) or {}
+        device["uptime"] = m.get("uptime", 0.0)
+        device["data_completeness"] = m.get("data_completeness", 0.0)
+        device["averages"] = m.get("averages") or {}
+        device["data"] = m.get("data") or []
+
+
 async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str, Any]:
     # 1. Fetch data from PLATFORM_BASE_URL/devices/{device_id}
     headers = {"Authorization": f"JWT {token}"}
@@ -879,8 +1013,8 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
             platform_data["success"] = True
         return platform_data
 
-    # Restrict to airqo-network devices only.
-    if not _is_airqo_device(device_data):
+    # Devices outside the ENABLED_NETWORKS allow-list are not exposed.
+    if not is_enabled_network_device(device_data):
         return {
             "success": False,
             "message": f"Device {device_id} not found",
@@ -905,33 +1039,10 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
     db_device = db.query(SyncDevice).filter(SyncDevice.device_id == device_id).first()
     
     if db_device:
-        beacon_data = {
-            "network_id": db_device.network_id,
-            "site_id": db_device.site_id,
-            "current_firmware": db_device.current_firmware,
-            "previous_firmware": db_device.previous_firmware,
-            "file_upload_state": db_device.file_upload_state,
-            "firmware_download_state": db_device.firmware_download_state,
-            "device_number": db_device.device_number,
-            "writeKey": db_device.writeKey,
-            "readKey": db_device.readKey,
-            "status": db_device.status,
-        }
+        beacon_data = _beacon_data_from_db(db_device)
     else:
         # Device not synced yet — use defaults or platform data
-        platform_site_id = device_data.get("site", {}).get("_id")
-        beacon_data = {
-            "network_id": device_data.get("network"),
-            "site_id": platform_site_id if device_data.get("status") == "deployed" else None,
-            "current_firmware": None,
-            "previous_firmware": None,
-            "file_upload_state": False,
-            "firmware_download_state": None,
-            "device_number": device_data.get("device_number"),
-            "writeKey": device_data.get("writeKey"),
-            "readKey": read_key_to_store,
-            "status": device_data.get("status"),
-        }
+        beacon_data = _beacon_data_from_platform(device_data, read_key_to_store)
     
     # 3. Add category data
     category_hierarchy = device_data.get("device_categories", {}).get("category_hierarchy")
@@ -955,45 +1066,67 @@ async def get_device_by_id(db: Session, token: str, device_id: str) -> Dict[str,
     
     return platform_data
 
+def _lookup_profile(db: Session, category_name: Optional[str]) -> Optional[DeviceProfile]:
+    """Helper to look up a DeviceProfile by exact lowercased name or category."""
+    if not category_name:
+        return None
+    cleaned = category_name.strip().lower()
+    if not cleaned:
+        return None
+    profile = db.query(DeviceProfile).filter(
+        or_(
+            func.lower(DeviceProfile.name) == cleaned,
+            func.lower(DeviceProfile.category) == cleaned,
+        )
+    ).first()
+    if not profile and cleaned == "gas":
+        profile = db.query(DeviceProfile).filter(DeviceProfile.name == "lowcost_gas").first()
+    return profile
+
+
 async def get_device_metadata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
-    # 1. Fetch category details
-    db_cat = db.query(Category).filter(Category.name == category_name).first()
-    if not db_cat:
+    # 1. Fetch profile/category details
+    db_profile = _lookup_profile(db, category_name)
+
+    if not db_profile:
         return {
             "success": False,
-            "message": f"Category {category_name} not found",
+            "message": f"Profile/Category '{category_name}' not found",
             "status_code": 404
         }
-    
+
     # 2. Fetch metadata values for the device
     query = db.query(SyncMetadataValues).filter(SyncMetadataValues.device_id == device_id)
     total = query.count()
     metadata_values = query.order_by(SyncMetadataValues.created_at.desc()).offset(skip).limit(limit).all()
-    
-    # 3. Format metadata based on category mapping
+
+    # 3. Format metadata based on profile mapping
+    meta_mappings = ensure_dict(db_profile.metadata_mappings)
+    telemetry_mappings = ensure_dict(db_profile.telemetry_mappings)
+
     cat_details = {
-        "name": db_cat.name,
-        "level": db_cat.level,
-        "description": db_cat.description,
+        "name": db_profile.name,
+        "level": db_profile.category,
+        "description": db_profile.description,
     }
-    # Include metadata and field mappings in category details
     for i in range(1, 16):
-        cat_details[f"metadata{i}"] = getattr(db_cat, f"metadata{i}")
-        cat_details[f"field{i}"] = getattr(db_cat, f"field{i}")
-    
+        m_info = meta_mappings.get(f"metadata{i}")
+        cat_details[f"metadata{i}"] = m_info.get("label") if isinstance(m_info, dict) else (m_info or None)
+        f_info = telemetry_mappings.get(f"field{i}")
+        cat_details[f"field{i}"] = f_info.get("label") if isinstance(f_info, dict) else (f_info or None)
+
     metadata_list = []
     for mv in metadata_values:
         data = {"created_at": mv.created_at.isoformat() if mv.created_at else None}
         for i in range(1, 16):
             attr_name = f"metadata{i}"
-            label = getattr(db_cat, attr_name)
+            label = cat_details.get(attr_name)
             if label:
                 data[label] = getattr(mv, attr_name)
-        # Handle field15 specifically if it has a mapping
-        if db_cat.field15:
-            data[db_cat.field15] = mv.field15
+        if cat_details.get("field15"):
+            data[cat_details["field15"]] = mv.field15
         metadata_list.append(data)
-    
+
     return {
         "success": True,
         "message": "Metadata fetched successfully",
@@ -1008,33 +1141,39 @@ async def get_device_metadata(db: Session, device_id: str, category_name: str, s
         }
     }
 
+
 async def get_device_configdata(db: Session, device_id: str, category_name: str, skip: int = 0, limit: int = 30) -> Dict[str, Any]:
-    # 1. Fetch category details
-    db_cat = db.query(Category).filter(Category.name == category_name).first()
-    if not db_cat:
+    # 1. Fetch profile/category details
+    db_profile = _lookup_profile(db, category_name)
+
+    if not db_profile:
         return {
             "success": False,
-            "message": f"Category {category_name} not found",
+            "message": f"Profile/Category '{category_name}' not found",
             "status_code": 404
         }
-    
+
     # 2. Fetch config values for the device
     query = db.query(SyncConfigValues).filter(SyncConfigValues.device_id == device_id)
     total = query.count()
     config_values = query.order_by(SyncConfigValues.created_at.desc()).offset(skip).limit(limit).all()
-    
-    # 3. Format config based on category mapping
+
+    # 3. Format config based on profile mapping
+    config_mappings = ensure_dict(db_profile.config_mappings)
+    telemetry_mappings = ensure_dict(db_profile.telemetry_mappings)
+
     cat_details = {
-        "name": db_cat.name,
-        "level": db_cat.level,
-        "description": db_cat.description,
+        "name": db_profile.name,
+        "level": db_profile.category,
+        "description": db_profile.description,
     }
-    # Include config and field mappings in category details
     for i in range(1, 11):
-        cat_details[f"config{i}"] = getattr(db_cat, f"config{i}")
+        c_info = config_mappings.get(f"config{i}")
+        cat_details[f"config{i}"] = c_info.get("label") if isinstance(c_info, dict) else (c_info or None)
     for i in range(1, 16):
-        cat_details[f"field{i}"] = getattr(db_cat, f"field{i}")
-    
+        f_info = telemetry_mappings.get(f"field{i}")
+        cat_details[f"field{i}"] = f_info.get("label") if isinstance(f_info, dict) else (f_info or None)
+
     config_list = []
     for cv in config_values:
         data = {
@@ -1043,11 +1182,11 @@ async def get_device_configdata(db: Session, device_id: str, category_name: str,
         }
         for i in range(1, 11):
             attr_name = f"config{i}"
-            label = getattr(db_cat, attr_name)
+            label = cat_details.get(attr_name)
             if label:
                 data[label] = getattr(cv, attr_name)
         config_list.append(data)
-    
+
     return {
         "success": True,
         "message": "Config data fetched successfully",
@@ -1163,9 +1302,12 @@ async def _ensure_device(db: Session, device_id: str) -> SyncDevice:
 async def create_device_metadata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        category = db.query(Category).filter(Category.name == category_name).first()
-        if not category:
-            return {"success": False, "message": f"Category '{category_name}' not found", "status_code": 404}
+        profile = _lookup_profile(db, category_name)
+
+        if not profile:
+            return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
+
+        meta_mappings = ensure_dict(profile.metadata_mappings)
 
         # Build insert payload mapping label -> metadataN or direct metadataN keys
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
@@ -1174,9 +1316,10 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
             key = f"metadata{i}"
             if key in values:
                 insert_kwargs[key] = values.get(key)
-        # Map category labels -> columns
+        # Map profile metadata labels -> columns
         for i in range(1, 16):
-            label = getattr(category, f"metadata{i}")
+            m_info = meta_mappings.get(f"metadata{i}")
+            label = m_info.get("label") if isinstance(m_info, dict) else (m_info or None)
             if label and label in values:
                 insert_kwargs[f"metadata{i}"] = values[label]
 
@@ -1193,9 +1336,12 @@ async def create_device_metadata(db: Session, device_id: str, category_name: str
 async def create_device_configdata(db: Session, device_id: str, category_name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     try:
         await _ensure_device(db, device_id)
-        category = db.query(Category).filter(Category.name == category_name).first()
-        if not category:
-            return {"success": False, "message": f"Category '{category_name}' not found", "status_code": 404}
+        profile = _lookup_profile(db, category_name)
+
+        if not profile:
+            return {"success": False, "message": f"Profile/Category '{category_name}' not found", "status_code": 404}
+
+        config_mappings = ensure_dict(profile.config_mappings)
 
         insert_kwargs: Dict[str, Any] = {"device_id": device_id}
         # Accept direct configN keys
@@ -1203,9 +1349,10 @@ async def create_device_configdata(db: Session, device_id: str, category_name: s
             key = f"config{i}"
             if key in values:
                 insert_kwargs[key] = values.get(key)
-        # Map category labels -> columns
+        # Map profile config labels -> columns
         for i in range(1, 11):
-            label = getattr(category, f"config{i}")
+            c_info = config_mappings.get(f"config{i}")
+            label = c_info.get("label") if isinstance(c_info, dict) else (c_info or None)
             if label and label in values:
                 insert_kwargs[f"config{i}"] = values[label]
 
@@ -1262,39 +1409,28 @@ async def _fetch_all_platform_devices(
             if resp.status_code == 200:
                 all_devices.extend(resp.json().get("devices", []))
 
-    # Restrict to airqo-network devices only — sync_device must never hold
-    # devices from other networks.
+    # Mirror every manufacturer's devices unless ENABLED_NETWORKS narrows it.
     before = len(all_devices)
-    all_devices = [d for d in all_devices if _is_airqo_device(d)]
+    all_devices = [d for d in all_devices if is_enabled_network_device(d)]
     if before != len(all_devices):
         logger.info(
-            f"Filtered platform devices to airqo network: {len(all_devices)}/{before}"
+            f"Filtered platform devices to enabled networks: {len(all_devices)}/{before}"
         )
     return all_devices, None
 
 
 def _sync_category_record(db: Session, cat: Dict[str, Any]) -> None:
-    """Upsert a single category row from a category_hierarchy entry."""
+    """Upsert a single DeviceProfile row from a category_hierarchy entry if not already present."""
     cat_name = cat.get("category")
     if not cat_name:
         return
-    db_cat = db.query(Category).filter(Category.name == cat_name).first()
-    if not db_cat:
-        db.add(Category(
-            name=cat_name,
-            level=cat.get("level"),
+    db_profile = _lookup_profile(db, cat_name)
+    if not db_profile:
+        db.add(DeviceProfile(
+            name=cat_name.lower(),
+            category=cat.get("level") or "general",
             description=cat.get("description"),
         ))
-        return
-    cat_updated = False
-    if db_cat.level != cat.get("level"):
-        db_cat.level = cat.get("level")
-        cat_updated = True
-    if db_cat.description != cat.get("description"):
-        db_cat.description = cat.get("description")
-        cat_updated = True
-    if cat_updated:
-        db.add(db_cat)
 
 
 def _sync_device_categories_from_payload(
@@ -1348,6 +1484,16 @@ async def sync_devices(db: Session, token: str) -> Dict[str, Any]:
         return {"success": False, "message": f"Network or Parsing error: {str(e)}", "status_code": 500}
 
     decrypted_keys_map = await _decrypt_keys_for_devices(token, all_devices)
+
+    # Devices from other manufacturers resolve to ``<network>_<category>``
+    # profiles; seed them first so new devices are assigned on this pass.
+    try:
+        from app.services.manufacturer_profiles import ensure_manufacturer_profiles  # noqa: WPS433
+
+        ensure_manufacturer_profiles(db)
+    except Exception as e:
+        logger.warning(f"Could not seed manufacturer profiles before device sync: {e}")
+        db.rollback()
 
     updates_count = 0
     new_count = 0

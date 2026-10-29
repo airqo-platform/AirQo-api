@@ -64,6 +64,11 @@ function envConfig(env) {
       env === "production", // default on in production only
     ),
 
+    BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED: parseBool(
+      process.env.BACKFILL_SEARCH_NAME_SCHEDULER_ENABLED,
+      env === "production", // default on in production only
+    ),
+
     FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED: parseBool(
       process.env.FIND_DUPLICATE_COHORTS_SCHEDULER_ENABLED,
       env !== "staging", // default off in staging only
@@ -75,6 +80,39 @@ function envConfig(env) {
     // enabled via the env var.
     ENABLE_RESOURCE_BINDING: parseBool(
       process.env.ENABLE_RESOURCE_BINDING,
+      false,
+    ),
+
+    // update-raw-online-status-job's best-effort DeviceUptime sampling
+    // (leaderboard/verification data). Non-critical — a failure here never
+    // blocks the actual device status update. Kill-switch for turning it off
+    // instantly via env var (no redeploy) if it's ever implicated in DB load
+    // issues, without touching the job's core status-check logic.
+    ENABLE_ONLINE_STATUS_UPTIME_SAMPLING: parseBool(
+      process.env.ENABLE_ONLINE_STATUS_UPTIME_SAMPLING,
+      true,
+    ),
+
+    // Cohort/device group-ownership scoping — when true, assigning a device
+    // to a cohort is rejected if they don't share a network/group (the
+    // "airqo" network/group is exempt). Default off: mismatches are only
+    // logged as warnings so we can confirm no legitimate cross-group
+    // assignment pattern exists before anything is actually blocked.
+    ENFORCE_COHORT_DEVICE_GROUP_SCOPE: parseBool(
+      process.env.ENFORCE_COHORT_DEVICE_GROUP_SCOPE,
+      false,
+    ),
+
+    // Cohort/user group-membership scoping — when true, assigning a device
+    // to a cohort is rejected if the requesting user's groups (forwarded by
+    // the nginx gateway as X-Auth-User-Groups, resolved from auth-service —
+    // device-registry never fetches or stores user data itself) don't
+    // overlap with the cohort's groups/network. Only enforced when identity
+    // headers are actually present; a request with no identity data is
+    // never blocked on that basis alone. Default off: mismatches are only
+    // logged as warnings until confirmed safe to enforce.
+    ENFORCE_COHORT_USER_GROUP_MEMBERSHIP: parseBool(
+      process.env.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP,
       false,
     ),
 
@@ -103,6 +141,40 @@ function envConfig(env) {
     DIAGNOSTIC_WINDOW_DAYS: (() => {
       const val = parseInt(process.env.DIAGNOSTIC_WINDOW_DAYS, 10);
       return Number.isFinite(val) && val > 0 ? val : 1;
+    })(),
+
+    // Lookback window specifically for the Nexus-facing /recent endpoint
+    // (createEventUtil.readRecentWithFilter). Narrower than the shared
+    // DIAGNOSTIC_WINDOW_DAYS default (used by mobile/other callers of
+    // ReadingModel.recent()) to keep the sort-then-group scan small under load.
+    RECENT_ENDPOINT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.RECENT_ENDPOINT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
+    // Default lookback window for ReadingModel.listForMap() when the caller
+    // supplies no explicit time filter. Previously hard-coded to 48h, which
+    // meant every unfiltered /map load sorted+grouped up to 48h of readings
+    // across every device just to surface one latest-per-site row. 6h keeps
+    // typical map usage covered while cutting the scan size dramatically.
+    MAP_DEFAULT_LOOKBACK_HOURS: (() => {
+      const val = parseInt(process.env.MAP_DEFAULT_LOOKBACK_HOURS, 10);
+      return Number.isFinite(val) && val > 0 ? val : 6;
+    })(),
+
+    // MongoDB maxTimeMS for the device-listing aggregations in device.util.js
+    // (list(), getDeviceCountSummary()) that back Vertex's /devices/summary,
+    // /devices/status/*, and /devices/summary/count. These were previously
+    // hard-coded to 45000ms, longer than Vertex's own 30s proxy timeout for
+    // the "devices" endpoint group — meaning a slow query would outlive the
+    // client's patience and keep holding a pooled connection for no benefit.
+    // Same reasoning as READINGS_AGGREGATE_TIMEOUT_MS, same default.
+    DEVICE_LIST_AGGREGATE_TIMEOUT_MS: (() => {
+      // Number() (unlike parseInt) rejects partial parses ("25000ms") and
+      // requires the whole string to be numeric; isSafeInteger rejects
+      // fractional ("25000.5") and out-of-range values.
+      const val = Number(process.env.DEVICE_LIST_AGGREGATE_TIMEOUT_MS);
+      return Number.isSafeInteger(val) && val > 0 ? val : 25000;
     })(),
 
     // Default lookback window for event/measurement queries (generate-filter fetch).

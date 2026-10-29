@@ -15,7 +15,7 @@ const TIMEZONE = moment.tz.guess();
 const BATCH_SIZE = 50;
 
 const JOB_NAME = "device-uptime-job";
-const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+const JOB_SCHEDULE = "2 */2 * * *"; // At minute 2 of every 2nd hour (staggered off :00, shared by several other every-2h jobs and the hourly device-status-hourly-check-job)
 
 const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
   try {
@@ -80,6 +80,10 @@ const processDeviceBatch = async (devices, tenant) => {
       device.isActive,
     );
 
+    if (record) {
+      record.network = device.network;
+    }
+
     if (record && device.isActive) {
       totalUptime += record.uptime || 0;
     }
@@ -142,17 +146,15 @@ const saveDeviceUptime = async (tenant) => {
 
     // Save device uptime records in bulk
     if (allRecords.length > 0) {
-      await DeviceUptimeModel.insertMany(allRecords, { ordered: false });
+      await DeviceUptimeModel(tenant).insertMany(allRecords, { ordered: false });
     }
 
     // Save network uptime record
-    const networkUptimeRecord = new NetworkUptimeModel({
+    await NetworkUptimeModel(tenant).create({
       network_name: tenant,
       uptime: networkUptime,
       created_at: new Date(),
     });
-
-    await networkUptimeRecord.save();
 
     const duration = (Date.now() - startTime) / 1000;
     logger.warn(`

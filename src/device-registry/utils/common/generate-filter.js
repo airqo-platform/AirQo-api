@@ -314,7 +314,7 @@ const generateFilter = {
       const deviceIdArray = device_id
         .toString()
         .split(",")
-        .map((id) => ObjectId(id));
+        .map((id) => ObjectId(id.trim()));
       filter["values.device_id"]["$in"] = deviceIdArray;
     }
 
@@ -330,7 +330,7 @@ const generateFilter = {
       const siteIdArray = site_id
         .toString()
         .split(",")
-        .map((id) => ObjectId(id));
+        .map((id) => ObjectId(id.trim()));
       filter["values.site_id"]["$in"] = siteIdArray;
       filter["metadata"] = "site_id";
     }
@@ -1939,6 +1939,7 @@ const generateFilter = {
       division,
       sub_county,
       site_id,
+      site_ids,
       category,
       path,
       site_codes,
@@ -2005,6 +2006,21 @@ const generateFilter = {
 
     if (site_id) {
       filter["_id"] = ObjectId(site_id);
+    }
+
+    if (!isEmpty(site_ids)) {
+      const rawSiteIds = (Array.isArray(site_ids)
+        ? site_ids
+        : String(site_ids).split(",")
+      )
+        .map((value) => String(value).trim())
+        .filter((value) => value.length > 0);
+      const validSiteIds = rawSiteIds.filter((value) =>
+        /^[0-9a-fA-F]{24}$/.test(String(value)),
+      );
+      if (!isEmpty(validSiteIds)) {
+        filter["_id"] = { $in: validSiteIds.map((value) => ObjectId(value)) };
+      }
     }
 
     if (category) {
@@ -2238,8 +2254,18 @@ const generateFilter = {
         if (cohortIds.length > 0) {
           filter._id = { $in: cohortIds };
         }
-      } else {
+      } else if (
+        typeof cohort_id !== "string" ||
+        /^[0-9a-fA-F]{24}$/.test(cohort_id)
+      ) {
+        // Either already an ObjectId (e.g. sanitized route params) or a raw
+        // 24-char hex string — resolve by _id, exactly as before.
         filter._id = ObjectId(cohort_id);
+      } else {
+        // Not an ObjectId shape: treat as a self-service cohort_slug.
+        // Additive — previously any non-ObjectId cohort_id would have
+        // thrown here, so this only adds a previously-unsupported lookup.
+        filter.cohort_slug = cohort_id;
       }
     } else if (name) {
       filter["name"] = name;

@@ -31,6 +31,16 @@ describe("networkStatusUtil", () => {
 
     networkStatusUtil = proxyquire("@utils/network-status.util", {
       "@models/NetworkStatusAlert": NetworkStatusAlertModelStub,
+      // Pass-through resolver stub: these tests exercise filter-building,
+      // not cohort_id/cohort_slug resolution itself, so just echo the
+      // input identifier back as "resolved".
+      "@utils/cohort.util": {
+        resolveCohortObjectIds: sinon.stub().callsFake(async (tenant, identifiers) => ({
+          resolved: identifiers.map((id) => ({ _id: id })),
+          resolvedIds: identifiers.map((id) => ({ toString: () => id })),
+          notFound: [],
+        })),
+      },
       kafkajs: {
         Kafka: class {
           constructor() {}

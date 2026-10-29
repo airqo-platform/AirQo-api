@@ -17,7 +17,6 @@ const logger = require("log4js").getLogger(
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
-const TenantSettingsModel = require("@models/TenantSettings");
 
 const maxLengthOfProfilePictures = 1024;
 
@@ -60,26 +59,6 @@ function truncateProfilePicture(url) {
 }
 
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
-const networkRoleSchema = new Schema({
-  network: {
-    type: Schema.Types.ObjectId,
-    ref: "Network",
-  },
-  role: {
-    type: Schema.Types.ObjectId,
-    ref: "Role",
-  },
-  userType: {
-    type: String,
-    enum: constants.VALID_USER_TYPES,
-    default: "guest",
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
 const groupRoleSchema = new Schema({
   group: {
     type: Schema.Types.ObjectId,
@@ -101,33 +80,6 @@ const groupRoleSchema = new Schema({
 });
 
 // Option 2: More flexible approach (recommended for evolving requirements)
-const flexibleNetworkRoleSchema = new Schema({
-  network: {
-    type: Schema.Types.ObjectId,
-    ref: "Network",
-  },
-  role: {
-    type: Schema.Types.ObjectId,
-    ref: "Role",
-  },
-  userType: {
-    type: String,
-    default: "guest",
-    validate: {
-      validator: function (value) {
-        // Allow any reasonable string value, but with some basic validation
-        return /^[a-z_]+$/.test(value) && value.length <= 20;
-      },
-      message:
-        "userType must be lowercase letters and underscores only, max 20 characters",
-    },
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
 const flexibleGroupRoleSchema = new Schema({
   group: {
     type: Schema.Types.ObjectId,
@@ -156,26 +108,6 @@ const flexibleGroupRoleSchema = new Schema({
 });
 
 // Option 3: Completely flexible (no validation) - for maximum future flexibility
-const openNetworkRoleSchema = new Schema({
-  network: {
-    type: Schema.Types.ObjectId,
-    ref: "Network",
-  },
-  role: {
-    type: Schema.Types.ObjectId,
-    ref: "Role",
-  },
-  userType: {
-    type: String,
-    default: "guest",
-    // No enum or validation - completely open
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
 const openGroupRoleSchema = new Schema({
   group: {
     type: Schema.Types.ObjectId,
@@ -273,7 +205,6 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: false },
     loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
-    network_roles: [flexibleNetworkRoleSchema], // networkRoleSchema or flexibleNetworkRoleSchema or openNetworkRoleSchema
     group_roles: [flexibleGroupRoleSchema], // groupRoleSchema or flexibleGroupRoleSchema or openGroupRoleSchema
 
     permissions: [
@@ -313,6 +244,8 @@ const UserSchema = new Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    signInToken: { type: String },
+    signInTokenExpires: { type: Date },
     jobTitle: {
       type: String,
     },
@@ -542,29 +475,6 @@ UserSchema.pre("save", async function (next) {
 
       // 3. Set default roles for new users ONLY
       const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
-      const tenantSettings = await TenantSettingsModel(tenant)
-        .findOne({ tenant })
-        .lean();
-
-      if (!tenantSettings) {
-        return next(
-          new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
-            message: "Tenant Settings not found, please contact support",
-          }),
-        );
-      }
-
-      // Only set defaults if no roles are provided
-      if (!this.network_roles || this.network_roles.length === 0) {
-        this.network_roles = [
-          {
-            network: tenantSettings.defaultNetwork,
-            userType: "guest",
-            createdAt: new Date(),
-            role: tenantSettings.defaultNetworkRole,
-          },
-        ];
-      }
 
       // If user is part of airqo org (e.g., from mobile app), ensure they have the default airqo role
       if (
@@ -612,14 +522,6 @@ UserSchema.pre("save", async function (next) {
       }
 
       // 5. Remove duplicates (simple deduplication)
-      if (this.network_roles && this.network_roles.length > 0) {
-        const uniqueNetworks = new Map();
-        this.network_roles.forEach((role) => {
-          uniqueNetworks.set(role.network.toString(), role);
-        });
-        this.network_roles = Array.from(uniqueNetworks.values());
-      }
-
       if (this.group_roles && this.group_roles.length > 0) {
         const uniqueGroups = new Map();
         this.group_roles.forEach((role) => {
@@ -692,11 +594,10 @@ UserSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
-// Multikey indexes for Role.list() $lookup sub-pipeline.
+// Multikey index for Role.list() $lookup sub-pipeline.
 // MongoDB automatically creates a multikey index when the indexed field is an
-// array of subdocuments; "network_roles.role" and "group_roles.role" are the
-// nested ObjectId fields that the $match uses in its $in expression.
-UserSchema.index({ "network_roles.role": 1 });
+// array of subdocuments; "group_roles.role" is the nested ObjectId field
+// that the $match uses in its $in expression.
 UserSchema.index({ "group_roles.role": 1 });
 
 // Sparse indexes for OAuth provider ID fields.
@@ -807,11 +708,10 @@ UserSchema.statics = {
           foreignField: "user_id",
           as: "clients",
         })
-        .lookup({
-          from: "users",
-          localField: "clients.user_id",
-          foreignField: "_id",
-          as: "api_clients",
+        .addFields({
+          has_clients: {
+            $gt: [{ $size: { $ifNull: ["$clients", []] } }, 0],
+          },
         })
         .group({
           _id: null,
@@ -841,14 +741,20 @@ UserSchema.statics = {
               },
             },
           },
-          client_users: { $addToSet: "$clients.user_id" },
+          api_users: { $sum: { $cond: ["$has_clients", 1, 0] } },
           api_user_details: {
             $addToSet: {
-              userName: { $arrayElemAt: ["$api_clients.userName", 0] },
-              email: { $arrayElemAt: ["$api_clients.email", 0] },
-              firstName: { $arrayElemAt: ["$api_clients.firstName", 0] },
-              lastName: { $arrayElemAt: ["$api_clients.lastName", 0] },
-              _id: { $arrayElemAt: ["$api_clients._id", 0] },
+              $cond: {
+                if: "$has_clients",
+                then: {
+                  userName: "$userName",
+                  email: "$email",
+                  firstName: "$firstName",
+                  lastName: "$lastName",
+                  _id: "$_id",
+                },
+                else: "$nothing",
+              },
             },
           },
         })
@@ -863,7 +769,7 @@ UserSchema.statics = {
             details: "$active_user_details",
           },
           api_users: {
-            number: { $size: { $ifNull: ["$client_users", []] } },
+            number: "$api_users",
             details: "$api_user_details",
           },
         })
@@ -1234,7 +1140,6 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         as: "group_details",
       })
       .addFields({
-        enhanced_network_roles: [],
         enhanced_group_roles: {
           $map: {
             input: "$group_roles",
@@ -1301,7 +1206,6 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         updatedAt: 1,
         permissions: 1,
 
-        enhanced_network_roles: 1,
         enhanced_group_roles: 1,
         role_summary: 1,
 
@@ -1478,53 +1382,6 @@ UserSchema.statics.assignUserToGroup = async function (
   }
 };
 
-UserSchema.statics.assignUserToNetwork = async function (
-  userId,
-  networkId,
-  roleId,
-  userType = "user",
-) {
-  try {
-    // Atomically remove any existing role for this network to ensure idempotency
-    await this.findByIdAndUpdate(userId, {
-      $pull: { network_roles: { network: networkId } },
-    });
-
-    // Add the new role assignment
-    const updatedUser = await this.findByIdAndUpdate(
-      userId,
-      {
-        $addToSet: {
-          network_roles: {
-            network: networkId,
-            role: roleId,
-            userType: userType,
-            createdAt: new Date(),
-          },
-        },
-      },
-      { new: true },
-    );
-
-    if (!updatedUser) {
-      throw new Error("User not found");
-    }
-
-    return {
-      success: true,
-      data: updatedUser,
-      message: "User successfully assigned to network",
-    };
-  } catch (error) {
-    console.error("❌ [STATIC METHOD] Network assignment failed:", error);
-    return {
-      success: false,
-      message: error.message,
-      error: error,
-    };
-  }
-};
-
 UserSchema.methods = {
   authenticateUser(password) {
     return bcrypt.compareSync(password, this.password);
@@ -1580,7 +1437,6 @@ UserSchema.methods = {
       organization: this.organization,
       long_organization: this.long_organization,
       group_roles: this.group_roles,
-      network_roles: [],
       privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,
@@ -1647,34 +1503,6 @@ UserSchema.methods.addGroupRole = function (
           $addToSet: {
             group_roles: {
               group: groupId,
-              role: roleId,
-              userType: userType,
-              createdAt: new Date(),
-            },
-          },
-        },
-        { new: true },
-      );
-    });
-};
-
-UserSchema.methods.addNetworkRole = function (
-  networkId,
-  roleId,
-  userType = "user",
-) {
-  // Use the model to perform an atomic update on the current document instance
-  return this.constructor
-    .findByIdAndUpdate(this._id, {
-      $pull: { network_roles: { network: networkId } },
-    })
-    .then(() => {
-      return this.constructor.findByIdAndUpdate(
-        this._id,
-        {
-          $addToSet: {
-            network_roles: {
-              network: networkId,
               role: roleId,
               userType: userType,
               createdAt: new Date(),

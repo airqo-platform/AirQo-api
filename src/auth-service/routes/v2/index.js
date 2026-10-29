@@ -95,12 +95,6 @@ const routeStatus = {
 // Define all auth service routes - NOTE: paths are relative to /api/v2
 const authRoutes = [
   {
-    path: "/networks",
-    route: "@routes/v2/networks.routes",
-    name: "networks",
-    description: "Network management operations",
-  },
-  {
     path: "/permissions",
     route: "@routes/v2/permissions.routes",
     name: "permissions",
@@ -111,6 +105,12 @@ const authRoutes = [
     route: "@routes/v2/favorites.routes",
     name: "favorites",
     description: "User favorites management",
+  },
+  {
+    path: "/comparisons",
+    route: "@routes/v2/comparisons.routes",
+    name: "comparisons",
+    description: "Saved site comparisons management",
   },
   {
     path: "/roles",
@@ -141,6 +141,12 @@ const authRoutes = [
     route: "@routes/v2/analytics.routes",
     name: "analytics",
     description: "Authentication analytics",
+  },
+  {
+    path: "/usage",
+    route: "@routes/v2/usage.routes",
+    name: "usage",
+    description: "Per-user and platform usage statistics",
   },
   {
     path: "/candidates",
@@ -183,6 +189,12 @@ const authRoutes = [
     route: "@routes/v2/notification-preferences.routes",
     name: "notification-preferences",
     description: "Notification preferences management",
+  },
+  {
+    path: "/notifications",
+    route: "@routes/v2/notifications.routes",
+    name: "notifications",
+    description: "In-app notifications (inbox, org and system broadcasts)",
   },
   {
     path: "/maintenances",
@@ -231,6 +243,12 @@ const authRoutes = [
     route: "@routes/v2/departments.routes",
     name: "departments",
     description: "Department management",
+  },
+  {
+    path: "/billing",
+    route: "@routes/v2/billing.routes",
+    name: "billing",
+    description: "Invoices, pro forma invoices, payments and receipts",
   },
   {
     path: "/transactions",
@@ -401,9 +419,9 @@ function getCategoryForRoute(routeName) {
   const categories = {
     core: ["users", "roles", "permissions", "tokens"],
     oauth: ["clients", "scopes", "tokens"],
-    management: ["networks", "departments", "groups", "tenant-settings"],
-    user_data: ["preferences", "favorites", "locationHistory", "searchHistory"],
-    system: ["analytics", "maintenances", "types", "defaults"],
+    management: ["departments", "groups", "tenant-settings"],
+    user_data: ["preferences", "favorites", "comparisons", "locationHistory", "searchHistory"],
+    system: ["analytics", "usage", "maintenances", "types", "defaults"],
     requests: [
       "requests",
       "inquiries",
@@ -411,8 +429,9 @@ function getCategoryForRoute(routeName) {
       "org-requests",
       "surveys",
     ],
-    notifications: ["notification-preferences", "campaigns"],
-    misc: ["checklist", "transactions", "guests", "selfies"],
+    notifications: ["notifications", "notification-preferences", "campaigns"],
+    billing: ["billing", "transactions"],
+    misc: ["checklist", "guests", "selfies"],
   };
 
   for (const [category, routes] of Object.entries(categories)) {

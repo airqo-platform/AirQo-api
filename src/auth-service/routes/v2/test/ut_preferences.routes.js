@@ -62,14 +62,8 @@ const preferenceControllerStub = {
   updateUserGroupTheme: defaultHandler,
   getUserDefaultGroupTheme: defaultHandler,
   updateUserDefaultGroupTheme: defaultHandler,
-  getUserNetworkTheme: defaultHandler,
-  updateUserNetworkTheme: defaultHandler,
-  getUserDefaultNetworkTheme: defaultHandler,
-  updateUserDefaultNetworkTheme: defaultHandler,
   getGroupTheme: defaultHandler,
   updateGroupTheme: defaultHandler,
-  getNetworkTheme: defaultHandler,
-  updateNetworkTheme: defaultHandler,
   getEffectiveTheme: defaultHandler,
 };
 

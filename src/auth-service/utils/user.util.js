@@ -6,8 +6,8 @@ const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
-const NetworkModel = require("@models/Network");
 const EmailLogModel = require("@models/EmailLog");
+const EmailQueueModel = require("@models/EmailQueue");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -21,6 +21,7 @@ const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
+const createRequestUtil = require("@utils/request.util.js");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db, getDb } = require("@config/firebase-admin");
@@ -53,6 +54,9 @@ const {
   getIpLocation,
   extractIp,
 } = require("@utils/common/device.util");
+
+const EXPORT_STATS_DEFAULT_LIMIT = 500;
+const EXPORT_STATS_MAX_LIMIT = 1000;
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -156,25 +160,6 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}) => {
       );
     }
 
-    const updatedNetwork = await NetworkModel(dbTenant).updateMany(
-      { net_manager: userId },
-      {
-        $set: {
-          net_manager: null,
-          net_manager_username: null,
-          net_manager_firstname: null,
-          net_manager_lastname: null,
-        },
-      },
-    );
-
-    if (!isEmpty(updatedNetwork.err)) {
-      logger.error(
-        `error while attempting to delete User from the corresponding Network ${stringify(
-          updatedNetwork.err,
-        )}`,
-      );
-    }
 
     return {
       success: true,
@@ -515,6 +500,19 @@ function buildAuthMethods(user) {
   };
 }
 
+// Extracted as a pure function (rather than inlined date math) so the
+// month-boundary arithmetic is independently unit-testable without needing
+// to fake the system clock: clamping to day 1 before subtracting months
+// avoids setMonth() overflowing into the following month when "now" falls
+// on the 29th-31st and the subtraction lands on a shorter month.
+const computeMonthRangeStart = (referenceDate, monthsBack) => {
+  const start = new Date(referenceDate);
+  start.setDate(1);
+  start.setMonth(start.getMonth() - (monthsBack - 1));
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
 const createUserModule = {
   _validatePassword: (password) => {
     if (!password || !constants.PASSWORD_REGEX.test(password)) {
@@ -596,9 +594,9 @@ const createUserModule = {
         }
       }
 
-      populatedUser.network_roles = [];
       delete populatedUser.networks;
       delete populatedUser.my_networks;
+      delete populatedUser.network_roles;
 
       // Compute authMethods while password hash is still present, then
       // destructure it out so it is never included in the API response.
@@ -616,8 +614,6 @@ const createUserModule = {
             permissionsResult.data.permissions?.allPermissions?.length || 0,
           groupMemberships:
             permissionsResult.data.permissions?.groupMemberships?.length || 0,
-          networkMemberships:
-            permissionsResult.data.permissions?.networkMemberships?.length || 0,
           isSuperAdmin:
             permissionsResult.data.permissions?.isSuperAdmin || false,
         },
@@ -636,6 +632,113 @@ const createUserModule = {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: "Failed to retrieve enhanced profile" },
+      };
+    }
+  },
+
+  listKnownDevices: async ({ userId, tenant }, next) => {
+    try {
+      const user = await UserModel(tenant)
+        .findById(userId)
+        .select("knownDevices")
+        .lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      const knownDevices = [...(user.knownDevices || [])].sort(
+        (a, b) => new Date(b.lastSeenAt) - new Date(a.lastSeenAt),
+      );
+
+      return {
+        success: true,
+        message: "Known devices retrieved successfully",
+        data: knownDevices,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 listKnownDevices util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve known devices" },
+      };
+    }
+  },
+
+  listEmailQueue: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = query.tenant || constants.DEFAULT_TENANT;
+
+      const MAX_LIMIT = 500;
+      const rawSkip = parseInt(query.skip, 10);
+      const rawLimit = parseInt(query.limit, 10);
+      const skip = Number.isFinite(rawSkip) ? Math.max(0, rawSkip) : 0;
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(MAX_LIMIT, Math.max(1, rawLimit))
+        : 100;
+
+      const filter = {};
+      if (query.status) filter.status = query.status;
+      if (query.email) {
+        filter["mailOptions.to"] = query.email.toLowerCase().trim();
+      }
+      if (query.subject) {
+        const escapedSubject = query.subject
+          .trim()
+          .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter["mailOptions.subject"] = {
+          $regex: escapedSubject,
+          $options: "i",
+        };
+      }
+
+      const EmailQueue = EmailQueueModel(tenant);
+      const [jobs, total] = await Promise.all([
+        EmailQueue.find(filter)
+          .select("-mailOptions.html -mailOptions.attachments")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        EmailQueue.countDocuments(filter),
+      ]);
+
+      const data = jobs.map((job) => ({
+        _id: job._id,
+        status: job.status,
+        to: job.mailOptions && job.mailOptions.to,
+        subject: job.mailOptions && job.mailOptions.subject,
+        attempts: job.attempts,
+        lastAttemptAt: job.lastAttemptAt,
+        errorMessage: job.errorMessage,
+        metadata: job.metadata,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+      }));
+
+      return {
+        success: true,
+        message: "Email queue retrieved successfully",
+        data,
+        meta: { total, skip, limit },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 listEmailQueue util error: ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Failed to retrieve email queue" },
       };
     }
   },
@@ -690,10 +793,478 @@ const createUserModule = {
   listStatistics: async (tenant, next) => {
     try {
       const responseFromListStatistics =
-        await UserModel(tenant).listStatistics(tenant);
+        await UserModel(tenant).listStatistics(next);
       return responseFromListStatistics;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  getStatsBreakdown: async (request, next) => {
+    try {
+      const { tenant, months: rawMonths, limit: rawLimit } = request.query;
+      const months = Number.isFinite(Number(rawMonths))
+        ? Math.min(36, Math.max(1, parseInt(rawMonths, 10)))
+        : 12;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(50, Math.max(1, parseInt(rawLimit, 10)))
+        : 8;
+
+      // Pure caching: a miss or Redis error just falls through to the live
+      // aggregation below, it never affects correctness of the response.
+      const cacheKey = `user_stats_breakdown_${tenant}_${months}_${limit}`;
+      try {
+        const cached = await redisGetAsync(cacheKey);
+        if (cached) {
+          return {
+            success: true,
+            message: "User statistics breakdown retrieved successfully",
+            data: JSON.parse(cached),
+            status: httpStatus.OK,
+          };
+        }
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache read error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
+      const now = new Date();
+      const signupsRangeStart = computeMonthRangeStart(now, months);
+
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+      const aggregationPipeline = [
+        {
+          $facet: {
+            accountStatus: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$isActive", false] },
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            verificationStatus: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$verified", false] },
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            organizations: [
+              { $match: { organization: { $nin: [null, ""] } } },
+              { $group: { _id: "$organization", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+            ],
+            loginActivity: [
+              {
+                $bucket: {
+                  groupBy: { $ifNull: ["$loginCount", 0] },
+                  boundaries: [0, 1, 6, 11, 21],
+                  default: "21+",
+                  output: { count: { $sum: 1 } },
+                },
+              },
+            ],
+            signupsOverTime: [
+              { $match: { createdAt: { $gte: signupsRangeStart } } },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+            topGroups: [
+              { $unwind: "$group_roles" },
+              { $group: { _id: "$group_roles.group", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+              {
+                $lookup: {
+                  from: "groups",
+                  localField: "_id",
+                  foreignField: "_id",
+                  as: "groupInfo",
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  group: { $arrayElemAt: ["$groupInfo.grp_title", 0] },
+                  count: 1,
+                },
+              },
+            ],
+            newUsersLast30Days: [
+              { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+              { $count: "count" },
+            ],
+            newUsersPrevious30Days: [
+              {
+                $match: {
+                  createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+                },
+              },
+              { $count: "count" },
+            ],
+            activeUsersLast30Days: [
+              { $match: { lastLogin: { $gte: thirtyDaysAgo } } },
+              { $count: "count" },
+            ],
+            activeUsersPrevious30Days: [
+              {
+                $match: {
+                  lastLogin: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
+                },
+              },
+              { $count: "count" },
+            ],
+            roles: [
+              {
+                $project: {
+                  roleIds: { $ifNull: ["$group_roles.role", []] },
+                },
+              },
+              { $unwind: "$roleIds" },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "roleIds",
+                  foreignField: "_id",
+                  as: "roleInfo",
+                },
+              },
+              {
+                $project: {
+                  role: { $arrayElemAt: ["$roleInfo.role_name", 0] },
+                },
+              },
+              { $match: { role: { $ne: null } } },
+              // Group by resolved role_name (not role _id) so the same role
+              // name defined per-network/per-group isn't split into
+              // duplicate rows or truncated by $limit before names merge.
+              { $group: { _id: "$role", count: { $sum: 1 } } },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+              { $project: { _id: 0, role: "$_id", count: 1 } },
+            ],
+            geography: [
+              {
+                $group: {
+                  _id: {
+                    $cond: [
+                      { $in: [{ $ifNull: ["$country", ""] }, ["", null]] },
+                      "Unspecified",
+                      "$country",
+                    ],
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { count: -1 } },
+              { $limit: limit },
+            ],
+            verificationByCohort: [
+              { $match: { createdAt: { $gte: signupsRangeStart } } },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+                  total: { $sum: 1 },
+                  verified: {
+                    $sum: { $cond: [{ $eq: ["$verified", true] }, 1, 0] },
+                  },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+            unverifiedAging: [
+              { $match: { verified: { $ne: true } } },
+              {
+                $bucket: {
+                  groupBy: {
+                    $divide: [
+                      { $subtract: [now, "$createdAt"] },
+                      1000 * 60 * 60 * 24,
+                    ],
+                  },
+                  boundaries: [0, 8, 31, 91],
+                  default: "90d+",
+                  output: { count: { $sum: 1 } },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      const results = await UserModel(tenant).aggregate(aggregationPipeline);
+      const facets = results[0] || {};
+
+      const accountStatus = { active: 0, inactive: 0 };
+      (facets.accountStatus || []).forEach((entry) => {
+        if (entry._id === true) accountStatus.active = entry.count;
+        else accountStatus.inactive = entry.count;
+      });
+
+      const verificationStatus = { verified: 0, unverified: 0 };
+      (facets.verificationStatus || []).forEach((entry) => {
+        if (entry._id === true) verificationStatus.verified = entry.count;
+        else verificationStatus.unverified = entry.count;
+      });
+
+      const organizations = (facets.organizations || []).map((entry) => ({
+        organization: entry._id,
+        count: entry.count,
+      }));
+
+      const bucketLabels = { 0: "0", 1: "1-5", 6: "6-10", 11: "11-20" };
+      const loginActivity = (facets.loginActivity || []).map((entry) => ({
+        range: bucketLabels[entry._id] || "21+",
+        count: entry.count,
+      }));
+
+      const signupsOverTime = (facets.signupsOverTime || []).map((entry) => ({
+        period: entry._id,
+        count: entry.count,
+      }));
+
+      const topGroups = (facets.topGroups || [])
+        .filter((entry) => entry.group)
+        .map((entry) => ({ group: entry.group, count: entry.count }));
+
+      const newUsersCurrent = facets.newUsersLast30Days?.[0]?.count || 0;
+      const newUsersPrevious = facets.newUsersPrevious30Days?.[0]?.count || 0;
+      const activeUsersCurrent = facets.activeUsersLast30Days?.[0]?.count || 0;
+      const activeUsersPrevious =
+        facets.activeUsersPrevious30Days?.[0]?.count || 0;
+
+      const percentChange = (current, previous) =>
+        previous > 0
+          ? ((current - previous) / previous) * 100
+          : current > 0
+            ? 100
+            : 0;
+
+      const growth = {
+        newUsers: {
+          current: newUsersCurrent,
+          previous: newUsersPrevious,
+          percentChange: percentChange(newUsersCurrent, newUsersPrevious),
+        },
+        activeUsers: {
+          current: activeUsersCurrent,
+          previous: activeUsersPrevious,
+          percentChange: percentChange(
+            activeUsersCurrent,
+            activeUsersPrevious,
+          ),
+        },
+      };
+
+      const roles = (facets.roles || [])
+        .filter((entry) => entry.role)
+        .map((entry) => ({ role: entry.role, count: entry.count }));
+
+      const geography = (facets.geography || []).map((entry) => ({
+        country: entry._id,
+        count: entry.count,
+      }));
+
+      const verificationByCohort = (facets.verificationByCohort || []).map(
+        (entry) => ({
+          period: entry._id,
+          total: entry.total,
+          verified: entry.verified,
+          verificationRate:
+            entry.total > 0 ? (entry.verified / entry.total) * 100 : 0,
+        }),
+      );
+
+      const agingLabels = { 0: "0-7d", 8: "8-30d", 31: "31-90d" };
+      const unverifiedAging = (facets.unverifiedAging || []).map((entry) => ({
+        range: agingLabels[entry._id] || "90d+",
+        count: entry.count,
+      }));
+
+      const data = {
+        accountStatus,
+        verificationStatus,
+        organizations,
+        loginActivity,
+        signupsOverTime,
+        topGroups,
+        growth,
+        roles,
+        geography,
+        verificationFunnel: {
+          byCohort: verificationByCohort,
+          unverifiedAging,
+        },
+      };
+
+      try {
+        await redisSetWithTTLAsync(cacheKey, JSON.stringify(data), 300);
+      } catch (cacheError) {
+        logger.error(
+          `🐛🐛 Cache write error in getStatsBreakdown: ${cacheError.message}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: "User statistics breakdown retrieved successfully",
+        data,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getStatsBreakdown: ${error.message}`,
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  // Lightweight, unpaginated contact list behind each User Statistics card
+  // (total / active / verified / api). Segments mirror the card definitions.
+  // Each row carries `unsubscribed` (email notifications switched off in the
+  // local subscriptions collection, the same flag the mailer enforces).
+  // Newsletter unsubscribes live only in Mailchimp and are not visible here.
+  exportStatsSegment: async (request, next) => {
+    try {
+      const {
+        tenant,
+        segment,
+        exclude_unsubscribed,
+        skip: rawSkip,
+        limit: rawLimit,
+      } = request.query;
+      const skip = Number.isFinite(Number(rawSkip))
+        ? Math.max(0, parseInt(rawSkip, 10))
+        : 0;
+      const limit = Number.isFinite(Number(rawLimit))
+        ? Math.min(
+            EXPORT_STATS_MAX_LIMIT,
+            Math.max(1, parseInt(rawLimit, 10)),
+          )
+        : EXPORT_STATS_DEFAULT_LIMIT;
+
+      const pipeline = [
+        { $match: { email: { $nin: [null, ""] } } },
+      ];
+
+      if (segment === "active") {
+        pipeline.push({ $match: { isActive: true } });
+      } else if (segment === "verified") {
+        pipeline.push({ $match: { verified: true } });
+      } else if (segment === "api") {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "clients",
+              localField: "_id",
+              foreignField: "user_id",
+              as: "clients",
+            },
+          },
+          { $match: { "clients.0": { $exists: true } } },
+        );
+      }
+
+      pipeline.push(
+        {
+          $lookup: {
+            from: "subscriptions",
+            localField: "email",
+            foreignField: "email",
+            as: "subscription",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            email: 1,
+            firstName: 1,
+            lastName: 1,
+            userName: 1,
+            organization: 1,
+            country: 1,
+            isActive: { $ifNull: ["$isActive", false] },
+            verified: { $ifNull: ["$verified", false] },
+            loginCount: { $ifNull: ["$loginCount", 0] },
+            lastLogin: 1,
+            createdAt: 1,
+            unsubscribed: {
+              $eq: [
+                { $arrayElemAt: ["$subscription.notifications.email", 0] },
+                false,
+              ],
+            },
+          },
+        },
+      );
+
+      const excludeUnsubscribed = exclude_unsubscribed === true;
+      pipeline.push({
+        $facet: {
+          users: [
+            ...(excludeUnsubscribed
+              ? [{ $match: { unsubscribed: false } }]
+              : []),
+            { $sort: { createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          counts: [{ $group: { _id: "$unsubscribed", count: { $sum: 1 } } }],
+        },
+      });
+
+      const [facets = {}] = await UserModel(tenant)
+        .aggregate(pipeline)
+        .allowDiskUse(true);
+
+      const users = facets.users || [];
+      const countFor = (flag) =>
+        ((facets.counts || []).find((c) => c._id === flag) || {}).count || 0;
+      const unsubscribedTotal = countFor(true);
+      const total = excludeUnsubscribed
+        ? countFor(false)
+        : countFor(false) + unsubscribedTotal;
+
+      return {
+        success: true,
+        message: `Successfully retrieved the ${segment} users`,
+        data: {
+          segment,
+          total,
+          unsubscribed_total: unsubscribedTotal,
+          skip,
+          limit,
+          has_more: skip + users.length < total,
+          users,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in exportStatsSegment: ${error.message}`,
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -1119,17 +1690,37 @@ const createUserModule = {
         };
       }
 
+      // Some accounts (e.g. phone-only Firebase sign-ups) have no email.
+      // mailer.update requires `email` and will call `next` with a 400 if it's
+      // missing, so skip the notification flow entirely in that case rather
+      // than surfacing a misleading follow-up error.
+      if (!user.email) {
+        return {
+          success: true,
+          message: responseFromModifyUser.message,
+          data: apiResponseData,
+        };
+      }
+
       // ── 6. Conditional email notification ─────────────────────────────────────
       //
       // Only send the "Your AirQo Account Updated" email when a user-facing
-      // profile field has changed. Updates to internal or preference fields
-      // (e.g. jobTitle, interests, website) complete silently with no email.
+      // identity/contact field has changed. Updates to internal or preference
+      // fields (e.g. jobTitle, interests, website) complete silently with no
+      // email. email and password changes are deliberately excluded here since
+      // they already trigger their own dedicated notifications elsewhere
+      // (verification / password-reset emails).
       //
       // hasOwnProperty is used intentionally — a field set to "" or null still
       // warrants a notification. Only its complete absence from the payload skips it.
       //
       // To notify on additional fields in future, add them to this array.
-      const NOTIFIABLE_FIELDS = ["firstName", "lastName", "profilePicture"];
+      const NOTIFIABLE_FIELDS = [
+        "firstName",
+        "lastName",
+        "profilePicture",
+        "phoneNumber",
+      ];
       const hasNotifiableChange = NOTIFIABLE_FIELDS.some((field) =>
         Object.prototype.hasOwnProperty.call(emailUpdatePayload, field),
       );
@@ -1922,16 +2513,40 @@ const createUserModule = {
       const { body, query } = request;
       const { email } = body;
       const { purpose } = query;
+      const tenant = (query && query.tenant) || "airqo";
 
-      const link = await firebaseAuth.getAuth().generateSignInWithEmailLink(
-        email,
-        constants.ACTION_CODE_SETTINGS,
+      const userExists = await UserModel(tenant).exists({ email });
+      if (!userExists) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Sorry, the provided email does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+          }),
+        );
+      }
+
+      const responseFromGenerateToken = createUserModule.generateResetToken();
+      if (responseFromGenerateToken.success !== true) {
+        return responseFromGenerateToken;
+      }
+      const signInToken = responseFromGenerateToken.data;
+
+      const responseFromModifyUser = await UserModel(tenant).modify(
+        {
+          filter: { email },
+          update: {
+            signInToken,
+            signInTokenExpires: Date.now() + 15 * 60 * 1000,
+          },
+        },
+        next,
       );
+      if (!responseFromModifyUser || responseFromModifyUser.success !== true) {
+        return responseFromModifyUser;
+      }
 
-      let linkSegments = link.split("%").filter((segment) => segment);
-      const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
-      const indexOfCode = indexBeforeCode + 1;
-      let emailLinkCode = linkSegments[indexOfCode].substring(2);
+      const link = `${constants.SIGN_IN_LINK}?token=${signInToken}&email=${encodeURIComponent(email)}`;
+      const emailLinkCode = signInToken;
 
       let responseFromSendEmail = {};
       let token = 10000;
@@ -1955,7 +2570,7 @@ const createUserModule = {
       }
       if (purpose === "login") {
         responseFromSendEmail = await mailer.signInWithEmailLink(
-          { email, token },
+          { email, token, link },
           next,
         );
       }
@@ -1989,6 +2604,52 @@ const createUserModule = {
           ),
         );
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  completeSignInWithEmailLink: async (request, next) => {
+    try {
+      const { email, token } = request.body;
+      const tenant = (request.query && request.query.tenant) || "airqo";
+
+      const user = await UserModel(tenant).findOneAndUpdate(
+        {
+          email,
+          signInToken: token,
+          signInTokenExpires: { $gt: new Date() },
+        },
+        {
+          $set: {
+            signInToken: null,
+            signInTokenExpires: null,
+          },
+        },
+        { new: true, context: "query" },
+      );
+
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "This sign-in link is invalid or has expired.",
+          }),
+        );
+      }
+
+      const loginResult = await createUserModule.loginWithEnhancedTokens(
+        { body: { email }, query: request.query, headers: request.headers },
+        next,
+        { skipPasswordCheck: true },
+      );
+
+      return loginResult;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(
@@ -2466,59 +3127,6 @@ const createUserModule = {
     }
   },
 
-  sendFeedback: async (request, next) => {
-    try {
-      const { body } = request;
-      const { email, message, subject } = body;
-      const responseFromSendEmail = await mailer.feedback(
-        {
-          email,
-          message,
-          subject,
-        },
-        next,
-      );
-
-      logObject("responseFromSendEmail ....", responseFromSendEmail);
-
-      if (responseFromSendEmail && responseFromSendEmail.success === true) {
-        // Send confirmation email to the feedback submitter (best-effort)
-        try {
-          const confirmResult = await mailer.feedbackConfirmation({
-            email,
-            subject,
-          });
-          if (!confirmResult || confirmResult.success === false) {
-            logger.warn(
-              `Support email sent but confirmation email failed: ${confirmResult && confirmResult.message}`,
-            );
-          }
-        } catch (confirmationError) {
-          logger.warn(
-            `Support email sent but confirmation email failed: ${confirmationError.message}`,
-          );
-        }
-
-        return {
-          success: true,
-          message: "email successfully sent",
-          status: httpStatus.OK,
-        };
-      } else {
-        return responseFromSendEmail;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
   registerMobileUser: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password } = {
@@ -2979,6 +3587,7 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: user.firstName,
+        user_id,
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
 
@@ -3490,6 +4099,14 @@ const createUserModule = {
               return responseFromUpdateUser;
             }
 
+            // Fire-and-forget: now that the email is actually verified, see
+            // if its domain matches a group's grp_email_domains.
+            createRequestUtil.autoSuggestGroupsByDomain(
+              user._id,
+              user.email,
+              tenant,
+            );
+
             // ✅ STEP 8: Delete verification token
             filter = { token };
             const responseFromDeleteToken = await VerifyTokenModel(
@@ -3779,6 +4396,14 @@ const createUserModule = {
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
+
+            // Fire-and-forget: now that the email is actually verified, see
+            // if its domain matches a group's grp_email_domains.
+            createRequestUtil.autoSuggestGroupsByDomain(
+              user._id,
+              user.email,
+              tenant,
+            );
 
             // ✅ STEP 6: Delete verification token
             filter = { token };
@@ -4165,6 +4790,11 @@ const createUserModule = {
         );
       }
 
+      // autoSuggestGroupsByDomain intentionally does NOT run here — an
+      // unverified email address isn't a trustworthy signal of domain
+      // ownership. It's fired from verifyEmail/verifyMobileEmail instead,
+      // once the address is actually confirmed.
+
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH),
@@ -4174,6 +4804,7 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: createdUser._doc.firstName,
+        user_id,
       };
 
       const responseFromCreateToken = await VerifyTokenModel(dbTenant).register(
@@ -4993,6 +5624,41 @@ const createUserModule = {
           message:
             "An internal error occurred during the password reset process.",
         },
+      );
+    }
+  },
+
+  // Supports a two-step login flow (email first, then password/SSO based on
+  // the response). Unlike initiatePasswordReset, this intentionally reveals
+  // account existence — that's the point of the feature — mitigated by
+  // rate limiting at the route layer rather than a generic response here.
+  checkEmailExists: async ({ email, tenant }) => {
+    try {
+      const normalizedEmail = (email || "").toLowerCase().trim();
+      const user = await UserModel(tenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "password hasSetPassword google_id github_id linkedin_id microsoft_id twitter_id facebook_id apple_id",
+        )
+        .lean();
+
+      if (!user) {
+        return { success: true, exists: false };
+      }
+
+      return {
+        success: true,
+        exists: true,
+        authMethods: buildAuthMethods(user),
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in checkEmailExists: ${error.message}`,
+      );
+      throw new HttpError(
+        "Unable to check email",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: "An internal error occurred while checking the email." },
       );
     }
   },
@@ -5819,6 +6485,7 @@ const createUserModule = {
         const tokenCreationBody = {
           token,
           name: createdUser._doc.firstName,
+          user_id,
         };
 
         const responseFromCreateToken = await VerifyTokenModel(
@@ -6292,8 +6959,9 @@ const createUserModule = {
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
-  loginWithEnhancedTokens: async (request, next) => {
+  loginWithEnhancedTokens: async (request, next, options = {}) => {
     try {
+      const { skipPasswordCheck = false } = options;
       const body = request.body || {};
       const query = request.query || {};
       const { email, password, preferredStrategy, includeDebugInfo } = body;
@@ -6307,14 +6975,17 @@ const createUserModule = {
       });
 
       // Input validation
-      if (!email || !password) {
+      if (!email || (!skipPasswordCheck && !password)) {
         return {
           success: false,
           message: "Email and password are required",
           status: httpStatus.BAD_REQUEST,
           errors: {
             email: !email ? "Email is required" : undefined,
-            password: !password ? "Password is required" : undefined,
+            password:
+              !skipPasswordCheck && !password
+                ? "Password is required"
+                : undefined,
           },
         };
       }
@@ -6335,17 +7006,20 @@ const createUserModule = {
         };
       }
 
-      // Verify password
-      const isPasswordValid = await user.authenticateUser(password);
-      if (!isPasswordValid) {
-        return {
-          success: false,
-          message: "Invalid login credentials provided",
-          status: httpStatus.UNAUTHORIZED,
-          errors: {
-            credentials: "The email or password you entered is incorrect.",
-          },
-        };
+      // Verify password (skipped when the caller already established identity
+      // through another verified channel, e.g. a one-time sign-in link token)
+      if (!skipPasswordCheck) {
+        const isPasswordValid = await user.authenticateUser(password);
+        if (!isPasswordValid) {
+          return {
+            success: false,
+            message: "Invalid login credentials provided",
+            status: httpStatus.UNAUTHORIZED,
+            errors: {
+              credentials: "The email or password you entered is incorrect.",
+            },
+          };
+        }
       }
 
       // Centralized verification check
@@ -6383,7 +7057,7 @@ const createUserModule = {
         const userConsented = user?.consent?.analytics === true;
         if (!dnt && userConsented) {
           analyticsService.track(user._id.toString(), "user_logged_in", {
-            method: "email_password",
+            method: skipPasswordCheck ? "email_link" : "email_password",
           });
         }
       } catch (analyticsError) {
@@ -6403,7 +7077,6 @@ const createUserModule = {
         allCount: loginPermissions.allPermissions?.length || 0,
         systemCount: loginPermissions.systemPermissions?.length || 0,
         groupCount: Object.keys(loginPermissions.groupPermissions).length,
-        networkCount: Object.keys(loginPermissions.networkPermissions).length,
         isSuperAdmin: loginPermissions.isSuperAdmin,
       });
 
@@ -6500,7 +7173,10 @@ const createUserModule = {
           const updatePayload = createUserModule._constructLoginUpdate(
             user,
             strategy,
-            { autoVerify: shouldAutoVerify, stampHasSetPassword: true },
+            {
+              autoVerify: shouldAutoVerify,
+              stampHasSetPassword: !skipPasswordCheck,
+            },
           );
           const updatedUser = await UserModel(dbTenant).findOneAndUpdate(
             { _id: user._id },
@@ -6563,6 +7239,14 @@ const createUserModule = {
                 deviceType,
                 location,
                 loginTime: new Date(),
+                // "Queued" is not "delivered" — if the queued job later fails
+                // permanently, this tells the queue processor to undo the
+                // knownDevices insert so the next login from this device
+                // retries the notification instead of staying silently known.
+                rollbackKnownDevice: {
+                  userId: user._id.toString(),
+                  fingerprint,
+                },
               });
 
               if (!mailResult || mailResult.success === false) {
@@ -6614,9 +7298,10 @@ const createUserModule = {
 
         authMethods: {
           ...buildAuthMethods(user),
-          // Always true here — we verified the password above to reach this point.
-          // Also covers legacy accounts whose hasSetPassword was never stamped.
-          password: true,
+          // Only override to true when we actually just verified the password
+          // above; a skipped check (e.g. sign-in link) tells us nothing new
+          // about whether this account has a working password.
+          ...(!skipPasswordCheck ? { password: true } : {}),
         },
 
         // --- REMOVED FOR SCALABILITY ---
@@ -6627,23 +7312,16 @@ const createUserModule = {
         // permissions: loginPermissions.allPermissions,
         // systemPermissions: loginPermissions.systemPermissions,
         // groupPermissions: loginPermissions.groupPermissions,
-        // networkPermissions: loginPermissions.networkPermissions,
         // groupMemberships: loginPermissions.groupMemberships,
-        // networkMemberships: loginPermissions.networkMemberships,
 
         // User flags (small and useful for initial UI setup)
         isSuperAdmin: loginPermissions.isSuperAdmin,
         hasGroupAccess: loginPermissions.groupMemberships.length > 0,
-        hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
 
         // Context info
         defaultGroup:
           loginPermissions.groupMemberships.length > 0
             ? loginPermissions.groupMemberships[0].group.id
-            : null,
-        defaultNetwork:
-          loginPermissions.networkMemberships.length > 0
-            ? loginPermissions.networkMemberships[0].network.id
             : null,
 
         // Login metadata
@@ -6665,13 +7343,6 @@ const createUserModule = {
                     sum + loginPermissions.groupPermissions[groupId].length,
                   0,
                 ),
-                networks: Object.keys(
-                  loginPermissions.networkPermissions,
-                ).reduce(
-                  (sum, networkId) =>
-                    sum + loginPermissions.networkPermissions[networkId].length,
-                  0,
-                ),
               },
               tokenCompressionRatio:
                 strategy !== constants.TOKEN_STRATEGIES.LEGACY
@@ -6687,9 +7358,8 @@ const createUserModule = {
 
       logObject("🎉 Enhanced login successful:", {
         userId: authResponse._id,
-        permissionsCount: (authResponse.permissions || []).length,
-        groupMemberships: (authResponse.groupMemberships || []).length,
-        networkMemberships: (authResponse.networkMemberships || []).length,
+        permissionsCount: (loginPermissions.allPermissions || []).length,
+        groupMemberships: (loginPermissions.groupMemberships || []).length,
         tokenStrategy: strategy,
         tokenSize: authResponse.tokenSize,
       });
@@ -6864,8 +7534,6 @@ const createUserModule = {
         }));
       }
 
-      userObj.network_roles = [];
-
       return userObj;
     } catch (error) {
       console.error("❌ Error in manual population:", error);
@@ -6873,7 +7541,6 @@ const createUserModule = {
         ...(user.toObject ? user.toObject() : user),
         permissions: user.permissions || [],
         group_roles: user.group_roles || [],
-        network_roles: [],
       };
     }
   },
@@ -7588,6 +8255,7 @@ const createUserModule = {
 // Separated from createUserModule to keep concerns clear; exported individually.
 // ─────────────────────────────────────────────────────────────────────────────
 const FeedbackModel = require("@models/Feedback");
+const PageSatisfactionDailyModel = require("@models/PageSatisfactionDaily");
 const { FeedbackWebhookModel } = require("@models/FeedbackWebhook");
 const { dispatchWebhooks } = require("@utils/feedback-webhook.util");
 const { dispatchIntegrations } = require("@utils/feedback-integrations.util");
@@ -7601,15 +8269,127 @@ const resolveFeedbackTenant = (query) =>
 
 // Classifies whether a feedback item needs team action.
 // Bugs, feature requests, and performance issues are always actionable.
-// Pure ratings (page_satisfaction with a short message) are not.
-const classifyFeedback = ({ category, message }) => {
+// Short, highly rated notes in other categories ("love it", 5 stars) are
+// appreciation, not requests: they get no confirmation or status emails.
+const classifyFeedback = ({ category, message, rating }) => {
   const ALWAYS_ACTIONABLE = ["bug", "feature_request", "performance"];
   if (ALWAYS_ACTIONABLE.includes(category)) return true;
-  if (category === "page_satisfaction") {
-    const len = (message || "").trim().length;
-    if (len < 50) return false;
-  }
+  const len = (message || "").trim().length;
+  if (Number(rating) >= 4 && len < 50) return false;
   return true;
+};
+
+// Satisfaction widgets send the bare label ("Positive" / "Negative") when the
+// user only clicked a button, so that is not treated as written detail.
+const hasWrittenDetail = (message) => {
+  const trimmed = (message || "").trim();
+  return trimmed.length > 0 && !/^(positive|negative)$/i.test(trimmed);
+};
+
+// Submitters are only emailed about progress on items that need action, and
+// archiving is silent: it is an internal clean-up, not an outcome.
+const shouldEmailSubmitterOnStatusChange = (item, newStatus) =>
+  item.category !== "page_satisfaction" &&
+  item.actionable !== false &&
+  item.contact_consent !== false &&
+  newStatus !== "archived";
+
+const submitPageSatisfaction = async ({
+  tenant,
+  email,
+  subject,
+  message,
+  rating,
+  platform,
+  app,
+  screenshot_url,
+  next,
+}) => {
+  const page = PageSatisfactionDailyModel.pageFromSubject(subject);
+  const trimmedMessage = (message || "").trim();
+  const hasDetail = hasWrittenDetail(trimmedMessage);
+
+  // Counters first: if they cannot be written, fail before emailing support so
+  // a client retry does not produce a duplicate support email.
+  const recordResult = await PageSatisfactionDailyModel(tenant).record({
+    tenant,
+    page,
+    app,
+    platform,
+    rating,
+    hasMessage: hasDetail,
+    hasScreenshot: !isEmpty(screenshot_url),
+  });
+  if (!recordResult || !recordResult.success) {
+    logger.error(
+      `Page satisfaction counters not updated: ${recordResult && recordResult.message}`,
+    );
+    return {
+      success: false,
+      message: "Unable to record page satisfaction feedback",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: {
+        message: (recordResult && recordResult.message) || "Counter update failed",
+      },
+    };
+  }
+
+  // A bare click is fully captured by the counters. Only ratings with written
+  // detail reach support and Slack; the email is the only place the submitter
+  // and message text are kept.
+  if (hasDetail) {
+    try {
+      const details = [
+        `Page: ${page}`,
+        rating ? `Rating: ${rating}/5` : null,
+        app ? `App: ${app}` : null,
+        `Platform: ${platform || "web"}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await mailer.feedback(
+        {
+          email,
+          subject,
+          message: `${trimmedMessage}\n\n${details}`,
+          screenshot_url,
+        },
+        next,
+      );
+    } catch (emailError) {
+      logger.warn(`Page satisfaction support email failed: ${emailError.message}`);
+    }
+  }
+
+  // Webhooks/integrations still see the rating, but there is no feedbackId
+  // because nothing is persisted as an individual item.
+  const submittedPayload = {
+    feedbackId: null,
+    email,
+    subject,
+    category: "page_satisfaction",
+    platform: platform || "web",
+    app,
+    rating,
+    actionable: false,
+    createdAt: new Date(),
+  };
+  dispatchWebhooks(tenant, "feedback.submitted", submittedPayload).catch(() => {});
+  if (hasDetail) {
+    dispatchIntegrations({ ...submittedPayload, message }).catch(() => {});
+  }
+
+  return {
+    success: true,
+    message: "Feedback submitted successfully",
+    status: httpStatus.CREATED,
+    data: {
+      category: "page_satisfaction",
+      page,
+      rating,
+      stored: false,
+    },
+  };
 };
 
 // U3: allowed status transitions — enforced before every modify call.
@@ -7639,6 +8419,7 @@ const feedbackUtil = {
         app: rawApp,
         screenshot_url,
         metadata,
+        contact_consent,
       } = body;
       const app =
         typeof rawApp === "string" && rawApp.trim()
@@ -7658,7 +8439,24 @@ const feedbackUtil = {
       }
       const normalizedEmail = email.toLowerCase().trim();
 
-      const actionable = classifyFeedback({ category, message });
+      // Page-satisfaction ratings are not issues or inquiries, so they are not
+      // persisted as Feedback items (no status workflow, no follow-up emails).
+      // Support gets the email; only anonymous daily counters are stored.
+      if (category === "page_satisfaction") {
+        return await submitPageSatisfaction({
+          tenant,
+          email: normalizedEmail,
+          subject,
+          message,
+          rating,
+          platform,
+          app,
+          screenshot_url,
+          next,
+        });
+      }
+
+      const actionable = classifyFeedback({ category, message, rating });
 
       // Persist to database
       const createResult = await FeedbackModel(tenant).register({
@@ -7673,6 +8471,7 @@ const feedbackUtil = {
         metadata,
         tenant,
         actionable,
+        contact_consent: contact_consent !== false,
         userId: request.user ? request.user._id : undefined,
       });
 
@@ -7692,21 +8491,25 @@ const feedbackUtil = {
         );
       }
 
-      // Send confirmation email to the feedback submitter (best-effort)
-      try {
-        const confirmResult = await mailer.feedbackConfirmation({
-          email: normalizedEmail,
-          subject,
-        });
-        if (!confirmResult || confirmResult.success === false) {
+      // Confirm receipt to the submitter (best-effort) only when the team will
+      // act on it and they agreed to be contacted — appreciation notes do not
+      // warrant a system email.
+      if (actionable && contact_consent !== false) {
+        try {
+          const confirmResult = await mailer.feedbackConfirmation({
+            email: normalizedEmail,
+            subject,
+          });
+          if (!confirmResult || confirmResult.success === false) {
+            logger.warn(
+              `Feedback saved to DB but confirmation email failed: ${confirmResult && confirmResult.message}`,
+            );
+          }
+        } catch (confirmationError) {
           logger.warn(
-            `Feedback saved to DB but confirmation email failed: ${confirmResult && confirmResult.message}`,
+            `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
           );
         }
-      } catch (confirmationError) {
-        logger.warn(
-          `Feedback saved to DB but confirmation email failed: ${confirmationError.message}`,
-        );
       }
 
       // Fire webhooks — whitelist public fields only; never forward adminNotes,
@@ -7784,6 +8587,137 @@ const feedbackUtil = {
     }
   },
 
+  // Powers the top cards on the admin feedback page. Feedback items and the
+  // page-satisfaction daily counters share the same app/platform/date filters.
+  getFeedbackStats: async (request, next) => {
+    try {
+      const { query } = request;
+      const tenant = resolveFeedbackTenant(query);
+      const now = new Date();
+
+      const feedbackMatch = { tenant };
+      const pageMatch = { tenant };
+      if (typeof query.app === "string" && query.app.trim()) {
+        feedbackMatch.app = query.app.trim();
+        pageMatch.app = query.app.trim();
+      }
+      if (query.platform) {
+        feedbackMatch.platform = query.platform;
+        pageMatch.platform = query.platform;
+      }
+      if (query.startDate || query.endDate) {
+        feedbackMatch.createdAt = {};
+        pageMatch.day = {};
+        if (query.startDate) {
+          const start = new Date(query.startDate);
+          feedbackMatch.createdAt.$gte = start;
+          pageMatch.day.$gte = start.toISOString().slice(0, 10);
+        }
+        if (query.endDate) {
+          const end = new Date(query.endDate);
+          // A date-only endDate ("2026-09-30") covers that whole UTC day.
+          if (/^\d{4}-\d{2}-\d{2}$/.test(String(query.endDate))) {
+            end.setUTCHours(23, 59, 59, 999);
+          }
+          feedbackMatch.createdAt.$lte = end;
+          pageMatch.day.$lte = end.toISOString().slice(0, 10);
+        }
+      }
+
+      const staleBefore = new Date(now);
+      staleBefore.setDate(
+        staleBefore.getDate() - constants.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+      );
+      const recentSince = new Date(now);
+      recentSince.setDate(recentSince.getDate() - 7);
+
+      const [feedbackStats, pageSatisfaction] = await Promise.all([
+        FeedbackModel(tenant).getStats({
+          match: feedbackMatch,
+          staleBefore,
+          recentSince,
+        }),
+        PageSatisfactionDailyModel(tenant).summarize({ match: pageMatch }),
+      ]);
+
+      const overall = (feedbackStats.overall || [])[0] || {};
+      const byStatus = Object.fromEntries(
+        constants.FEEDBACK_STATUSES.map((status) => [status, 0]),
+      );
+      for (const row of feedbackStats.by_status || []) {
+        byStatus[row._id] = row.count;
+      }
+      const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      for (const row of feedbackStats.by_rating || []) {
+        ratingDistribution[row._id] = row.count;
+      }
+      const total = overall.total || 0;
+      const closed = (byStatus.resolved || 0) + (byStatus.archived || 0);
+      const toList = (rows, key) =>
+        (rows || []).map((row) => ({ [key]: row._id, count: row.count }));
+
+      return {
+        success: true,
+        message: "successfully retrieved feedback stats",
+        status: httpStatus.OK,
+        data: {
+          feedback: {
+            total,
+            actionable: overall.actionable || 0,
+            ...byStatus,
+            open: overall.open || 0,
+            open_actionable: overall.open_actionable || 0,
+            unassigned_open: overall.unassigned_open || 0,
+            stale_actionable: overall.stale_actionable || 0,
+            stale_threshold_days: constants.FEEDBACK_REMINDER_THRESHOLD_DAYS,
+            new_last_7_days: overall.recent || 0,
+            replied: overall.replied || 0,
+            with_screenshot: overall.with_screenshot || 0,
+            resolution_rate: total
+              ? Number(((byStatus.resolved / total) * 100).toFixed(1))
+              : null,
+            closure_rate: total
+              ? Number(((closed / total) * 100).toFixed(1))
+              : null,
+            reply_rate: total
+              ? Number((((overall.replied || 0) / total) * 100).toFixed(1))
+              : null,
+            oldest_pending_at: overall.oldest_pending_at || null,
+            latest_at: overall.latest_at || null,
+            rating: {
+              rated_count: overall.rated_count || 0,
+              average_rating:
+                typeof overall.average_rating === "number"
+                  ? Number(overall.average_rating.toFixed(2))
+                  : null,
+              distribution: ratingDistribution,
+            },
+            by_category: toList(feedbackStats.by_category, "category"),
+            by_app: toList(feedbackStats.by_app, "app"),
+            by_platform: toList(feedbackStats.by_platform, "platform"),
+          },
+          page_satisfaction: pageSatisfaction,
+          filters: {
+            app: feedbackMatch.app || null,
+            platform: feedbackMatch.platform || null,
+            startDate: query.startDate || null,
+            endDate: query.endDate || null,
+          },
+          generated_at: now,
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   getFeedbackSubmission: async (request, next) => {
     try {
       const { query, params } = request;
@@ -7846,16 +8780,18 @@ const feedbackUtil = {
         const fb = existing.data;
         const statusDetail = `Status changed from "${currentStatus}" to "${requestedStatus}".`;
 
-        // Notify submitter (best-effort)
-        try {
-          await mailer.feedbackStatusUpdate({
-            email: fb.email,
-            subject: fb.subject,
-            oldStatus: currentStatus,
-            newStatus: requestedStatus,
-          });
-        } catch (emailError) {
-          logger.warn(`Status updated but submitter email failed: ${emailError.message}`);
+        // Notify submitter (best-effort).
+        if (shouldEmailSubmitterOnStatusChange(fb, requestedStatus)) {
+          try {
+            await mailer.feedbackStatusUpdate({
+              email: fb.email,
+              subject: fb.subject,
+              oldStatus: currentStatus,
+              newStatus: requestedStatus,
+            });
+          } catch (emailError) {
+            logger.warn(`Status updated but submitter email failed: ${emailError.message}`);
+          }
         }
 
         // Notify watchers (best-effort)
@@ -7914,12 +8850,14 @@ const feedbackUtil = {
 
       // Notify submitters and watchers for each succeeded item (best-effort)
       for (const item of succeeded) {
-        mailer.feedbackStatusUpdate({
-          email: item.email,
-          subject: item.subject,
-          oldStatus: item.previousStatus,
-          newStatus: requestedStatus,
-        }).catch(() => {});
+        if (shouldEmailSubmitterOnStatusChange(item, requestedStatus)) {
+          mailer.feedbackStatusUpdate({
+            email: item.email,
+            subject: item.subject,
+            oldStatus: item.previousStatus,
+            newStatus: requestedStatus,
+          }).catch(() => {});
+        }
 
         if (item.watchers && item.watchers.length > 0) {
           const statusDetail = `Status changed from "${item.previousStatus}" to "${requestedStatus}".`;
@@ -8114,6 +9052,18 @@ const feedbackUtil = {
         tenant,
       });
       if (!existing || !existing.success) return existing;
+
+      if (existing.data.contact_consent === false) {
+        return {
+          success: false,
+          message: "The submitter asked not to be contacted about this feedback",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message:
+              "Replies cannot be sent for feedback submitted without contact consent",
+          },
+        };
+      }
 
       const admin = request.user || {};
       const reply = {

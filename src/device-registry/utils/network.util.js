@@ -25,6 +25,7 @@ const crypto = require("crypto");
 const cryptoJS = require("crypto-js");
 const constants = require("@config/constants");
 const NetworkModel = require("@models/Network");
+const DeviceUptimeModel = require("@models/DeviceUptime");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
@@ -299,6 +300,126 @@ const getNetwork = async (request, next) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Partner directory + "verified partner" status
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A network is "verified" when its devices' average uptime over the trailing
+// window meets the threshold AND there is enough sample data to trust the
+// number. Networks with too little uptime history come back as
+// "insufficient_uptime_data" rather than silently reading as unverified —
+// today that is every network except "airqo", since that is the only network
+// the uptime jobs currently poll (see bin/jobs/device-uptime-job.js).
+const VERIFICATION_WINDOW_DAYS = 30;
+const VERIFICATION_MIN_UPTIME_PERCENTAGE = 90;
+const VERIFICATION_MIN_SAMPLE_RECORDS = 7;
+
+const PUBLIC_NETWORK_FIELDS =
+  "net_name net_acronym net_status net_category net_description net_website net_profile_picture net_data_source createdAt";
+
+const getNetworkDirectory = async (request, next) => {
+  try {
+    const { tenant, limit, skip } = request.query;
+
+    const networks = await NetworkModel(tenant)
+      .find({ net_status: "active" })
+      .select(PUBLIC_NETWORK_FIELDS)
+      .skip(Number(skip) || 0)
+      .limit(Number(limit) || 100)
+      .lean();
+
+    if (isEmpty(networks)) {
+      return {
+        success: true,
+        message: "No active partner networks found",
+        status: httpStatus.OK,
+        data: [],
+      };
+    }
+
+    const endDate = new Date();
+    const startDate = new Date(
+      endDate.getTime() - VERIFICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    );
+
+    let contributionStats = [];
+    // Tracks whether the stats call itself failed, as opposed to succeeding
+    // with no/insufficient data for a given network — these are very
+    // different situations for a consumer of this endpoint and must not be
+    // reported identically.
+    let statsLoadFailed = false;
+    try {
+      const statsResponse = await DeviceUptimeModel(
+        tenant
+      ).getNetworkContributionStats(tenant, { startDate, endDate });
+      contributionStats = statsResponse?.data || [];
+    } catch (statsError) {
+      statsLoadFailed = true;
+      logger.warn(
+        `getNetworkDirectory: could not load contribution stats: ${statsError.message}`
+      );
+    }
+
+    const statsByNetwork = new Map(
+      contributionStats.map((s) => [String(s.network).toLowerCase(), s])
+    );
+
+    const data = networks.map((network) => {
+      const key = String(
+        network.net_acronym || network.net_name || ""
+      ).toLowerCase();
+      const stats = statsByNetwork.get(key);
+
+      const meetsSampleSize =
+        stats && stats.total_records >= VERIFICATION_MIN_SAMPLE_RECORDS;
+
+      const verification = statsLoadFailed
+        ? {
+            is_verified: false,
+            reason: "verification_unavailable",
+            uptime_percentage: null,
+            device_count: null,
+            sample_size_days: VERIFICATION_WINDOW_DAYS,
+          }
+        : !meetsSampleSize
+        ? {
+            is_verified: false,
+            reason: "insufficient_uptime_data",
+            uptime_percentage: null,
+            device_count: stats ? stats.device_count : 0,
+            sample_size_days: VERIFICATION_WINDOW_DAYS,
+          }
+        : {
+            is_verified:
+              stats.uptime_percentage >= VERIFICATION_MIN_UPTIME_PERCENTAGE,
+            reason:
+              stats.uptime_percentage >= VERIFICATION_MIN_UPTIME_PERCENTAGE
+                ? "meets_uptime_threshold"
+                : "below_uptime_threshold",
+            uptime_percentage: Math.round(stats.uptime_percentage * 100) / 100,
+            device_count: stats.device_count,
+            sample_size_days: VERIFICATION_WINDOW_DAYS,
+          };
+
+      return { ...network, verification };
+    });
+
+    return {
+      success: true,
+      message: "Successfully retrieved partner network directory",
+      status: httpStatus.OK,
+      data,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const createNetwork = async (request, next) => {
   try {
     const { query, body } = request;
@@ -352,6 +473,7 @@ module.exports = {
   getNetworkAdapter,
   listNetworks,
   getNetwork,
+  getNetworkDirectory,
   updateNetwork,
   deleteNetwork,
   createNetwork,

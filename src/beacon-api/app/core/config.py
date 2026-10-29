@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     PLATFORM_BASE_URL: str = "https://platform.airqo.net/api/v2"
     PLATFORM_API_TOKEN: str = ""
 
+    # Networks ("sensor manufacturers") beacon mirrors from the platform, as a
+    # comma-separated allow-list (e.g. "airqo,airgradient,iqair"). Empty means
+    # every network the platform returns.
+    ENABLED_NETWORKS: str = ""
+
     # Redis
     REDIS_HOST: str = "127.0.0.1"
     REDIS_PORT: int = 6379
@@ -50,6 +55,22 @@ class Settings(BaseSettings):
     # Scheduler
     SCHEDULER_ENABLED: bool = True
     SYNC_INTERVAL_MINUTES: int = 30
+    DAILY_DIAGNOSTICS_ENABLED: bool = True  # Diagnose each completed device-day after the scheduled ThingSpeak sync
+    # Backfill readings of devices from other manufacturers (airgradient, iqair,
+    # metone ...) from the platform's analytics raw-data endpoint after the
+    # nightly ThingSpeak sync.
+    EXTERNAL_SYNC_ENABLED: bool = True
+    # Poll the registry's live feed (which calls the manufacturer API through
+    # the per-network adapter) for the latest reading of external devices.
+    # Minutes between polls; 0 disables. Only networks listed in
+    # EXTERNAL_FEED_NETWORKS have a working adapter today.
+    EXTERNAL_FEED_POLL_MINUTES: int = 60
+    EXTERNAL_FEED_NETWORKS: str = "airgradient,iqair"
+    # Direct history from AirGradient's authenticated raw endpoint (devices
+    # shared privately with this account, i.e. authRequired=true). Empty token
+    # disables the direct source and those devices use analytics raw-data.
+    AIRGRADIENT_API_TOKEN: str = ""
+    AIRGRADIENT_BASE_URL: str = "https://api.airgradient.com/public/api/v1"
 
     # Tokens
     ORG_TOKEN: str = ""

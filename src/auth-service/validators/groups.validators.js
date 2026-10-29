@@ -306,6 +306,32 @@ const listSummary = [validateTenant];
 
 const setManager = [validateTenant, validateGroupIdParam, validateUserIdParam];
 
+const updateEmailDomains = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("email_domains")
+      .exists()
+      .withMessage("the email_domains should be provided")
+      .bail()
+      .custom((value) => Array.isArray(value))
+      .withMessage("email_domains must be an array")
+      .bail()
+      .custom((value) => value.length <= 20)
+      .withMessage("email_domains must not contain more than 20 entries"),
+    body("email_domains.*")
+      .trim()
+      .toLowerCase()
+      .isLength({ max: 253 })
+      .withMessage("each entry in email_domains must not exceed 253 characters")
+      .bail()
+      .matches(/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/)
+      .withMessage(
+        "each entry in email_domains must be a bare domain, e.g. mukwano.com (no protocol, path, or @)",
+      ),
+  ],
+];
+
 const listAssignedUsers = [validateTenant, validateGroupIdParam];
 
 const listAllGroupUsers = [validateTenant, validateGroupIdParam];
@@ -526,6 +552,12 @@ const bulkMemberManagement = [
   ],
 ];
 
+// A POST to /:grp_id/access-requests/bulk-decision without ?action= is
+// treated as a bulk decision by the controller, so validate it as one.
+const isBulkDecisionRequest = (value, { req }) =>
+  req.query.action === "bulk_decision" ||
+  (!req.query.action && req.method === "POST");
+
 const manageAccessRequests = [
   validateTenant,
   validateGroupIdParam,
@@ -553,17 +585,21 @@ const manageAccessRequests = [
       .withMessage("date_to must be a valid ISO8601 date")
       .toDate(),
     body("request_ids")
-      .if(query("action").isIn(["bulk_decision"]))
+      .if(isBulkDecisionRequest)
       .exists()
       .withMessage("request_ids are required for bulk decisions")
       .isArray({ min: 1, max: 50 })
       .withMessage("request_ids must be an array with 1-50 items"),
     body("request_ids.*")
-      .if(query("action").isIn(["bulk_decision"]))
+      .if(isBulkDecisionRequest)
       .isMongoId()
       .withMessage("each request_id must be a valid ObjectId"),
     body("decision")
-      .if(query("action").isIn(["bulk_decision", "single_decision"]))
+      .if(
+        (value, { req }) =>
+          isBulkDecisionRequest(value, { req }) ||
+          req.query.action === "single_decision",
+      )
       .exists()
       .withMessage("decision is required for decision actions")
       .isIn(["approved", "rejected"])
@@ -1119,6 +1155,7 @@ module.exports = {
   assignOneUser,
   listSummary,
   setManager,
+  updateEmailDomains,
   listAssignedUsers,
   listAllGroupUsers,
   listAvailableUsers,

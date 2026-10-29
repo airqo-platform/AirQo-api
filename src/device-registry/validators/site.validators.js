@@ -6,6 +6,11 @@ const createSiteUtil = require("@utils/site.util");
 const Decimal = require("decimal.js");
 const { validateNetwork } = require("@validators/common");
 
+// Strictly a 24-char hex Mongo ObjectId string. Deliberately not mongoose's
+// Types.ObjectId.isValid, which also accepts arbitrary 12-byte strings and
+// would misclassify a short, non-ObjectId id (e.g. a cohort_id slug) as valid.
+const isObjectIdShape = (value) => /^[0-9a-fA-F]{24}$/.test(String(value));
+
 const countDecimalPlaces = (value) => {
   try {
     const decimal = new Decimal(value);
@@ -195,6 +200,17 @@ function validateCategoryField(value) {
 const siteIdentifierChains = [
   createMongoIdValidation("id"),
   createMongoIdValidation("site_id", { isOptional: true }),
+  // Accepts either a comma-separated string or repeated query params;
+  // sanitizes down to well-formed ObjectIds and silently drops anything
+  // else rather than rejecting the whole request, matching how
+  // generateFilter.sites treats this same param downstream.
+  query("site_ids")
+    .optional()
+    .customSanitizer((value) =>
+      (Array.isArray(value) ? value : String(value).split(","))
+        .map((id) => String(id).trim())
+        .filter((id) => id.length > 0 && isObjectIdShape(id))
+    ),
   query("name")
     .optional()
     .notEmpty()
@@ -466,10 +482,21 @@ const validateNearestSite = [
     .withMessage("the radius is missing in request")
     .bail()
     .trim()
-    .isFloat()
-    .withMessage("the radius must be a number")
+    .isFloat({ min: 0 })
+    .withMessage("the radius must be a non-negative number")
     .bail()
     .toFloat(),
+  query("online_status")
+    .optional()
+    .notEmpty()
+    .withMessage("the online_status should not be empty if provided")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .isIn(["online", "offline"])
+    .withMessage(
+      "the online_status value is not among the expected ones which include: online, offline",
+    ),
 ];
 
 const validateBulkUpdateSites = [
@@ -499,9 +526,7 @@ const validateBulkUpdateSites = [
     })
     .bail()
     .custom((value) => {
-      const invalidIds = value.filter(
-        (id) => !mongoose.Types.ObjectId.isValid(id),
-      );
+      const invalidIds = value.filter((id) => !isObjectIdShape(id));
       if (invalidIds.length > 0) {
         throw new Error("All siteIds must be valid MongoDB ObjectIds");
       }
@@ -553,6 +578,38 @@ const validateGetMySites = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+// GET /sites/picker — the Nexus "Compare locations" site picker. Contract:
+// group_id required, limit default 6 capped at 80, sort_by restricted to the
+// fields the picker actually offers (Location/City/Country).
+const validateSitesPicker = [
+  query("group_id")
+    .exists()
+    .withMessage("group_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("group_id must be an object ID"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 80 })
+    .withMessage("limit must be between 1 and 80")
+    .toInt(),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be >= 0")
+    .toInt(),
+  query("search").optional().isString().withMessage("search must be a string").trim(),
+  query("sort_by")
+    .optional()
+    .isIn(["location", "city", "country"])
+    .withMessage("sort_by must be one of: location, city, country"),
+  query("sort_order")
+    .optional()
+    .isIn(["asc", "desc"])
+    .withMessage("sort_order must be one of: asc, desc"),
+];
+
 const validateGetSiteCountSummary = [
   query("group_id")
     .optional()
@@ -567,7 +624,12 @@ const validateGetSiteCountSummary = [
       if (value) {
         const ids = value.split(",");
         for (const id of ids) {
-          if (!mongoose.Types.ObjectId.isValid(id.trim())) {
+          const candidate = id.trim().toLowerCase();
+          if (
+            candidate &&
+            !isObjectIdShape(candidate) &&
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
+          ) {
             throw new Error(`Invalid cohort ID format: ${id.trim()}`);
           }
         }
@@ -599,4 +661,5 @@ module.exports = {
   validateSiteIdParam,
   validateCategoryField,
   validateGetMySites,
+  validateSitesPicker,
 };

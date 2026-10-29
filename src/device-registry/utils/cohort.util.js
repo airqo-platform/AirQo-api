@@ -5,10 +5,11 @@ const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
 const networkUtil = require("@utils/network.util");
+const publicCohortUtil = require("@utils/public-cohort.util");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { generateFilter, stringify } = require("@utils/common");
+const { generateFilter, stringify, cohortSlugUtil } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`,
@@ -30,6 +31,68 @@ const buildDeviceSetKey = (deviceIds) => {
     .join(",");
 };
 
+const AIRQO_NETWORK = "airqo";
+
+const escapeRegex = (str) =>
+  String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// A device may be assigned to a cohort only if they share network/group
+// ownership, unless either side is the "airqo" network/group — AirQo staff
+// legitimately manage cross-organization monitoring cohorts.
+function _isGroupScopeAllowed(device, cohort) {
+  const deviceNetwork = String(device.network || "").toLowerCase();
+  const cohortNetwork = String(cohort.network || "").toLowerCase();
+
+  if (deviceNetwork === AIRQO_NETWORK || cohortNetwork === AIRQO_NETWORK) {
+    return true;
+  }
+
+  const deviceGroups = (device.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  const cohortGroups = (cohort.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+
+  if (
+    deviceGroups.includes(AIRQO_NETWORK) ||
+    cohortGroups.includes(AIRQO_NETWORK)
+  ) {
+    return true;
+  }
+
+  if (deviceNetwork && cohortNetwork && deviceNetwork === cohortNetwork) {
+    return true;
+  }
+
+  return deviceGroups.some((g) => cohortGroups.includes(g));
+}
+
+// A user may only assign/unassign devices on a cohort if they belong to a
+// group the cohort belongs to, or their groups include "airqo" (AirQo staff
+// manage cross-organization cohorts). identityGroups comes from the
+// gateway-forwarded X-Auth-User-Groups header (see
+// middleware/identity-context.middleware.js) — device-registry never fetches
+// or stores this data itself. Callers must treat an empty identityGroups
+// list as "unknown" and skip this check entirely rather than calling it.
+function _isUserGroupMembershipAllowed(identityGroups, cohort) {
+  const userGroups = (identityGroups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  if (userGroups.includes(AIRQO_NETWORK)) return true;
+
+  const cohortNetwork = String(cohort.network || "").toLowerCase();
+  if (cohortNetwork === AIRQO_NETWORK) return true;
+  if (cohortNetwork && userGroups.includes(cohortNetwork)) return true;
+
+  const cohortGroups = (cohort.groups || []).map((g) =>
+    String(g).toLowerCase(),
+  );
+  if (cohortGroups.includes(AIRQO_NETWORK)) return true;
+
+  return userGroups.some((g) => cohortGroups.includes(g));
+}
+
 function filterOutPrivateIDs(privateIds, randomIds) {
   // Create a Set from the privateIds array
   const privateIdSet = new Set(privateIds);
@@ -47,6 +110,63 @@ function filterOutPrivateIDs(privateIds, randomIds) {
   return filteredIds;
 }
 
+const isObjectIdShape = (identifier) =>
+  /^[0-9a-fA-F]{24}$/.test(String(identifier));
+
+// A cohort_id is either a real ObjectId (instance, e.g. from a validator's
+// customSanitizer — or a raw 24-hex string, when this is called directly
+// without going through that validator) or a cohort_slug string. Checking
+// the actual shape rather than just typeof means this is safe to call from
+// anywhere, not only routes that ran paramCohortIdentifier first.
+const cohortLookupFilter = (identifier) =>
+  typeof identifier !== "string" || isObjectIdShape(identifier)
+    ? { _id: identifier }
+    : { cohort_slug: identifier };
+
+// Batch counterpart to cohortLookupFilter: resolves a mixed array of
+// cohort_ids (ObjectIds and/or cohort_slugs) to their canonical ObjectIds
+// in a single query, instead of each caller constructing ObjectId(id)
+// directly — which throws for a slug, or (via a loose validity check)
+// can silently drop it.
+const resolveCohortObjectIds = async (tenant, cohortIdentifiers) => {
+  const identifiers = Array.isArray(cohortIdentifiers) ? cohortIdentifiers : [];
+  const objectIdEntries = identifiers.filter((id) => isObjectIdShape(id));
+  const slugEntries = identifiers.filter((id) => !isObjectIdShape(id));
+
+  const matches = await CohortModel(tenant)
+    .find({
+      $or: [
+        { _id: { $in: objectIdEntries } },
+        { cohort_slug: { $in: slugEntries } },
+      ],
+    })
+    .select("_id cohort_slug visibility")
+    .lean();
+
+  const byIdString = new Map(matches.map((c) => [c._id.toString(), c]));
+  const bySlug = new Map(
+    matches.filter((c) => c.cohort_slug).map((c) => [c.cohort_slug, c]),
+  );
+
+  const resolved = [];
+  const notFound = [];
+  identifiers.forEach((id) => {
+    const idStr = String(id);
+    const match = byIdString.get(idStr) || bySlug.get(idStr);
+    if (match) {
+      resolved.push(match);
+    } else {
+      notFound.push(id);
+    }
+  });
+
+  return {
+    resolved,
+    resolvedIds: resolved.map((c) => c._id),
+    notFound,
+  };
+};
+
 const createCohort = {
   // Network CRUD — logic lives in network.util.js; these are kept for
   // backward compatibility so the existing /cohorts/networks endpoints
@@ -59,7 +179,32 @@ const createCohort = {
     try {
       const { body, query } = request;
       const { tenant } = query;
-      let modifiedBody = body;
+      let modifiedBody = { ...body };
+
+      // Opt-in self-service cohort_slug: only generated when the caller
+      // actually sends one, so every existing create-cohort caller that
+      // never sends cohort_slug is completely unaffected.
+      if (!isEmpty(modifiedBody.cohort_slug)) {
+        const slugResult = await cohortSlugUtil.generateUniqueCohortSlug({
+          tenant,
+          requestedSlug: modifiedBody.cohort_slug,
+          groupSlug: modifiedBody.group_slug,
+        });
+
+        if (!slugResult.success) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: slugResult.message },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        modifiedBody.cohort_slug = slugResult.slug;
+      } else {
+        delete modifiedBody.cohort_slug;
+      }
+      delete modifiedBody.group_slug;
 
       const responseFromRegisterCohort = await CohortModel(tenant).register(
         modifiedBody,
@@ -105,6 +250,50 @@ const createCohort = {
       );
     }
   },
+  // Live availability check for a candidate cohort_slug, used to power a
+  // debounced preview in a create-cohort UI before the caller submits.
+  // Read-only, new endpoint — nothing existing depends on it.
+  checkSlug: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, slug, group_slug: groupSlug } = query;
+
+      const candidate = cohortSlugUtil.buildCandidateSlug({
+        requestedSlug: slug,
+        groupSlug,
+      });
+      const evaluation = cohortSlugUtil.evaluateCandidate(candidate);
+
+      const taken =
+        evaluation.valid && (await cohortSlugUtil.slugExists(tenant, candidate));
+
+      const available = evaluation.valid && !taken;
+
+      return {
+        success: true,
+        message: "checked cohort_slug availability",
+        data: {
+          candidate_slug: candidate,
+          available,
+          reason: available
+            ? null
+            : evaluation.valid
+            ? "taken"
+            : evaluation.reason,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
   update: async (request, next) => {
     try {
       const { query, body } = request;
@@ -122,6 +311,8 @@ const createCohort = {
           },
           next,
         );
+        // A cohort switched to private takes its devices out of the public one
+        publicCohortUtil.evictPrivateDevicesInBackground(tenant);
         return responseFromModifyCohort;
       }
     } catch (error) {
@@ -185,7 +376,11 @@ const createCohort = {
         .trim()
         .toLowerCase();
 
-      const newCohortCodes = [existingCohort._id, processedName];
+      const newCohortCodes = [
+        existingCohort._id,
+        processedName,
+        existingCohort.cohort_slug,
+      ].filter(Boolean);
 
       // Prepare the update object
       const update = {
@@ -261,8 +456,9 @@ const createCohort = {
 
       const originalFilter = { ...filter };
 
-      // Only exclude user cohorts if we are not fetching by a specific ID
-      if (!filter._id) {
+      // Only exclude user cohorts if we are not fetching by a specific
+      // identifier (either _id or the new opt-in cohort_slug).
+      if (!filter._id && !filter.cohort_slug) {
         const userCohortExclusion = { name: { $not: /^coh_user_/i } };
         if (filter.name) {
           // If a name filter already exists, combine it with the exclusion using $and
@@ -281,15 +477,17 @@ const createCohort = {
 
       const result = await createCohort._list(request, filter, next);
 
-      // Handle case where a specific cohort ID was requested but not found
+      // Handle case where a specific cohort identifier was requested but not found
       if (
         isEmpty(result.data) &&
-        originalFilter._id &&
+        (originalFilter._id || originalFilter.cohort_slug) &&
         Object.keys(originalFilter).length === 1
       ) {
-        const idString = originalFilter._id.$in
-          ? `[${originalFilter._id.$in.join(", ")}]`
-          : originalFilter._id;
+        const idString = originalFilter._id
+          ? originalFilter._id.$in
+            ? `[${originalFilter._id.$in.join(", ")}]`
+            : originalFilter._id
+          : originalFilter.cohort_slug;
         return {
           success: false,
           message: "Cohort not found",
@@ -333,6 +531,15 @@ const createCohort = {
         filter.visibility = true;
       }
 
+      // Lightweight summary path (/cohorts/summary?include_devices=false):
+      // cohort details without the devices $lookup, for callers that only
+      // need to label cohorts (e.g. a cohort selector). No visibility filter,
+      // unlike the public metadata path.
+      const isLightweightSummary =
+        detailLevel === "summary" &&
+        (request.query.include_devices === false ||
+          request.query.include_devices === "false");
+
       const pipeline = isPublicMetadata
         ? [
             { $match: filter },
@@ -343,6 +550,31 @@ const createCohort = {
                   { $skip: _skip },
                   { $limit: _limit },
                   { $project: { _id: 1, name: 1 } },
+                ],
+                totalCount: [{ $count: "count" }],
+              },
+            },
+          ]
+        : isLightweightSummary
+        ? [
+            { $match: filter },
+            { $sort: { [sortField]: sortOrder } },
+            {
+              $facet: {
+                paginatedResults: [
+                  { $skip: _skip },
+                  { $limit: _limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      name: 1,
+                      network: 1,
+                      visibility: 1,
+                      cohort_tags: 1,
+                      groups: 1,
+                      createdAt: 1,
+                    },
+                  },
                 ],
                 totalCount: [{ $count: "count" }],
               },
@@ -472,12 +704,14 @@ const createCohort = {
 
       if (
         isEmpty(result.data) &&
-        originalFilter._id &&
+        (originalFilter._id || originalFilter.cohort_slug) &&
         Object.keys(originalFilter).length === 1
       ) {
-        const idString = originalFilter._id.$in
-          ? `[${originalFilter._id.$in.join(", ")}]`
-          : originalFilter._id;
+        const idString = originalFilter._id
+          ? originalFilter._id.$in
+            ? `[${originalFilter._id.$in.join(", ")}]`
+            : originalFilter._id
+          : originalFilter.cohort_slug;
         return {
           success: false,
           message: "User Cohort not found",
@@ -563,7 +797,9 @@ const createCohort = {
       const { tenant } = request.query;
       const { cohort_id } = request.params;
 
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant).findOne(
+        cohortLookupFilter(cohort_id),
+      );
 
       if (!cohort) {
         return {
@@ -580,7 +816,7 @@ const createCohort = {
         .aggregate([
           {
             $match: {
-              cohorts: { $nin: [cohort_id] },
+              cohorts: { $nin: [cohort._id] },
             },
           },
           {
@@ -627,7 +863,9 @@ const createCohort = {
       const { tenant } = request.query;
       const { cohort_id } = request.params;
 
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant).findOne(
+        cohortLookupFilter(cohort_id),
+      );
 
       if (!cohort) {
         return {
@@ -644,7 +882,7 @@ const createCohort = {
         .aggregate([
           {
             $match: {
-              cohorts: { $in: [cohort_id] },
+              cohorts: { $in: [cohort._id] },
             },
           },
           {
@@ -693,7 +931,7 @@ const createCohort = {
       const { tenant } = request.query;
 
       const cohort = await CohortModel(tenant)
-        .findById(cohort_id)
+        .findOne(cohortLookupFilter(cohort_id))
         .lean();
 
       if (!cohort) {
@@ -705,10 +943,40 @@ const createCohort = {
         };
       }
 
+      // Resolve to the canonical ObjectId once — device.cohorts is an
+      // array of ObjectIds, so every write below must use this, not the
+      // raw route param (which may be a cohort_slug string).
+      const resolvedCohortId = cohort._id;
+
+      // Identity-based check: is the caller a member of a group this cohort
+      // belongs to? Only evaluated when the gateway actually forwarded
+      // identity groups — a request with no identity data is never blocked
+      // on that basis alone.
+      const identityGroups = (request.identity && request.identity.groups) || [];
+      if (
+        identityGroups.length > 0 &&
+        !_isUserGroupMembershipAllowed(identityGroups, cohort)
+      ) {
+        logger.warn(
+          `Cohort/user group-membership mismatch on assign-devices — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) user=${request.identity.userId} userGroups=${identityGroups.join(",")} enforced=${constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP}`,
+        );
+        if (constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP) {
+          return {
+            success: false,
+            message: "Forbidden",
+            errors: {
+              message:
+                "You are not a member of a group that owns this cohort",
+            },
+            status: httpStatus.FORBIDDEN,
+          };
+        }
+      }
+
       // Batch fetch all devices at once to avoid N+1 queries
       const existingDevices = await DeviceModel(tenant)
         .find({ _id: { $in: device_ids } })
-        .select("_id cohorts")
+        .select("_id cohorts network groups")
         .lean();
 
       const foundIds = new Set(existingDevices.map((d) => d._id.toString()));
@@ -728,7 +996,7 @@ const createCohort = {
       }
 
       // Split into already-assigned and new-to-assign; proceed with new ones
-      const cohortIdStr = cohort_id.toString();
+      const cohortIdStr = resolvedCohortId.toString();
       const alreadyAssigned = existingDevices
         .filter(
           (d) =>
@@ -736,39 +1004,78 @@ const createCohort = {
         )
         .map((d) => d._id);
 
-      const toAssign = existingDevices
-        .filter(
-          (d) =>
-            !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
-        )
-        .map((d) => d._id);
+      const candidatesToAssign = existingDevices.filter(
+        (d) => !d.cohorts || !d.cohorts.map(String).includes(cohortIdStr),
+      );
+
+      const mismatched = candidatesToAssign.filter(
+        (d) => !_isGroupScopeAllowed(d, cohort),
+      );
+
+      if (mismatched.length > 0) {
+        logger.warn(
+          `Cohort/device group-scope mismatch on assign-devices — cohort=${cohortIdStr} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) devices=${mismatched.map((d) => d._id.toString()).join(",")} enforced=${constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE}`,
+        );
+      }
+
+      const blockedGroupMismatch = constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE
+        ? mismatched.map((d) => d._id)
+        : [];
+
+      const toAssign = constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE
+        ? candidatesToAssign
+            .filter((d) => _isGroupScopeAllowed(d, cohort))
+            .map((d) => d._id)
+        : candidatesToAssign.map((d) => d._id);
 
       if (toAssign.length === 0) {
+        const noneAssignedMessage =
+          blockedGroupMismatch.length > 0 && alreadyAssigned.length > 0
+            ? `No devices were assigned: ${alreadyAssigned.length} already assigned, ${blockedGroupMismatch.length} blocked due to cohort/device group mismatch`
+            : blockedGroupMismatch.length > 0
+              ? "All provided devices were blocked due to cohort/device group mismatch"
+              : "All provided devices are already assigned to this cohort";
         return {
           success: true,
-          message: "All provided devices are already assigned to this cohort",
+          message: noneAssignedMessage,
           status: httpStatus.OK,
-          data: { assigned: [], already_assigned: alreadyAssigned },
+          data: {
+            assigned: [],
+            already_assigned: alreadyAssigned,
+            ...(blockedGroupMismatch.length > 0 && {
+              blocked_group_mismatch: blockedGroupMismatch,
+            }),
+          },
         };
       }
 
       await DeviceModel(tenant).updateMany(
         { _id: { $in: toAssign } },
-        { $addToSet: { cohorts: cohort_id } },
+        { $addToSet: { cohorts: resolvedCohortId } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       // Re-query after the update to confirm which devices were actually assigned,
       // guarding against concurrent requests that may have already written the same cohort_id.
       const confirmedDocs = await DeviceModel(tenant)
-        .find({ _id: { $in: toAssign }, cohorts: cohort_id })
+        .find({ _id: { $in: toAssign }, cohorts: resolvedCohortId })
         .select("_id")
         .lean();
       const confirmedAssigned = confirmedDocs.map((d) => d._id);
 
+      const partialNotes = [];
+      if (alreadyAssigned.length > 0) {
+        partialNotes.push(
+          `${alreadyAssigned.length} device(s) were already assigned and skipped`,
+        );
+      }
+      if (blockedGroupMismatch.length > 0) {
+        partialNotes.push(
+          `${blockedGroupMismatch.length} device(s) were blocked due to cohort/device group mismatch`,
+        );
+      }
       const partialMessage =
-        alreadyAssigned.length > 0
-          ? `${alreadyAssigned.length} device(s) were already assigned and skipped`
-          : null;
+        partialNotes.length > 0 ? partialNotes.join("; ") : null;
 
       return {
         success: true,
@@ -776,7 +1083,13 @@ const createCohort = {
           ? `Partially successful: ${partialMessage}`
           : "Successfully assigned all provided devices to the cohort",
         status: httpStatus.OK,
-        data: { assigned: confirmedAssigned, already_assigned: alreadyAssigned },
+        data: {
+          assigned: confirmedAssigned,
+          already_assigned: alreadyAssigned,
+          ...(blockedGroupMismatch.length > 0 && {
+            blocked_group_mismatch: blockedGroupMismatch,
+          }),
+        },
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -796,7 +1109,9 @@ const createCohort = {
       const { tenant } = request.query;
 
       // Check if cohort exists
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant).findOne(
+        cohortLookupFilter(cohort_id),
+      );
       if (!cohort) {
         return {
           success: false,
@@ -805,6 +1120,9 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       }
+      // device.cohorts stores ObjectIds; always use the resolved one below
+      // rather than the raw route param (which may be a cohort_slug string).
+      const resolvedCohortId = cohort._id;
 
       //check of all these provided devices actually do exist?
       const existingDevices = await DeviceModel(tenant).find(
@@ -832,7 +1150,7 @@ const createCohort = {
 
       const devices = await DeviceModel(tenant).find({
         _id: { $in: device_ids },
-        cohorts: { $all: [cohort_id] },
+        cohorts: { $all: [resolvedCohortId] },
       });
 
       if (devices.length !== device_ids.length) {
@@ -851,8 +1169,8 @@ const createCohort = {
       try {
         const totalDevices = device_ids.length;
         const { nModified, n } = await DeviceModel(tenant).updateMany(
-          { _id: { $in: device_ids }, cohorts: { $in: [cohort_id] } },
-          { $pull: { cohorts: cohort_id } },
+          { _id: { $in: device_ids }, cohorts: { $in: [resolvedCohortId] } },
+          { $pull: { cohorts: resolvedCohortId } },
           { multi: true },
         );
 
@@ -906,11 +1224,12 @@ const createCohort = {
       const { tenant } = request.query;
 
       const deviceExists = await DeviceModel(tenant).exists({ _id: device_id });
-      const cohortExists = await CohortModel(tenant).exists({
-        _id: cohort_id,
-      });
+      const cohort = await CohortModel(tenant)
+        .findOne(cohortLookupFilter(cohort_id))
+        .select("_id network groups")
+        .lean();
 
-      if (!deviceExists || !cohortExists) {
+      if (!deviceExists || !cohort) {
         return {
           success: false,
           message: "Device or Cohort not found",
@@ -920,16 +1239,73 @@ const createCohort = {
           },
         };
       }
+      // device.cohorts stores ObjectIds; always use the resolved one below
+      // rather than the raw route param (which may be a cohort_slug string).
+      const resolvedCohortId = cohort._id;
+
+      // Identity-based check: is the caller a member of a group this cohort
+      // belongs to? Only evaluated when the gateway actually forwarded
+      // identity groups — a request with no identity data is never blocked
+      // on that basis alone.
+      const identityGroups = (request.identity && request.identity.groups) || [];
+      if (
+        identityGroups.length > 0 &&
+        !_isUserGroupMembershipAllowed(identityGroups, cohort)
+      ) {
+        logger.warn(
+          `Cohort/user group-membership mismatch on assign-device — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) user=${request.identity.userId} userGroups=${identityGroups.join(",")} enforced=${constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP}`,
+        );
+        if (constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP) {
+          return {
+            success: false,
+            message: "Forbidden",
+            errors: {
+              message:
+                "You are not a member of a group that owns this cohort",
+            },
+            status: httpStatus.FORBIDDEN,
+          };
+        }
+      }
 
       const device = await DeviceModel(tenant)
         .findById(device_id)
         .lean();
 
+      if (!device) {
+        // Narrow race: device existed at the .exists() check above but was
+        // removed before this fetch. Return the same clean 400 the initial
+        // existence check would have, instead of throwing inside
+        // _isGroupScopeAllowed below.
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Device ${device_id} not found` },
+        };
+      }
+
       logObject("device", device);
+
+      if (!_isGroupScopeAllowed(device, cohort)) {
+        logger.warn(
+          `Cohort/device group-scope mismatch on assign-device — cohort=${resolvedCohortId.toString()} (network=${cohort.network}, groups=${(cohort.groups || []).join(",")}) device=${device_id} enforced=${constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE}`,
+        );
+        if (constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Device ${device_id} cannot be assigned to Cohort ${cohort_id} — they do not share a network/group`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
 
       if (
         device.cohorts &&
-        device.cohorts.map(String).includes(cohort_id.toString())
+        device.cohorts.map(String).includes(resolvedCohortId.toString())
       ) {
         return {
           success: false,
@@ -941,9 +1317,10 @@ const createCohort = {
 
       const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
         device_id,
-        { $addToSet: { cohorts: cohort_id } },
+        { $addToSet: { cohorts: resolvedCohortId } },
         { new: true },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       return {
         success: true,
@@ -968,7 +1345,9 @@ const createCohort = {
       const { tenant } = request.query;
 
       // Check if the cohort exists
-      const cohort = await CohortModel(tenant).findById(cohort_id);
+      const cohort = await CohortModel(tenant).findOne(
+        cohortLookupFilter(cohort_id),
+      );
       // Check if the device exists
       const device = await DeviceModel(tenant).findById(device_id);
 
@@ -982,10 +1361,13 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       }
+      // device.cohorts stores ObjectIds; always use the resolved one below
+      // rather than the raw route param (which may be a cohort_slug string).
+      const resolvedCohortId = cohort._id;
 
       // Check if the cohort is part of the device's cohorts
       const isCohortInDevice = device.cohorts.some(
-        (cohortId) => cohortId.toString() === cohort_id.toString(),
+        (cohortId) => cohortId.toString() === resolvedCohortId.toString(),
       );
       if (!isCohortInDevice) {
         return {
@@ -1001,7 +1383,7 @@ const createCohort = {
       // Remove the cohort from the device
       const updatedDevice = await DeviceModel(tenant).findByIdAndUpdate(
         device_id,
-        { $pull: { cohorts: cohort_id } },
+        { $pull: { cohorts: resolvedCohortId } },
         { new: true },
       );
 
@@ -1025,7 +1407,9 @@ const createCohort = {
   getSiteAndDeviceIds: async (request, next) => {
     try {
       const { cohort_id, tenant } = { ...request.query, ...request.params };
-      const cohortDetails = await CohortModel(tenant).findById(cohort_id);
+      const cohortDetails = await CohortModel(tenant).findOne(
+        cohortLookupFilter(cohort_id),
+      );
       if (isEmpty(cohortDetails)) {
         return {
           success: false,
@@ -1036,7 +1420,7 @@ const createCohort = {
       }
       // Fetch devices based on the provided Cohort ID
       const devices = await DeviceModel(tenant)
-        .find({ cohorts: cohort_id })
+        .find({ cohorts: cohortDetails._id })
         .select("_id site_id")
         .lean();
 
@@ -1131,18 +1515,13 @@ const createCohort = {
       const { cohort_ids } = request.body;
       const tenant = request.query.tenant || request.body.tenant;
 
-      const objectIds = cohort_ids.map((id) => new ObjectId(id));
-
-      // Identify which IDs exist in the DB
-      const existingCohorts = await CohortModel(tenant)
-        .find({ _id: { $in: objectIds } })
-        .select("_id visibility")
-        .lean();
-
-      const existingIds = new Set(
-        existingCohorts.map((c) => c._id.toString()),
+      // Resolves ObjectIds and/or cohort_slugs in one query — also gives
+      // us visibility directly, so no separate existence lookup is needed.
+      const { resolved: existingCohorts, notFound } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
       );
-      const notFound = cohort_ids.filter((id) => !existingIds.has(id));
+
       const alreadyPublic = existingCohorts
         .filter((c) => c.visibility === true)
         .map((c) => c._id.toString());
@@ -1195,17 +1574,38 @@ const createCohort = {
       const { tenant } = query;
       const { name, description, cohort_ids } = body;
 
+      // cohort_ids may be a mix of ObjectIds (existing behaviour) and
+      // cohort_slug values (new, opt-in) — split by shape so each is
+      // looked up the right way, then resolve everything back to real
+      // ObjectIds for every downstream use.
+      const objectIdEntries = cohort_ids.filter((id) =>
+        /^[0-9a-fA-F]{24}$/.test(String(id)),
+      );
+      const slugEntries = cohort_ids.filter(
+        (id) => !/^[0-9a-fA-F]{24}$/.test(String(id)),
+      );
+
       // 1. Fetch all source cohorts to validate they exist and get network ID
       const existingCohorts = await CohortModel(tenant)
-        .find({ _id: { $in: cohort_ids } })
-        .select("network") // only need network
+        .find({
+          $or: [
+            { _id: { $in: objectIdEntries } },
+            { cohort_slug: { $in: slugEntries } },
+          ],
+        })
+        .select("network cohort_slug") // only need network (+ slug for matching)
         .lean();
 
       logObject("existingCohorts", existingCohorts);
 
       if (existingCohorts.length !== cohort_ids.length) {
-        const foundIds = existingCohorts.map((c) => c._id.toString());
-        const notFoundIds = cohort_ids.filter((id) => !foundIds.includes(id));
+        const foundIds = new Set(existingCohorts.map((c) => c._id.toString()));
+        const foundSlugs = new Set(
+          existingCohorts.filter((c) => c.cohort_slug).map((c) => c.cohort_slug),
+        );
+        const notFoundIds = cohort_ids.filter(
+          (id) => !foundIds.has(String(id)) && !foundSlugs.has(String(id)),
+        );
         return {
           success: false,
           message: "Bad Request Error",
@@ -1217,6 +1617,11 @@ const createCohort = {
           status: httpStatus.BAD_REQUEST,
         };
       }
+
+      // Canonical ObjectIds for every source cohort, regardless of whether
+      // the caller identified it by _id or cohort_slug — everything below
+      // must use this, not the raw cohort_ids (which may contain slugs).
+      const resolvedCohortIds = existingCohorts.map((c) => c._id);
 
       // 2. Ensure all cohorts belong to the same network
       // 2. Ensure all source cohorts belong to the same network
@@ -1255,6 +1660,28 @@ const createCohort = {
         network: networkId,
       };
 
+      // Opt-in self-service cohort_slug for the newly created merged
+      // cohort — only generated when the caller asks for one, mirroring
+      // the plain create-cohort flow.
+      if (!isEmpty(body.cohort_slug)) {
+        const slugResult = await cohortSlugUtil.generateUniqueCohortSlug({
+          tenant,
+          requestedSlug: body.cohort_slug,
+          groupSlug: body.group_slug,
+        });
+
+        if (!slugResult.success) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: slugResult.message },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        newCohortData.cohort_slug = slugResult.slug;
+      }
+
       const newCohortResponse = await CohortModel(tenant).register(
         newCohortData,
         next,
@@ -1278,7 +1705,7 @@ const createCohort = {
 
       // 4. Find all unique devices belonging to the source cohorts
       const devicesToUpdate = await DeviceModel(tenant)
-        .find({ cohorts: { $in: cohort_ids } })
+        .find({ cohorts: { $in: resolvedCohortIds } })
         .distinct("_id");
 
       if (devicesToUpdate.length === 0) {
@@ -1297,6 +1724,7 @@ const createCohort = {
         { _id: { $in: devicesToUpdate } },
         { $addToSet: { cohorts: newCohort._id } },
       );
+      publicCohortUtil.evictPrivateDevicesInBackground(tenant);
 
       logObject(
         "updateResult from assigning devices to new cohort",
@@ -1332,7 +1760,7 @@ const createCohort = {
 
       // 1. Find the source cohort and its devices
       const sourceCohort = await CohortModel(tenant)
-        .findById(cohort_id)
+        .findOne(cohortLookupFilter(cohort_id))
         .lean();
       if (!sourceCohort) {
         return {
@@ -1346,7 +1774,7 @@ const createCohort = {
       // 2. Find all cohorts that share devices with the source cohort.
       // This is more efficient than fetching all device IDs first.
       const candidateCohorts = await DeviceModel(tenant).distinct("cohorts", {
-        cohorts: cohort_id,
+        cohorts: sourceCohort._id,
       });
 
       if (candidateCohorts.length <= 1) {
@@ -1375,7 +1803,7 @@ const createCohort = {
       }
 
       // 4. Identify the group of cohorts with the exact same device set
-      const sourceKey = cohortDeviceSets.get(cohort_id.toString());
+      const sourceKey = cohortDeviceSets.get(sourceCohort._id.toString());
       const duplicateGroupIdSet = new Set();
       for (const [id, key] of cohortDeviceSets.entries()) {
         if (key === sourceKey) {
@@ -1466,10 +1894,18 @@ const createCohort = {
       // ✅ Get standard device filter from generateFilter
       const baseFilter = generateFilter.devices(request, next);
 
+      // Resolve ObjectIds and/or cohort_slugs to canonical ObjectIds —
+      // unresolvable entries are simply excluded, same as an unmatched
+      // ObjectId would contribute nothing to the $in filter.
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
+
       // ✅ Merge with cohort-specific filter
       const filter = {
         ...baseFilter,
-        cohorts: { $in: cohort_ids.map((id) => ObjectId(id)) },
+        cohorts: { $in: cohortObjectIds },
       };
 
       // Get total count for pagination metadata before applying limit and skip
@@ -1785,8 +2221,11 @@ const createCohort = {
       const sortOrder = order === "asc" ? 1 : -1;
       const sortField = sortBy ? sortBy : "createdAt";
 
-      // Convert cohort_ids to ObjectIds
-      const cohortObjectIds = cohort_ids.map((id) => ObjectId(id));
+      // Resolve ObjectIds and/or cohort_slugs to canonical ObjectIds
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       // Search should only apply to sites, not devices
       const deviceFilterRequest = {
@@ -2124,16 +2563,22 @@ const createCohort = {
         };
       }
 
-      const cohortObjectIds = cohort_ids
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+      // Resolves ObjectIds and/or cohort_slugs to canonical ObjectIds;
+      // unresolvable entries are simply excluded (not previously mongoose's
+      // ObjectId.isValid, which also accepts arbitrary 12-byte strings).
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       if (!cohortObjectIds.length) {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "No valid cohort_ids provided",
-          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+          errors: {
+            message: "cohort_ids must be valid MongoDB ObjectIds or cohort_slugs",
+          },
         };
       }
 
@@ -2158,7 +2603,7 @@ const createCohort = {
         tenant,
       };
       if (search) {
-        filter.name = { $regex: search, $options: "i" };
+        filter.name = { $regex: escapeRegex(search), $options: "i" };
       }
       if (status) {
         filter.status = status;
@@ -2262,16 +2707,22 @@ const createCohort = {
         };
       }
 
-      const cohortObjectIds = cohort_ids
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => ObjectId(id));
+      // Resolves ObjectIds and/or cohort_slugs to canonical ObjectIds;
+      // unresolvable entries are simply excluded (not previously mongoose's
+      // ObjectId.isValid, which also accepts arbitrary 12-byte strings).
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        cohort_ids,
+      );
 
       if (!cohortObjectIds.length) {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "No valid cohort_ids provided",
-          errors: { message: "cohort_ids must be valid MongoDB ObjectIds" },
+          errors: {
+            message: "cohort_ids must be valid MongoDB ObjectIds or cohort_slugs",
+          },
         };
       }
 
@@ -2292,7 +2743,7 @@ const createCohort = {
         tenant,
       };
       if (search) {
-        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedSearch = escapeRegex(search);
         filter.$or = [
           { name: { $regex: escapedSearch, $options: "i" } },
           { search_name: { $regex: escapedSearch, $options: "i" } },
@@ -2363,5 +2814,11 @@ const createCohort = {
     }
   },
 };
+
+// Exposed for reuse by other util files that filter by cohort_id/cohort_ids
+// against a different collection (Device, Site, NetworkStatusAlert, ...) —
+// see device.util.js, grid.util.js, site.util.js, network-status.util.js.
+createCohort.resolveCohortObjectIds = resolveCohortObjectIds;
+createCohort.cohortLookupFilter = cohortLookupFilter;
 
 module.exports = createCohort;

@@ -17,6 +17,7 @@ const {
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/air-quality-alerts-job -- ops-alerts`,
 );
@@ -173,6 +174,9 @@ const isTimeInRange = (current, start, end) => {
 };
 
 const checkAirQualityAndAlert = async () => {
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   try {
     let skip = 0;
     let alertsToSend = [];

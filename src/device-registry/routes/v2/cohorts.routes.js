@@ -8,12 +8,40 @@ const {
   verifyAndBindResources,
   enforceCohortBinding,
 } = require("@middleware/token-resource-binding.middleware");
+const {
+  attachIdentityContext,
+} = require("@middleware/identity-context.middleware");
 
 router.use(headers);
 // Attach resource binding metadata to every request in this router.
 // No-op when ENABLE_RESOURCE_BINDING is false (default) so existing
 // behaviour is completely unchanged until the feature is explicitly enabled.
 router.use(verifyAndBindResources);
+// Attach req.identity from the gateway-forwarded X-Auth-User-* headers (see
+// identity-context.middleware.js). This only *populates* req.identity; it
+// does not enforce any authorization on its own — that only happens where a
+// route handler reads req.identity and ENFORCE_COHORT_USER_GROUP_MEMBERSHIP
+// is enabled.
+router.use(attachIdentityContext);
+
+// Public cohort — static routes, registered ahead of every /:cohort_id route.
+router.get(
+  "/public/config",
+  cohortValidations.getPublicCohortConfig,
+  createCohortController.getPublicCohortConfig,
+);
+
+router.put(
+  "/public/config",
+  cohortValidations.updatePublicCohortConfig,
+  createCohortController.updatePublicCohortConfig,
+);
+
+router.post(
+  "/public/refresh",
+  cohortValidations.refreshPublicCohort,
+  createCohortController.refreshPublicCohort,
+);
 
 router.delete(
   "/:cohort_id",
@@ -34,6 +62,14 @@ router.put(
 );
 
 router.post("/", cohortValidations.createCohort, createCohortController.create);
+
+// Static route — must stay registered above the catch-all GET /:cohort_id
+// below, otherwise Express would match "check-slug" as a cohort_id value.
+router.get(
+  "/check-slug",
+  cohortValidations.checkCohortSlug,
+  createCohortController.checkSlug,
+);
 
 router.get(
   "/",

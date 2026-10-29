@@ -52,7 +52,7 @@ const AirQualitySummaryModel = require("@models/AirQualitySummary");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "air-quality-rollup-job";
-const JOB_SCHEDULE = "0 4 * * *"; // Daily at 04:00 — a >10x safety margin under the 14-day TTL
+const JOB_SCHEDULE = "4 4 * * *"; // Daily at 04:04 — a >10x safety margin under the 14-day TTL; minute staggered off :00, shared by several other jobs at 04:00
 const RAW_DATA_RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // matches Reading's TTL indexes
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000; // first-run default window
 
@@ -120,13 +120,18 @@ async function aggregateDeltaWindow(tenant, level, windowStart, windowEnd) {
     { $addFields: { year: { $year: "$time" } } },
     {
       $group: {
-        _id: { entity: groupField, year: "$year" },
+        // country is carried through for level="city" so AirQualitySummary
+        // rows can be filtered by country later — for level="country" it's
+        // redundant with entity, upsertDelta just ignores it there.
+        _id: { entity: groupField, year: "$year", country: "$siteDetails.country" },
         sum_pm2_5: { $sum: "$pm2_5.value" },
         reading_count: { $sum: 1 },
         siteIds: { $addToSet: "$site_id" },
       },
     },
-    { $match: { "_id.entity": { $ne: null } } },
+    // $nin (not just $ne: null) also drops an empty-string city/country —
+    // a placeholder value, never a real entity worth ranking or rolling up.
+    { $match: { "_id.entity": { $nin: [null, ""] } } },
   ];
 
   return ReadingModel(tenant)
@@ -158,7 +163,14 @@ async function upsertDelta(tenant, level, groups, runAt) {
           reading_count: group.reading_count,
         },
         $addToSet: { contributing_sites: { $each: group.siteIds } },
-        $set: { last_updated_at: runAt },
+        // $set (not $setOnInsert) for country/last_updated_at — level="city"
+        // rows written before this field existed self-heal to a non-null
+        // country the next time fresh data for that entity/year arrives,
+        // without needing a bulk backfill over old, already-purged readings.
+        $set: {
+          last_updated_at: runAt,
+          ...(level === "city" ? { country: group._id.country } : {}),
+        },
         $setOnInsert: {
           tenant,
           level,

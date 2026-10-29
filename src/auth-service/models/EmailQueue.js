@@ -31,6 +31,15 @@ const EmailQueueSchema = new mongoose.Schema(
     errorMessage: {
       type: String,
     },
+    // Opt-in context a caller can attach when queuing (e.g. functionName,
+    // userId, fingerprint) so the queue processor can react to a permanent
+    // delivery failure — e.g. rolling back a security notification's side
+    // effect so it is retried on the next trigger instead of being silently
+    // dropped forever.
+    metadata: {
+      type: Object,
+      default: {},
+    },
   },
   { timestamps: true },
 );

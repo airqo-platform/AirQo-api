@@ -65,14 +65,24 @@ BlacklistedIPSchema.statics = {
         new: true,
         setDefaultsOnInsert: true,
         runValidators: true,
+        // Needed to tell whether this call inserted the IP or it already existed.
+        rawResult: true,
       };
 
-      const data = await this.findOneAndUpdate(filter, update, options);
+      const { value: data, lastErrorObject } = await this.findOneAndUpdate(
+        filter,
+        update,
+        options,
+      );
 
       if (!isEmpty(data)) {
-        return createSuccessResponse("upsert", data._doc, "IP", {
+        const response = createSuccessResponse("upsert", data._doc, "IP", {
           message: "IP blacklisted successfully",
         });
+        // Atomic: only the one call that actually inserted the document sees true,
+        // so callers can gate one-time side effects (e.g. alert emails) on it.
+        response.inserted = !(lastErrorObject && lastErrorObject.updatedExisting);
+        return response;
       } else {
         return createEmptySuccessResponse(
           "IP",

@@ -86,6 +86,63 @@ const validateTenant = oneOf([
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
+const statsBreakdown = [
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(constants.TENANTS)
+    .withMessage("the tenant value is not among the expected ones"),
+  query("months")
+    .optional()
+    .isInt({ min: 1, max: 36 })
+    .withMessage("months must be an integer between 1 and 36")
+    .toInt(),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage("limit must be an integer between 1 and 50")
+    .toInt(),
+];
+
+const statsExport = [
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(constants.TENANTS)
+    .withMessage("the tenant value is not among the expected ones"),
+  query("segment")
+    .exists()
+    .withMessage("segment is required")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .isIn(["total", "active", "verified", "api"])
+    .withMessage("segment must be one of: total, active, verified, api"),
+  query("exclude_unsubscribed")
+    .optional()
+    .isBoolean()
+    .withMessage("exclude_unsubscribed must be true or false")
+    .toBoolean(),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage("limit must be an integer between 1 and 1000")
+    .toInt(),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer")
+    .toInt(),
+];
+
 const validateAirqoTenantOnly = oneOf([
   query("tenant")
     .optional()
@@ -231,31 +288,22 @@ const emailAuth = [
   ],
 ];
 
-const feedback = oneOf([
+const completeEmailLogin = [
   [
     body("email")
       .exists()
       .withMessage("the email must be provided")
       .bail()
-      .notEmpty()
-      .withMessage("the email must not be empty if provided")
-      .bail()
       .isEmail()
       .withMessage("this is not a valid email address"),
-    body("subject")
+    body("token")
       .exists()
-      .withMessage("the subject must be provided")
+      .withMessage("the token must be provided")
       .bail()
       .notEmpty()
-      .withMessage("the subject must not be empty if provided"),
-    body("message")
-      .exists()
-      .withMessage("the message must be provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the message must not be empty if provided"),
+      .withMessage("the token should not be empty"),
   ],
-]);
+];
 
 const firebaseLookup = oneOf([
   body("email")
@@ -735,6 +783,13 @@ const updateUser = [
       .bail()
       .isLength({ max: 100 })
       .withMessage("lastName cannot exceed 100 characters"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty IF provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -790,6 +845,13 @@ const updateUserById = [
       .bail()
       .isLength({ max: 100 })
       .withMessage("lastName cannot exceed 100 characters"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty IF provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
     body("networks")
       .optional()
       .custom((value) => {
@@ -1122,6 +1184,15 @@ const resetPasswordRequest = [
   //Potentially add tenant validation here as well, using the oneOf approach if necessary
 ];
 
+const checkEmail = [
+  body("email")
+    .exists()
+    .withMessage("Email is required")
+    .trim()
+    .isEmail()
+    .withMessage("Invalid email format"),
+];
+
 const setPassword = [
   body("password")
     .exists()
@@ -1387,8 +1458,8 @@ const getContextPermissions = [
       .withMessage("contextId must be a valid Mongo ID"),
     query("contextType")
       .optional()
-      .isIn(["group", "network"])
-      .withMessage("contextType must be either 'group' or 'network'"),
+      .isIn(["group"])
+      .withMessage("contextType must be 'group'"),
   ],
 ];
 
@@ -1560,6 +1631,12 @@ const submitFeedback = [
     .bail()
     .isLength({ max: 100 })
     .withMessage("app cannot exceed 100 characters"),
+  body("contact_consent")
+    .optional()
+    .isBoolean({ strict: true })
+    .withMessage("contact_consent must be a boolean if provided")
+    .bail()
+    .toBoolean(),
   body("screenshot_url")
     .optional()
     .trim()
@@ -1611,6 +1688,73 @@ const submitFeedback = [
 ];
 
 const getFeedbackUploadUrl = [validateTenant];
+
+const listEmailQueue = [
+  validateTenant,
+  query("status")
+    .optional()
+    .notEmpty()
+    .withMessage("status must not be empty if provided")
+    .bail()
+    .isIn(["pending", "processing", "failed"])
+    .withMessage("status must be one of: pending, processing, failed"),
+  query("email")
+    .optional()
+    .trim()
+    .isEmail()
+    .withMessage("email filter must be a valid email address"),
+  query("subject")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("subject must not be empty if provided")
+    .isLength({ max: 200 })
+    .withMessage("subject cannot exceed 200 characters"),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer"),
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 500 })
+    .withMessage("limit must be between 1 and 500"),
+];
+
+const getFeedbackStats = [
+  validateTenant,
+  query("platform")
+    .optional()
+    .notEmpty()
+    .withMessage("platform must not be empty if provided")
+    .bail()
+    .isIn(FEEDBACK_PLATFORMS)
+    .withMessage(
+      `platform must be one of: ${FEEDBACK_PLATFORMS.join(", ")}`,
+    ),
+  query("app")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("app must not be empty if provided")
+    .bail()
+    .isLength({ max: 100 })
+    .withMessage("app cannot exceed 100 characters"),
+  query("startDate")
+    .optional()
+    .isISO8601()
+    .withMessage("startDate must be a valid ISO 8601 date"),
+  query("endDate")
+    .optional()
+    .isISO8601()
+    .withMessage("endDate must be a valid ISO 8601 date")
+    .bail()
+    .custom((value, { req }) => {
+      if (req.query.startDate && new Date(value) < new Date(req.query.startDate)) {
+        throw new Error("endDate must be on or after startDate");
+      }
+      return true;
+    }),
+];
 
 const listFeedbackSubmissions = [
   validateTenant,
@@ -1980,6 +2124,8 @@ const updateOnboarding = [
 
 module.exports = {
   tenant: validateTenant,
+  statsBreakdown,
+  statsExport,
   AirqoTenantOnly: validateAirqoTenantOnly,
   pagination,
   deleteMobileUserData,
@@ -1988,7 +2134,7 @@ module.exports = {
   login,
   emailLogin,
   emailAuth,
-  feedback,
+  completeEmailLogin,
   firebaseLookup,
   firebaseCreate,
   firebaseLogin,
@@ -2016,6 +2162,7 @@ module.exports = {
   getUser,
   getEnhancedProfileForUser,
   resetPasswordRequest,
+  checkEmail,
   resetPassword,
   setPassword,
   verifyMobileEmail,
@@ -2027,6 +2174,7 @@ module.exports = {
   refreshPermissions,
   analyzeTokenStrategies,
   getContextPermissions,
+  listEmailQueue,
   debugPermissions,
   initiateAccountDeletion,
   confirmAccountDeletion,
@@ -2036,6 +2184,7 @@ module.exports = {
   submitFeedback,
   getFeedbackUploadUrl,
   listFeedbackSubmissions,
+  getFeedbackStats,
   getFeedbackById,
   updateFeedbackStatus,
   bulkUpdateFeedbackStatus,

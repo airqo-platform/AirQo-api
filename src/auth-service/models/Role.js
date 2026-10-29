@@ -34,13 +34,10 @@ const RoleSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-    },
     group_id: {
       type: ObjectId,
       ref: "group",
+      required: [true, "group_id is required"],
     },
     role_permissions: [
       {
@@ -99,10 +96,7 @@ RoleSchema.pre(
     }
 
     // Check against environment default IDs
-    const defaultIds = [
-      constants.DEFAULT_GROUP_ROLE,
-      constants.DEFAULT_NETWORK_ROLE,
-    ]
+    const defaultIds = [constants.DEFAULT_GROUP_ROLE]
       .filter(Boolean)
       .map((id) => id.toString());
 
@@ -118,21 +112,6 @@ RoleSchema.pre(
   },
 );
 
-// Uniqueness when network scoped
-RoleSchema.index(
-  { role_name: 1, network_id: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
-  },
-);
-RoleSchema.index(
-  { role_code: 1, network_id: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
-  },
-);
 // Uniqueness when group scoped
 RoleSchema.index(
   { role_name: 1, group_id: 1 },
@@ -223,75 +202,9 @@ RoleSchema.statics = {
           foreignField: "_id",
           as: "group",
         })
-        // For roles that still carry network_id (backward compat), look up the
-        // group whose grp_title matches the network name so the response always
-        // surfaces a group, never a network.
-        .lookup({
-          from: "networks",
-          localField: "network_id",
-          foreignField: "_id",
-          as: "_legacy_network",
-        })
-        .lookup({
-          from: "groups",
-          let: { netName: { $arrayElemAt: ["$_legacy_network.net_name", 0] } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $ne: [{ $type: "$$netName" }, "missing"] },
-                    {
-                      $eq: [
-                        { $toLower: "$grp_title" },
-                        { $toLower: "$$netName" },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "_network_group",
-        })
         .unwind({
           path: "$group",
           preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
-          path: "$_legacy_network",
-          preserveNullAndEmptyArrays: true,
-        })
-        .unwind({
-          path: "$_network_group",
-          preserveNullAndEmptyArrays: true,
-        })
-        // Resolve group: prefer group_id lookup, fall back to network-matched group.
-        // Never surface the network field itself.
-        .addFields({
-          group: {
-            $cond: {
-              if: { $ifNull: ["$group", false] },
-              then: {
-                _id: "$group._id",
-                grp_title: "$group.grp_title",
-                grp_description: "$group.grp_description",
-              },
-              else: {
-                $cond: {
-                  if: { $ifNull: ["$_network_group", false] },
-                  then: {
-                    _id: "$_network_group._id",
-                    grp_title: "$_network_group.grp_title",
-                    grp_description: "$_network_group.grp_description",
-                  },
-                  else: "$$REMOVE",
-                },
-              },
-            },
-          },
-          _legacy_network: "$$REMOVE",
-          _network_group: "$$REMOVE",
         })
         .lookup({
           from: "permissions",
@@ -299,7 +212,7 @@ RoleSchema.statics = {
           foreignField: "_id",
           as: "role_permissions",
         })
-        // Count users assigned to this role via network_roles OR group_roles
+        // Count users assigned to this role via group_roles
         .lookup({
           from: "users",
           let: { roleId: "$_id" },
@@ -307,17 +220,7 @@ RoleSchema.statics = {
             {
               $match: {
                 $expr: {
-                  $or: [
-                    {
-                      $in: [
-                        "$$roleId",
-                        { $ifNull: ["$network_roles.role", []] },
-                      ],
-                    },
-                    {
-                      $in: ["$$roleId", { $ifNull: ["$group_roles.role", []] }],
-                    },
-                  ],
+                  $in: ["$$roleId", { $ifNull: ["$group_roles.role", []] }],
                 },
               },
             },
@@ -448,7 +351,7 @@ RoleSchema.methods = {
       role_status: this.role_status,
       role_permissions: this.role_permissions,
       role_description: this.role_description,
-      network_id: this.network_id,
+      group_id: this.group_id,
     };
   },
 };

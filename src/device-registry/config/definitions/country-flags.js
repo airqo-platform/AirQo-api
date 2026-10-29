@@ -66,7 +66,20 @@ const getFlagUrl = (countryName) => {
   return code ? `https://flagcdn.com/w320/${code}.png` : null;
 };
 
+// Reverse of countryCodes, keyed by lowercase alpha-2 code — resolves a
+// `country` query param (ISO 3166-1 alpha-2) back to the country name stored
+// on siteDetails.country / AirQualitySummary.entity.
+const _codeToNameLookup = new Map(
+  Object.entries(countryCodes).map(([name, code]) => [code, name])
+);
+
+const getCountryNameByCode = (code) => {
+  if (!code) return null;
+  return _codeToNameLookup.get(String(code).toLowerCase().trim()) || null;
+};
+
 module.exports = {
   getFlagUrl,
+  getCountryNameByCode,
   countryCodes,
 };

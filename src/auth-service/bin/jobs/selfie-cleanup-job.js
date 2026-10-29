@@ -3,6 +3,7 @@ const cloudinary = require("@config/cloudinary");
 const constants = require("@config/constants");
 const SelfieModel = require("@models/Selfie");
 const log4js = require("log4js");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/selfie-cleanup-job`
@@ -18,6 +19,9 @@ const isCloudinaryConfigured =
   !!constants.CLOUDINARY_API_SECRET;
 
 const cleanupOldSelfies = async () => {
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
 
@@ -107,7 +111,7 @@ global.cronJobs = global.cronJobs || {};
 const schedule = "30 2 * * *"; // every day at 2:30 AM, after the feedback screenshot cleanup job
 const jobName = "selfie-cleanup-job";
 global.cronJobs[jobName] = cron.schedule(schedule, cleanupOldSelfies, {
-  scheduled: false, // temporarily disabled — selfie feature is currently unused, no cost pressure to prune recent event photos
+  scheduled: true,
   timezone: "Africa/Nairobi",
 });
 

@@ -18,8 +18,8 @@ const CRITICAL_THRESHOLD = 50; // New threshold for critical status
 // Job identification - SEPARATE NAMES FOR EACH JOB
 const MAIN_JOB_NAME = "network-status-check-job";
 const SUMMARY_JOB_NAME = "network-status-summary-job";
-const MAIN_JOB_SCHEDULE = getSchedule("30 */2 * * *", constants.ENVIRONMENT); // At minute 30 (or offset) of every 2nd hour
-const SUMMARY_JOB_SCHEDULE = getSchedule("0 8 * * *", constants.ENVIRONMENT); // At 8:00 AM (or offset) every day
+const MAIN_JOB_SCHEDULE = getSchedule("37 */2 * * *", constants.ENVIRONMENT); // At minute 37 (or offset) of every 2nd hour (staggered off :30, shared by several other every-2h jobs and the every-hour precompute-activities-job)
+const SUMMARY_JOB_SCHEDULE = getSchedule("16 8 * * *", constants.ENVIRONMENT); // At 8:16 AM (or offset) every day (staggered off :00, shared by daily-activity-summary-job and update-grid-flags-job's 08:00 run)
 let currentMainJobPromise = null;
 let currentSummaryJobPromise = null;
 const MAIN_JOB_LOG_TYPE = "network-status-check";

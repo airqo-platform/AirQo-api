@@ -11,19 +11,28 @@ const {
 } = require("@config/database");
 
 const MIGRATION_NAME = "network-status-indexes-v1";
+// This service only ever runs against one tenant — the real multi-tenant
+// design was abandoned; "airqo" is the database's permanent identity, not a
+// placeholder. No tenant loop/array here on purpose (see project memory on
+// tenant handling — future changes to this file should not reintroduce a
+// `constants.TENANTS` loop). Note: `constants.TENANTS` defaults to `[]`
+// (falsy-looking but truthy) when unset, not `undefined` — `constants.TENANTS
+// || ["airqo"]` silently no-ops instead of falling back, which is exactly the
+// kind of bug this single-tenant constant avoids entirely.
+const TENANT = constants.DEFAULT_TENANT || "airqo";
 
-async function checkMigrationStatus(tenant) {
+async function checkMigrationStatus() {
   try {
-    const tracker = await MigrationTrackerModel(tenant).findOne({
+    const tracker = await MigrationTrackerModel(TENANT).findOne({
       name: MIGRATION_NAME,
-      tenant: tenant,
+      tenant: TENANT,
     });
 
     if (!tracker) {
       // Create new migration record
-      await MigrationTrackerModel(tenant).create({
+      await MigrationTrackerModel(TENANT).create({
         name: MIGRATION_NAME,
-        tenant: tenant,
+        tenant: TENANT,
         status: "pending",
       });
       return "pending";
@@ -36,7 +45,7 @@ async function checkMigrationStatus(tenant) {
   }
 }
 
-async function updateMigrationStatus(tenant, status, error = null) {
+async function updateMigrationStatus(status, error = null) {
   try {
     const update = {
       status: status,
@@ -45,8 +54,8 @@ async function updateMigrationStatus(tenant, status, error = null) {
       ...(error && { error: error.message }),
     };
 
-    await MigrationTrackerModel(tenant).findOneAndUpdate(
-      { name: MIGRATION_NAME, tenant: tenant },
+    await MigrationTrackerModel(TENANT).findOneAndUpdate(
+      { name: MIGRATION_NAME, tenant: TENANT },
       update,
       { new: true }
     );
@@ -56,10 +65,10 @@ async function updateMigrationStatus(tenant, status, error = null) {
   }
 }
 
-async function createIndexesForTenant(tenant) {
+async function createIndexes() {
   try {
     // Use getRawTenantDB to get database access without model registration
-    const tenantDB = getRawTenantDB(tenant);
+    const tenantDB = getRawTenantDB(TENANT);
     const collectionName = "networkstatusalerts";
 
     // Check if collection exists
@@ -87,48 +96,41 @@ async function createIndexesForTenant(tenant) {
       ),
     ];
     await Promise.all(indexPromises);
-    logger.info(`Indexes created/ensured for tenant ${tenant}`);
+    logger.info(`Indexes created/ensured`);
   } catch (error) {
-    logger.error(
-      `🐛🐛 Error creating indexes for tenant ${tenant}: ${error.message}`
-    );
+    logger.error(`🐛🐛 Error creating indexes: ${error.message}`);
     throw error;
   }
 }
 
-async function runMigration(tenants = ["airqo"]) {
-  for (const tenant of tenants) {
-    try {
-      // Check if migration already completed
-      const status = await checkMigrationStatus(tenant);
+async function runMigration() {
+  try {
+    // Check if migration already completed
+    const status = await checkMigrationStatus();
 
-      if (status === "completed") {
-        continue;
-      }
-
-      // Update status to running
-      await updateMigrationStatus(tenant, "running");
-
-      // Create indexes
-      await createIndexesForTenant(tenant);
-
-      // Update status to completed
-      await updateMigrationStatus(tenant, "completed");
-    } catch (error) {
-      logger.error(
-        `🐛🐛 Migration failed for tenant ${tenant}: ${error.message}`
-      );
-      await updateMigrationStatus(tenant, "failed", error);
+    if (status === "completed") {
+      return;
     }
+
+    // Update status to running
+    await updateMigrationStatus("running");
+
+    // Create indexes
+    await createIndexes();
+
+    // Update status to completed
+    await updateMigrationStatus("completed");
+  } catch (error) {
+    logger.error(`🐛🐛 Migration failed: ${error.message}`);
+    await updateMigrationStatus("failed", error);
+    throw error;
   }
 }
 
 // Manual execution function
 async function executeMigration() {
   try {
-    // You can customize the list of tenants here
-    const tenants = constants.TENANTS || ["airqo"];
-    await runMigration(tenants);
+    await runMigration();
     return true;
   } catch (error) {
     logger.error(`🐛🐛 Migration error: ${error.message}`);

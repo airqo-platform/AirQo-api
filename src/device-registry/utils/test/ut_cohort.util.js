@@ -5,7 +5,8 @@ const mongoose = require("mongoose");
 const httpStatus = require("http-status");
 const createCohort = require("@utils/cohort.util");
 const networkUtil = require("@utils/network.util");
-const { generateFilter } = require("@utils/common");
+const constants = require("@config/constants");
+const { generateFilter, cohortSlugUtil } = require("@utils/common");
 
 const { expect } = chai;
 
@@ -95,6 +96,60 @@ describe("createCohort", () => {
       await createCohort.create({ query: { tenant: "airqo" }, body: {} }, next);
       expect(next.calledOnce).to.be.true;
     });
+
+    it("should generate and pass through a unique cohort_slug when one is provided", async () => {
+      const registerStub = sandbox.stub().resolves({
+        success: true,
+        data: { _id: "cid", name: "test", cohort_slug: "wri-nairobi" },
+      });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
+        register: registerStub,
+      });
+      sandbox.stub(cohortSlugUtil, "generateUniqueCohortSlug").resolves({
+        success: true,
+        slug: "wri-nairobi",
+      });
+
+      const result = await createCohort.create(
+        {
+          query: { tenant: "airqo" },
+          body: { name: "test", cohort_slug: "Nairobi!!", group_slug: "WRI" },
+        },
+        sandbox.stub(),
+      );
+
+      expect(result.success).to.be.true;
+      // The sanitized/uniqued slug from generateUniqueCohortSlug — not the
+      // raw request body value — is what gets persisted.
+      expect(registerStub.getCall(0).args[0].cohort_slug).to.equal(
+        "wri-nairobi",
+      );
+      expect(registerStub.getCall(0).args[0].group_slug).to.be.undefined;
+    });
+
+    it("should reject with a 400 and skip registration when cohort_slug is invalid or reserved", async () => {
+      const registerStub = sandbox.stub().resolves({ success: true });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
+        register: registerStub,
+      });
+      sandbox.stub(cohortSlugUtil, "generateUniqueCohortSlug").resolves({
+        success: false,
+        message: '"admin" is a reserved cohort_slug value, please choose another',
+      });
+
+      const result = await createCohort.create(
+        {
+          query: { tenant: "airqo" },
+          body: { name: "test", cohort_slug: "admin" },
+        },
+        sandbox.stub(),
+      );
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+      expect(result.errors.message).to.include("reserved");
+      expect(registerStub.called).to.be.false;
+    });
   });
 
   describe("update", () => {
@@ -157,6 +212,59 @@ describe("createCohort", () => {
       const next = sandbox.stub();
       await createCohort.list({ query: { tenant: "airqo" } }, next);
       expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  describe("_list summary include_devices", () => {
+    const stubAggregate = () => {
+      const aggregate = sandbox.stub().returns({
+        option: sandbox.stub().returns({
+          allowDiskUse: sandbox.stub().resolves([
+            {
+              paginatedResults: [{ _id: "c1", name: "Kampala" }],
+              totalCount: [{ count: 1 }],
+            },
+          ]),
+        }),
+      });
+      sandbox.stub(mongoose, "model").withArgs("cohorts").returns({ aggregate });
+      return aggregate;
+    };
+    const hasDevicesLookup = (pipeline) =>
+      pipeline.some((stage) => stage.$lookup && stage.$lookup.from === "devices");
+
+    it("should skip the devices lookup when include_devices is false", async () => {
+      const aggregate = stubAggregate();
+      const result = await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "summary", include_devices: false } },
+        { _id: { $in: [] } },
+        sandbox.stub(),
+      );
+      const pipeline = aggregate.firstCall.args[0];
+      expect(hasDevicesLookup(pipeline)).to.be.false;
+      expect(pipeline[0].$match).to.not.have.property("visibility");
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([{ _id: "c1", name: "Kampala" }]);
+    });
+
+    it("should keep the devices lookup by default", async () => {
+      const aggregate = stubAggregate();
+      await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "summary" } },
+        {},
+        sandbox.stub(),
+      );
+      expect(hasDevicesLookup(aggregate.firstCall.args[0])).to.be.true;
+    });
+
+    it("should ignore include_devices outside the summary endpoint", async () => {
+      const aggregate = stubAggregate();
+      await createCohort._list(
+        { query: { tenant: "airqo", detailLevel: "full", include_devices: false } },
+        {},
+        sandbox.stub(),
+      );
+      expect(hasDevicesLookup(aggregate.firstCall.args[0])).to.be.true;
     });
   });
 
@@ -224,9 +332,14 @@ describe("createCohort", () => {
 
   describe("assignOneDeviceToCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .exists() not .findById()
+      // Looks up the cohort via findOne (supports ObjectId or cohort_slug)
+      // and checks device existence separately.
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ exists: sandbox.stub().resolves(false) });
+      ms.withArgs("cohorts").returns({
+        findOne: sandbox.stub().returns({
+          select: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        }),
+      });
       ms.withArgs("devices").returns({ exists: sandbox.stub().resolves(false) });
       const result = await createCohort.assignOneDeviceToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -246,13 +359,206 @@ describe("createCohort", () => {
       );
       expect(next.calledOnce).to.be.true;
     });
+
+    function stubAssignOneChain({ cohort, device, updatedDevice }) {
+      const ms = sandbox.stub(mongoose, "model");
+      const devicesModel = {
+        exists: sandbox.stub().resolves(true),
+        findById: sandbox.stub().returns({ lean: sandbox.stub().resolves(device) }),
+        findByIdAndUpdate: sandbox.stub().resolves(updatedDevice),
+      };
+      ms.withArgs("cohorts").returns({
+        findOne: sandbox.stub().returns({
+          select: sandbox.stub().returns({ lean: sandbox.stub().resolves(cohort) }),
+        }),
+      });
+      ms.withArgs("devices").returns(devicesModel);
+      return devicesModel;
+    }
+
+    it("should assign a device whose network matches the cohort's network", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+    });
+
+    it("should still assign a cross-network device when ENFORCE_COHORT_DEVICE_GROUP_SCOPE is off (default, backward compatible)", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        device: { _id: "did", cohorts: [], network: "netY", groups: ["orgB"] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+    });
+
+    it("should block a cross-network device when ENFORCE_COHORT_DEVICE_GROUP_SCOPE is on", async () => {
+      const devicesModel = stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        device: { _id: "did", cohorts: [], network: "netY", groups: ["orgB"] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = true;
+      try {
+        const result = await createCohort.assignOneDeviceToCohort(
+          { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.false;
+        expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+        expect(devicesModel.findByIdAndUpdate.called).to.be.false;
+      } finally {
+        constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = false;
+      }
+    });
+
+    it("should allow assignment when the cohort is on the airqo network even with ENFORCE_COHORT_DEVICE_GROUP_SCOPE on", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "airqo", groups: [] },
+        device: { _id: "did", cohorts: [], network: "netY", groups: ["orgB"] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = true;
+      try {
+        const result = await createCohort.assignOneDeviceToCohort(
+          { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+      } finally {
+        constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = false;
+      }
+    });
+
+    it("should assign when the requesting user's groups include the cohort's group", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        {
+          query: { tenant: "airqo" },
+          params: { cohort_id: "cid", device_id: "did" },
+          identity: { userId: "u1", groups: ["orgA"] },
+        },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+    });
+
+    it("should still assign when the user is not a group member and ENFORCE_COHORT_USER_GROUP_MEMBERSHIP is off (default, backward compatible)", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        {
+          query: { tenant: "airqo" },
+          params: { cohort_id: "cid", device_id: "did" },
+          identity: { userId: "u2", groups: ["orgB"] },
+        },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+    });
+
+    it("should block a non-member user when ENFORCE_COHORT_USER_GROUP_MEMBERSHIP is on", async () => {
+      const devicesModel = stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignOneDeviceToCohort(
+          {
+            query: { tenant: "airqo" },
+            params: { cohort_id: "cid", device_id: "did" },
+            identity: { userId: "u2", groups: ["orgB"] },
+          },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.false;
+        expect(result.status).to.equal(httpStatus.FORBIDDEN);
+        expect(devicesModel.findByIdAndUpdate.called).to.be.false;
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
+
+    it("should allow an airqo-group user even with ENFORCE_COHORT_USER_GROUP_MEMBERSHIP on", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignOneDeviceToCohort(
+          {
+            query: { tenant: "airqo" },
+            params: { cohort_id: "cid", device_id: "did" },
+            identity: { userId: "u3", groups: ["airqo"] },
+          },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
+
+    it("should never block on missing identity, even with ENFORCE_COHORT_USER_GROUP_MEMBERSHIP on", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        device: { _id: "did", cohorts: [], network: "netX", groups: [] },
+        updatedDevice: { _id: "did", cohorts: ["cid"] },
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignOneDeviceToCohort(
+          { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
+
+    it("should return a clean 400 instead of throwing when the device is deleted between the exists check and the fetch", async () => {
+      stubAssignOneChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        device: null,
+        updatedDevice: null,
+      });
+      const result = await createCohort.assignOneDeviceToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
+    });
   });
 
   describe("unAssignOneDeviceFromCohort", () => {
     it("should handle invalid cohort or device", async () => {
-      // Uses .findById() directly without .lean()
+      // Cohort lookup uses findOne (supports ObjectId or cohort_slug);
+      // device lookup is unchanged (findById, no .lean()).
       const ms = sandbox.stub(mongoose, "model");
-      ms.withArgs("cohorts").returns({ findById: sandbox.stub().resolves(null) });
+      ms.withArgs("cohorts").returns({ findOne: sandbox.stub().resolves(null) });
       ms.withArgs("devices").returns({ findById: sandbox.stub().resolves(null) });
       const result = await createCohort.unAssignOneDeviceFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid", device_id: "did" } },
@@ -275,9 +581,9 @@ describe("createCohort", () => {
 
   describe("assignManyDevicesToCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses .findById(id).lean()
+      // Uses .findOne(filter).lean() (supports ObjectId or cohort_slug)
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(null) }),
       });
       const result = await createCohort.assignManyDevicesToCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },
@@ -297,13 +603,213 @@ describe("createCohort", () => {
       );
       expect(next.calledOnce).to.be.true;
     });
+
+    function stubAssignManyChain({ cohort, existingDevices, confirmedDevices }) {
+      const findStub = sandbox.stub();
+      findStub.onCall(0).returns({
+        select: sandbox.stub().returns({ lean: sandbox.stub().resolves(existingDevices) }),
+      });
+      if (confirmedDevices) {
+        findStub.onCall(1).returns({
+          select: sandbox.stub().returns({ lean: sandbox.stub().resolves(confirmedDevices) }),
+        });
+      }
+      const devicesModel = {
+        find: findStub,
+        updateMany: sandbox.stub().resolves({}),
+      };
+      const ms = sandbox.stub(mongoose, "model");
+      ms.withArgs("cohorts").returns({
+        findOne: sandbox.stub().returns({ lean: sandbox.stub().resolves(cohort) }),
+      });
+      ms.withArgs("devices").returns(devicesModel);
+      return devicesModel;
+    }
+
+    it("should assign devices whose network matches the cohort's network", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+        confirmedDevices: [{ _id: "dev1" }],
+      });
+      const result = await createCohort.assignManyDevicesToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["dev1"] } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+      expect(result.data.assigned).to.deep.equal(["dev1"]);
+      expect(result.data.blocked_group_mismatch).to.be.undefined;
+    });
+
+    it("should still assign a cross-network device when ENFORCE_COHORT_DEVICE_GROUP_SCOPE is off (default, backward compatible)", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        existingDevices: [{ _id: "dev2", cohorts: [], network: "netY", groups: ["orgB"] }],
+        confirmedDevices: [{ _id: "dev2" }],
+      });
+      const result = await createCohort.assignManyDevicesToCohort(
+        { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["dev2"] } },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+      expect(result.data.assigned).to.deep.equal(["dev2"]);
+      expect(result.data.blocked_group_mismatch).to.be.undefined;
+    });
+
+    it("should block a cross-network device and report it when ENFORCE_COHORT_DEVICE_GROUP_SCOPE is on", async () => {
+      const devicesModel = stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        existingDevices: [{ _id: "dev2", cohorts: [], network: "netY", groups: ["orgB"] }],
+      });
+      constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = true;
+      try {
+        const result = await createCohort.assignManyDevicesToCohort(
+          { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["dev2"] } },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+        expect(result.data.assigned).to.deep.equal([]);
+        expect(result.data.blocked_group_mismatch).to.deep.equal(["dev2"]);
+        expect(devicesModel.updateMany.called).to.be.false;
+      } finally {
+        constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = false;
+      }
+    });
+
+    it("should allow assignment when the device is on the airqo network even with ENFORCE_COHORT_DEVICE_GROUP_SCOPE on", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: [] },
+        existingDevices: [{ _id: "dev3", cohorts: [], network: "airqo", groups: [] }],
+        confirmedDevices: [{ _id: "dev3" }],
+      });
+      constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = true;
+      try {
+        const result = await createCohort.assignManyDevicesToCohort(
+          { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["dev3"] } },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+        expect(result.data.assigned).to.deep.equal(["dev3"]);
+      } finally {
+        constants.ENFORCE_COHORT_DEVICE_GROUP_SCOPE = false;
+      }
+    });
+
+    it("should assign when the requesting user's groups include the cohort's group", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+        confirmedDevices: [{ _id: "dev1" }],
+      });
+      const result = await createCohort.assignManyDevicesToCohort(
+        {
+          query: { tenant: "airqo" },
+          params: { cohort_id: "cid" },
+          body: { device_ids: ["dev1"] },
+          identity: { userId: "u1", groups: ["orgA"] },
+        },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+      expect(result.data.assigned).to.deep.equal(["dev1"]);
+    });
+
+    it("should still assign when the user is not a group member and ENFORCE_COHORT_USER_GROUP_MEMBERSHIP is off (default, backward compatible)", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+        confirmedDevices: [{ _id: "dev1" }],
+      });
+      const result = await createCohort.assignManyDevicesToCohort(
+        {
+          query: { tenant: "airqo" },
+          params: { cohort_id: "cid" },
+          body: { device_ids: ["dev1"] },
+          identity: { userId: "u2", groups: ["orgB"] },
+        },
+        sandbox.stub()
+      );
+      expect(result.success).to.be.true;
+      expect(result.data.assigned).to.deep.equal(["dev1"]);
+    });
+
+    it("should block the whole request for a non-member user when ENFORCE_COHORT_USER_GROUP_MEMBERSHIP is on", async () => {
+      const devicesModel = stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignManyDevicesToCohort(
+          {
+            query: { tenant: "airqo" },
+            params: { cohort_id: "cid" },
+            body: { device_ids: ["dev1"] },
+            identity: { userId: "u2", groups: ["orgB"] },
+          },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.false;
+        expect(result.status).to.equal(httpStatus.FORBIDDEN);
+        expect(devicesModel.find.called).to.be.false;
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
+
+    it("should allow an airqo-group user even with ENFORCE_COHORT_USER_GROUP_MEMBERSHIP on", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+        confirmedDevices: [{ _id: "dev1" }],
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignManyDevicesToCohort(
+          {
+            query: { tenant: "airqo" },
+            params: { cohort_id: "cid" },
+            body: { device_ids: ["dev1"] },
+            identity: { userId: "u3", groups: ["airqo"] },
+          },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+        expect(result.data.assigned).to.deep.equal(["dev1"]);
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
+
+    it("should never block on missing identity, even with ENFORCE_COHORT_USER_GROUP_MEMBERSHIP on", async () => {
+      stubAssignManyChain({
+        cohort: { _id: "cid", network: "netX", groups: ["orgA"] },
+        existingDevices: [{ _id: "dev1", cohorts: [], network: "netX", groups: [] }],
+        confirmedDevices: [{ _id: "dev1" }],
+      });
+      constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = true;
+      try {
+        const result = await createCohort.assignManyDevicesToCohort(
+          {
+            query: { tenant: "airqo" },
+            params: { cohort_id: "cid" },
+            body: { device_ids: ["dev1"] },
+          },
+          sandbox.stub()
+        );
+        expect(result.success).to.be.true;
+        expect(result.data.assigned).to.deep.equal(["dev1"]);
+      } finally {
+        constants.ENFORCE_COHORT_USER_GROUP_MEMBERSHIP = false;
+      }
+    });
   });
 
   describe("unAssignManyDevicesFromCohort", () => {
     it("should handle invalid cohort", async () => {
-      // Uses findById on cohorts (no .lean())
+      // Uses findOne on cohorts (no .lean()) — supports ObjectId or cohort_slug
       sandbox.stub(mongoose, "model").withArgs("cohorts").returns({
-        findById: sandbox.stub().resolves(null),
+        findOne: sandbox.stub().resolves(null),
       });
       const result = await createCohort.unAssignManyDevicesFromCohort(
         { query: { tenant: "airqo" }, params: { cohort_id: "cid" }, body: { device_ids: ["did"] } },
@@ -352,6 +858,76 @@ describe("createCohort", () => {
         next
       );
       expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  describe("listCachedDevices", () => {
+    const proxyquire = require("proxyquire");
+    const cohortObjectId = new mongoose.Types.ObjectId();
+
+    // Wires @models/Cohort and @models/CohortDeviceSnapshot to in-memory
+    // stubs so the search-regex behavior can be exercised without a real
+    // DB connection. `capture` records the filter passed to find()/
+    // countDocuments() so the test can assert on the escaped $regex value.
+    const buildProxiedCohortUtil = ({ coveredCohortIds, capture }) =>
+      proxyquire("../cohort.util", {
+        "@models/Cohort": () => ({
+          find: () => ({
+            select: () => ({
+              lean: () =>
+                Promise.resolve([
+                  { _id: cohortObjectId, cohort_slug: "test-cohort" },
+                ]),
+            }),
+          }),
+        }),
+        "@models/CohortDeviceSnapshot": () => ({
+          distinct: () => ({
+            maxTimeMS: () => Promise.resolve(coveredCohortIds),
+          }),
+          countDocuments: (filter) => {
+            capture.countFilter = filter;
+            return { maxTimeMS: () => Promise.resolve(0) };
+          },
+          find: (filter) => {
+            capture.findFilter = filter;
+            return {
+              skip: () => ({
+                limit: () => ({
+                  select: () => ({
+                    lean: () => ({
+                      maxTimeMS: () => Promise.resolve([]),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          },
+        }),
+      });
+
+    it("should escape regex metacharacters in search instead of throwing", async () => {
+      const capture = {};
+      const proxiedCohortUtil = buildProxiedCohortUtil({
+        coveredCohortIds: [cohortObjectId],
+        capture,
+      });
+      const next = sinon.stub();
+
+      const result = await proxiedCohortUtil.listCachedDevices(
+        {
+          body: { cohort_ids: [cohortObjectId.toString()] },
+          // Trailing backslash previously reproduced:
+          // "Regular expression is invalid: \ at end of pattern"
+          query: { tenant: "airqo", search: "sensor\\" },
+        },
+        next
+      );
+
+      expect(next.called).to.be.false;
+      expect(result.success).to.be.true;
+      expect(capture.findFilter.name.$regex).to.equal("sensor\\\\");
+      expect(capture.countFilter.name.$regex).to.equal("sensor\\\\");
     });
   });
 });

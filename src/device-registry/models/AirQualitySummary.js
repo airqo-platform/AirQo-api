@@ -34,6 +34,17 @@ const airQualitySummarySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // Country name (matches siteDetails.country / countryCodes' keys), only
+    // populated for level="city" rows — for level="country" the entity IS
+    // the country, so this stays unset there. Backfilled going forward only
+    // by air-quality-rollup-job.js as new daily windows are processed; rows
+    // written before this field existed stay null and are excluded by a
+    // country-scoped history query rather than guessed at, since city names
+    // are not guaranteed unique across countries.
+    country: {
+      type: String,
+      default: null,
+    },
     year: {
       type: Number,
       required: true,

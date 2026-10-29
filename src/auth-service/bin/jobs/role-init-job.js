@@ -3,6 +3,7 @@ const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- role-init-job`);
 const nodeCron = require("node-cron");
 const mongoose = require("mongoose");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 
 // Track initialization status for diagnostics
 let initializationComplete = false;
@@ -123,6 +124,8 @@ function scheduleRoleVerification() {
     if (nodeCron.validate(cronSchedule)) {
       nodeCron.schedule(cronSchedule, async () => {
         try {
+          const gotLock = await acquireCronLock("airqo", "role-init-job");
+          if (!gotLock) return;
           await runRoleInitialization();
         } catch (error) {
           logger.error(`Scheduled role verification error: ${error.message}`);

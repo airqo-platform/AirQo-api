@@ -296,6 +296,22 @@ const deviceSchema = new mongoose.Schema(
       enum: ["valid", "future_timestamp", "invalid_format", "unknown"],
       default: "unknown",
     },
+    // Set by update-raw-online-status-job when the upstream feed provider
+    // (e.g. ThingSpeak) returns 404 for this device's channel — almost always
+    // means the channel was deleted upstream. Cleared automatically the next
+    // time a fetch for this device succeeds. Used to suppress repeat alerts
+    // and skip pointless re-polling until channelStatusCheckedAt goes stale.
+    channelStatus: {
+      type: String,
+      // null must be listed: mongoose 5 enum validator rejects null otherwise,
+      // which breaks every new device create via the default below.
+      enum: ["not_found", null],
+      default: null,
+    },
+    channelStatusCheckedAt: {
+      type: Date,
+      default: null,
+    },
     /**
      * The latest PM2.5 readings for this device.
      * May be null or undefined if no readings have been recorded yet.
@@ -547,6 +563,9 @@ deviceSchema.index({ lastActive: 1, createdAt: 1, isOnline: 1 });
 // pass find devices stuck with a future-dated raw reading in O(log n) instead
 // of a full collection scan.
 deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
+// backfill-search-name-job: distinct("site_id", {isActive: true, ...}) needs
+// to stay an index scan (not a full collection scan) as the fleet grows.
+deviceSchema.index({ isActive: 1, site_id: 1 });
 
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(

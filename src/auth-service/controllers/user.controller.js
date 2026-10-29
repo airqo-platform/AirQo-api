@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const { AbstractTokenFactory } = require("@services/atf.service");
 const log4js = require("log4js");
 const UserModel = require("@models/User");
+const { attachIdentityHeaders } = require("@utils/identity-headers.util");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
 const handleRequest = (req, next) => {
@@ -182,6 +183,33 @@ const userController = {
       const { tenant } = request.query;
       const result = await userUtil.listStatistics(tenant, next);
       sendResponse(res, result, "users_stats");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  getStatsBreakdown: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getStatsBreakdown(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  exportStatsSegment: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.exportStatsSegment(request, next);
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      return res.status(result.status || httpStatus.OK).json({
+        success: true,
+        message: result.message,
+        ...result.data,
+      });
     } catch (error) {
       handleError(error, next);
     }
@@ -434,6 +462,10 @@ const userController = {
   verify: async (req, res, next) => {
     try {
       if (!res.headersSent) {
+        const tenant = String(
+          req.query.tenant || req.body.tenant || constants.DEFAULT_TENANT || "airqo",
+        ).toLowerCase();
+        await attachIdentityHeaders(res, req.user, tenant);
         res.status(httpStatus.OK).send("this token is valid");
         return;
       }
@@ -581,15 +613,18 @@ const userController = {
       handleError(error, next);
     }
   },
-  sendFeedback: async (req, res, next) => {
-    try {
-      const request = handleRequest(req, next);
-      if (!request) return;
-      const result = await userUtil.sendFeedback(request, next);
-      sendResponse(res, result);
-    } catch (error) {
-      handleError(error, next);
-    }
+  // Decommissioned: it emailed a confirmation for every submission with no
+  // category or contact-consent checks. Clients use POST /feedback/submit.
+  sendFeedback: (req, res) => {
+    res.status(httpStatus.GONE).json({
+      success: false,
+      message:
+        "This endpoint has been decommissioned. Use POST /api/v2/users/feedback/submit instead.",
+      errors: {
+        message: "POST /feedback is no longer available",
+        replacement: "/api/v2/users/feedback/submit",
+      },
+    });
   },
   forgot: async (req, res, next) => {
     logger.info("...........................................");
@@ -799,6 +834,43 @@ const userController = {
       handleError(error, next);
     }
   },
+  completeEmailLogin: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.completeSignInWithEmailLink(
+        request,
+        next,
+      );
+
+      if (result && result.success === true) {
+        const { data } = result;
+        const userResponse = {
+          _id: data._id,
+          token: data.token,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          userName: data.userName,
+          privilege: data.privilege,
+          organization: data.organization,
+          long_organization: data.long_organization,
+          profilePicture: data.profilePicture,
+          country: data.country,
+          phoneNumber: data.phoneNumber,
+          interests: data.interests,
+          interestsDescription: data.interestsDescription,
+          verified: data.verified,
+          isActive: data.isActive,
+          authMethods: data.authMethods,
+        };
+        return res.status(httpStatus.OK).json(userResponse);
+      }
+      sendResponse(res, result);
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
   updateForgottenPassword: async (req, res, next) => {
     try {
       const request = handleRequest(req, next);
@@ -836,6 +908,23 @@ const userController = {
       res
         .status(httpStatus.OK)
         .json({ success: true, message: result.message });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+  checkEmail: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { email } = request.body;
+      const { tenant } = request.query;
+      const result = await userUtil.checkEmailExists({ email, tenant });
+
+      res.status(httpStatus.OK).json({
+        success: true,
+        exists: result.exists,
+        ...(result.exists ? { authMethods: result.authMethods } : {}),
+      });
     } catch (error) {
       handleError(error, next);
     }
@@ -1520,7 +1609,7 @@ const userController = {
   },
 
   /**
-   * Get user permissions in a specific context (group/network)
+   * Get user permissions in a specific context (group)
    * @route GET /api/v2/users/contextPermissions
    */
   getContextPermissions: async (req, res, next) => {
@@ -1644,6 +1733,67 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * Get the authenticated user's known sign-in devices
+   * @route GET /api/v2/users/known-devices
+   * @route GET /api/v3/users/known-devices
+   */
+  listKnownDevices: async (req, res, next) => {
+    try {
+      const userId = req.user && req.user._id;
+      if (!userId) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            auth: "User must be authenticated to access known devices",
+          }),
+        );
+      }
+
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { tenant } = request.query;
+
+      const result = await userUtil.listKnownDevices({ userId, tenant }, next);
+
+      return sendResponse(res, result, "knownDevices");
+    } catch (error) {
+      logger.error(`🐛 List known devices controller error: ${error.message}`);
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * Admin diagnostic view of the email queue (pending/processing/failed jobs)
+   * @route GET /api/v2/users/email-queue
+   * @route GET /api/v3/users/email-queue
+   */
+  listEmailQueue: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.listEmailQueue(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+      if (result.success) {
+        return res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message,
+          emailQueue: result.data,
+          meta: result.meta,
+        });
+      }
+      return res
+        .status(result.status || httpStatus.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: result.message,
+          errors: result.errors || { message: "Internal Server Error" },
+        });
+    } catch (error) {
+      logger.error(`🐛 List email queue controller error: ${error.message}`);
       handleError(error, next);
     }
   },
@@ -1825,7 +1975,6 @@ const userController = {
           // Enhanced fields (optional for clients that can handle them)
           permissions: result.data.permissions,
           groupMemberships: result.data.groupMemberships,
-          networkMemberships: result.data.networkMemberships,
           isSuperAdmin: result.data.isSuperAdmin,
         };
 
@@ -1889,6 +2038,17 @@ const userController = {
           message: result.message,
           errors: result.errors || { message: "Internal Server Error" },
         });
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  getFeedbackStats: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const result = await userUtil.getFeedbackStats(request, next);
+      sendResponse(res, result, "feedback_stats");
     } catch (error) {
       handleError(error, next);
     }

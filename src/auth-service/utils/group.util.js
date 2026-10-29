@@ -4,6 +4,7 @@ const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const PreferenceModel = require("@models/Preference");
 const GroupModel = require("@models/Group");
+const ActivityLogModel = require("@models/ActivityLog");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const { generateFilter } = require("@utils/common");
@@ -17,6 +18,7 @@ const logger = require("log4js").getLogger(
 const rolePermissionsUtil = require("@utils/role-permissions.util");
 const { logObject, HttpError, logText } = require("@utils/shared");
 const mailer = require("@utils/common/mailer.util");
+const { ActivityLogger } = require("@utils/common/activity-logger.util");
 const {
   invalidateUserRBACCache,
 } = require("@services/rbac.service");
@@ -421,6 +423,62 @@ const groupUtil = {
       );
     }
   },
+
+  /**
+   * Replace a group's verified email domains (used for registration-time
+   * auto-suggestion — never for instant membership). Restricted at the route
+   * level to SYSTEM_ADMIN, deliberately not group managers, so a group admin
+   * can't claim a domain they don't control and silently absorb its users.
+   */
+  updateEmailDomains: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+      const { email_domains } = request.body;
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { grp_email_domains: email_domains || [] },
+        { new: true, runValidators: true },
+      );
+
+      if (!updatedGroup) {
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${grp_id} not found`,
+          }),
+        );
+        return;
+      }
+
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "DOMAIN_LIST_UPDATED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        details: `Email domains set to: ${
+          updatedGroup.grp_email_domains.join(", ") || "(none)"
+        }`,
+      });
+
+      return {
+        success: true,
+        message: "Group email domains updated successfully",
+        data: { grp_email_domains: updatedGroup.grp_email_domains },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
   /**
    * Generate a slug from a group title
    * @param {string} title - The group title
@@ -855,8 +913,13 @@ const groupUtil = {
         }
       }
 
+      // grp_email_domains is SYSTEM_ADMIN-only (see PUT /:grp_id/email-domains)
+      // — must not be settable through general group creation, which only
+      // requires GROUP_CREATE.
+      const { grp_email_domains: _ignoredEmailDomains, ...safeBody } = body;
+
       const modifiedBody = {
-        ...body,
+        ...safeBody,
         grp_manager: ObjectId(user._id),
         grp_manager_username: user.email,
         grp_manager_firstname: user.firstName,
@@ -1123,6 +1186,16 @@ const groupUtil = {
         );
       }
 
+      // grp_email_domains is SYSTEM_ADMIN-only (see PUT /:grp_id/email-domains)
+      // — must not be settable through general group update, which only
+      // requires GROUP_EDIT/GROUP_MANAGEMENT.
+      if (update.grp_email_domains !== undefined) {
+        delete update.grp_email_domains;
+        logger.warn(
+          `Attempt to update grp_email_domains for group ${grp_id} via the general update route was blocked. Use PUT /:grp_id/email-domains (SYSTEM_ADMIN only) instead.`,
+        );
+      }
+
       // Prevent renaming of the default "airqo" group through the general update endpoint
       const groupDetails = await GroupModel(tenant).findById(grp_id).lean();
       if (!groupDetails) {
@@ -1223,11 +1296,19 @@ const groupUtil = {
   },
   delete: async (request, next) => {
     try {
+      // Deletion has been switched off since 2023. The code below only
+      // removes the group document, so it would leave members' group_roles,
+      // the group's roles and access requests, and device-registry
+      // cohorts/devices pointing at a group that no longer exists. Retire
+      // groups with PATCH /:grp_id/status (e.g. ARCHIVED) instead.
       return {
         success: false,
         message: "Group deletion temporarily disabled",
         status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "Group deletion temporarily disabled" },
+        errors: {
+          message:
+            "Group deletion has been disabled since 2023 because it would leave members, roles and linked devices pointing at an organization that no longer exists. Archive the organization instead via PATCH /api/v2/users/groups/:grp_id/status with status ARCHIVED.",
+        },
       };
       const { query, params } = request;
       const { tenant } = query;
@@ -1496,6 +1577,19 @@ const groupUtil = {
         );
 
         if (assignmentResult && assignmentResult.success) {
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: grp_id,
+            activity_type: "MEMBER_ADDED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: {
+              user_id: assignmentResult.data._id,
+              email: assignmentResult.data.email,
+              name: `${assignmentResult.data.firstName || ""} ${
+                assignmentResult.data.lastName || ""
+              }`.trim(),
+            },
+          });
           return {
             success: true,
             message: "User assigned to the Group successfully",
@@ -1622,6 +1716,13 @@ const groupUtil = {
             "user",
           );
           results.successful.push(user_id);
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: grp_id,
+            activity_type: "MEMBER_ADDED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: { user_id, email: user.email },
+          });
         } catch (error) {
           results.failed_assignments.push({ user_id, reason: error.message });
           logger.error(`Failed to assign user ${user_id}: ${error.message}`);
@@ -1760,6 +1861,19 @@ const groupUtil = {
       );
 
       if (!isEmpty(updatedUser)) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: grp_id,
+          activity_type: "MEMBER_REMOVED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          target_user: {
+            user_id: updatedUser._id,
+            email: updatedUser.email,
+            name: `${updatedUser.firstName || ""} ${
+              updatedUser.lastName || ""
+            }`.trim(),
+          },
+        });
         return {
           success: true,
           message: "Successfully unassigned User from the Group",
@@ -1963,6 +2077,14 @@ const groupUtil = {
         logger.info(
           `Deleted ${deleteResult.deletedCount} preferences for users from group ${grp_id}`,
         );
+
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: grp_id,
+          activity_type: "MEMBER_REMOVED",
+          actor: { user_id: request.user?._id, email: request.user?.email },
+          details: `Bulk removal of ${nModified} user(s): ${user_ids.join(", ")}`,
+        });
 
         if (notFoundCount > 0) {
           return {
@@ -2224,7 +2346,6 @@ const groupUtil = {
           },
           {
             $project: {
-              "role_permissions.network_id": 0,
               "role_permissions.description": 0,
               "role_permissions.createdAt": 0,
               "role_permissions.updatedAt": 0,
@@ -2471,6 +2592,21 @@ const groupUtil = {
         );
       }
 
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "MANAGER_CHANGED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        target_user: {
+          user_id: user._id,
+          email: user.email,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        },
+        details: group.grp_manager
+          ? `Manager changed from ${group.grp_manager_username || group.grp_manager} to ${user.email}`
+          : `Manager set to ${user.email}`,
+      });
+
       return {
         success: true,
         message: "Group manager successfully updated with enhanced permissions",
@@ -2528,16 +2664,16 @@ const groupUtil = {
         const createRoleResult = await RoleModel(tenant).register(roleData);
         if (createRoleResult.success) {
           managerRole = createRoleResult.data;
-
-          // Assign manager permissions
-          const managerPermissions =
-            await groupUtil.getManagerPermissions(tenant);
-          if (managerPermissions.length > 0) {
-            await RoleModel(tenant).findByIdAndUpdate(managerRole._id, {
-              $addToSet: { role_permissions: { $each: managerPermissions } },
-            });
-          }
         }
+      }
+
+      // Runs for new and existing roles alike, so manager roles created
+      // before the manager permission set was extended get topped up.
+      if (managerRole) {
+        await rolePermissionsUtil.syncGroupManagerRolePermissions(
+          tenant,
+          managerRole,
+        );
       }
 
       return managerRole;
@@ -2550,25 +2686,12 @@ const groupUtil = {
   /**
    * Get permissions that should be assigned to group managers
    */
-  getManagerPermissions: async (tenant) => {
+  getManagerPermissions: async (tenant, grp_id) => {
     try {
-      const managerPermissionNames = [
-        constants.GROUP_MANAGEMENT,
-        constants.USER_MANAGEMENT,
-        constants.ROLE_ASSIGNMENT,
-        constants.ORG_USER_ASSIGN,
-        constants.GROUP_SETTINGS,
-        constants.ANALYTICS_VIEW,
-        constants.MEMBER_INVITE,
-        constants.CONTENT_MODERATION,
-      ];
-
-      const permissions = await PermissionModel(tenant)
-        .find({ permission: { $in: managerPermissionNames } })
-        .select("_id")
-        .lean();
-
-      return permissions.map((p) => p._id);
+      return await rolePermissionsUtil.getGroupManagerPermissionIds(
+        tenant,
+        grp_id,
+      );
     } catch (error) {
       logger.error(`Error getting manager permissions: ${error.message}`);
       return [];
@@ -3241,6 +3364,8 @@ const groupUtil = {
         return;
       }
 
+      await rolePermissionsUtil.syncGroupManagerRolePermissions(tenant, role);
+
       // Update user's role in the group
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         {
@@ -3256,6 +3381,31 @@ const groupUtil = {
         { new: true },
       );
 
+      if (!updatedUser) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Unable to assign role — the user is no longer a member of this group",
+          }),
+        );
+        return;
+      }
+
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "ROLE_ASSIGNED",
+        actor: { user_id: request.user?._id, email: request.user?.email },
+        target_user: {
+          user_id: user._id,
+          email: user.email,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        },
+        details: reason
+          ? `Assigned role ${role.role_name}: ${reason}`
+          : `Assigned role ${role.role_name}`,
+      });
+
       return {
         success: true,
         message: `Role ${role.role_name} successfully assigned to user`,
@@ -3268,138 +3418,6 @@ const groupUtil = {
           },
           effective_date: effective_date || new Date(),
           assigned_by: request.user?._id,
-        },
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          },
-        ),
-      );
-      return;
-    }
-  },
-
-  /**
-   * Send group invitations via email
-   */
-  sendGroupInvitations: async (request, next) => {
-    try {
-      const { grp_id } = request.params;
-      const {
-        invitations,
-        expiry_hours = 72,
-        auto_approve = false,
-      } = request.body;
-      const { tenant } = request.query;
-
-      const group = await GroupModel(tenant).findById(grp_id).lean();
-      if (!group) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Group not found",
-          }),
-        );
-        return;
-      }
-
-      const results = [];
-      const inviter = request.user;
-
-      for (const invitation of invitations) {
-        const { email, role_id, message } = invitation;
-
-        try {
-          // Check if user already exists
-          let existingUser = await UserModel(tenant).findOne({ email }).lean();
-
-          // Check if already a group member
-          if (existingUser) {
-            const isAlreadyMember = existingUser.group_roles?.some(
-              (gr) => gr.group.toString() === grp_id.toString(),
-            );
-
-            if (isAlreadyMember) {
-              results.push({
-                email,
-                status: "skipped",
-                reason: "User is already a group member",
-              });
-              continue;
-            }
-          }
-
-          // Create access request or direct assignment
-          const invitationData = {
-            email,
-            targetId: grp_id,
-            requestType: "group",
-            status: auto_approve ? "approved" : "pending",
-            inviter_id: inviter._id,
-            message,
-            role_id,
-            expiresAt: new Date(Date.now() + expiry_hours * 60 * 60 * 1000),
-          };
-
-          if (existingUser) {
-            invitationData.user_id = existingUser._id;
-          }
-
-          const accessRequest =
-            await AccessRequestModel(tenant).create(invitationData);
-
-          // If auto-approve and user exists, add to group immediately
-          if (auto_approve && existingUser && role_id) {
-            await UserModel(tenant).findByIdAndUpdate(existingUser._id, {
-              $addToSet: {
-                group_roles: {
-                  group: grp_id,
-                  role: role_id,
-                  userType: "user",
-                  createdAt: new Date(),
-                },
-              },
-            });
-          }
-
-          results.push({
-            email,
-            status: auto_approve ? "approved" : "invited",
-            invitation_id: accessRequest._id,
-            expires_at: invitationData.expiresAt,
-          });
-        } catch (error) {
-          results.push({
-            email,
-            status: "failed",
-            reason: error.message,
-          });
-        }
-      }
-
-      const successCount = results.filter(
-        (r) => r.status === "invited" || r.status === "approved",
-      ).length;
-
-      return {
-        success: true,
-        message: `${successCount}/${invitations.length} invitations processed successfully`,
-        data: {
-          invitations: results,
-          group_name: group.grp_title,
-          invited_by: inviter.email,
-          summary: {
-            total: invitations.length,
-            successful: successCount,
-            failed: results.filter((r) => r.status === "failed").length,
-            skipped: results.filter((r) => r.status === "skipped").length,
-          },
         },
         status: httpStatus.OK,
       };
@@ -3773,14 +3791,16 @@ const groupUtil = {
       }
 
       if (activity_type) filter.activity_type = activity_type;
-      if (user_id) filter.actor_id = user_id;
+      if (user_id) filter["actor.user_id"] = user_id;
 
-      // We will have a dedicated ActivityLog model
-      const activities = await groupUtil.getActivityLogEntries(filter, {
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        tenant,
-      });
+      const { activities, meta } = await groupUtil.getActivityLogEntries(
+        filter,
+        {
+          limit: parseInt(limit),
+          skip: parseInt(skip),
+          tenant,
+        },
+      );
 
       return {
         success: true,
@@ -3795,6 +3815,7 @@ const groupUtil = {
             user_id,
           },
         },
+        meta,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -4293,31 +4314,33 @@ const groupUtil = {
   /**
    * Helper: Get activity log entries
    */
-  getActivityLogEntries: async (filter, options) => {
+  getActivityLogEntries: async (filter, options = {}) => {
     try {
-      // Mock activity data for demonstration
-      // In production, this would query your ActivityLog model
-      return [
-        {
-          id: "activity_1",
-          activity_type: "member_added",
-          actor: { name: "John Manager", email: "john@example.com" },
-          target_user: { name: "Jane Doe", email: "jane@example.com" },
-          details: { role: "Member" },
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "activity_2",
-          activity_type: "role_assigned",
-          actor: { name: "John Manager", email: "john@example.com" },
-          target_user: { name: "Bob Smith", email: "bob@example.com" },
-          details: { role: "Admin", previous_role: "Member" },
-          timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-      ];
+      const { limit = 100, skip = 0, tenant } = options;
+      const response = await ActivityLogModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+
+      if (!response || response.success === false) {
+        return { activities: [], meta: null };
+      }
+
+      return {
+        activities: (response.data || []).map((entry) => ({
+          id: entry._id,
+          activity_type: entry.activity_type,
+          actor: entry.actor,
+          target_user: entry.target_user,
+          details: entry.details,
+          timestamp: entry.createdAt,
+        })),
+        meta: response.meta || null,
+      };
     } catch (error) {
       logger.error(`Error getting activity log entries: ${error.message}`);
-      return [];
+      return { activities: [], meta: null };
     }
   },
 
@@ -4801,6 +4824,70 @@ const groupUtil = {
       );
     }
   },
+  getGroupManagementRecipients: async (tenant, grp_id) => {
+    const group = await GroupModel(tenant)
+      .findById(grp_id)
+      .select("grp_manager grp_title")
+      .lean();
+
+    const recipients = new Map();
+    const grpIdStr = grp_id.toString();
+
+    if (group && group.grp_manager) {
+      const manager = await UserModel(tenant)
+        .findById(group.grp_manager)
+        .select("email firstName lastName isActive group_roles.group")
+        .lean();
+      // Skip a deactivated manager, or one who has since left the group —
+      // grp_manager is not cleared when that happens.
+      const isStillActiveMember =
+        manager &&
+        manager.isActive !== false &&
+        (manager.group_roles || []).some(
+          (gr) => gr.group && gr.group.toString() === grpIdStr,
+        );
+      if (isStillActiveMember && manager.email) {
+        recipients.set(manager.email, manager);
+      }
+    }
+
+    // Co-managers hold a manager/admin role in the group (assigned via
+    // /roles or /members/:user_id/role) rather than an admin userType.
+    const managerRoles = await RoleModel(tenant)
+      .find({
+        group_id: grp_id,
+        role_name: { $regex: /_(GROUP_MANAGER|MANAGER|ADMIN|SUPER_ADMIN)$/i },
+      })
+      .select("_id")
+      .lean();
+    const managerRoleIds = managerRoles.map((role) => role._id);
+
+    const admins = await UserModel(tenant)
+      .find({
+        isActive: { $ne: false },
+        group_roles: {
+          $elemMatch: {
+            group: grp_id,
+            $or: [
+              { userType: { $in: ["admin", "manager", "super_admin"] } },
+              ...(managerRoleIds.length > 0
+                ? [{ role: { $in: managerRoleIds } }]
+                : []),
+            ],
+          },
+        },
+      })
+      .select("email firstName lastName")
+      .lean();
+
+    admins.forEach((admin) => {
+      if (admin.email) {
+        recipients.set(admin.email, admin);
+      }
+    });
+
+    return Array.from(recipients.values());
+  },
   leaveGroup: async (request, next) => {
     try {
       const { grp_id } = request.params;
@@ -4853,6 +4940,7 @@ const groupUtil = {
             new HttpError("Forbidden", httpStatus.FORBIDDEN, {
               message:
                 "You are the manager of this group. Please transfer ownership to another member before leaving.",
+              debugCode: "GROUP_MANAGER_MUST_TRANSFER_OWNERSHIP",
             }),
           );
         }
@@ -4896,6 +4984,14 @@ const groupUtil = {
           }),
         );
       }
+
+      ActivityLogger.logActivity({
+        tenant,
+        group_id: grp_id,
+        activity_type: "MEMBER_LEFT",
+        actor: { user_id: updatedUser._id, email: updatedUser.email },
+        target_user: { user_id: updatedUser._id, email: updatedUser.email },
+      });
 
       return {
         success: true,

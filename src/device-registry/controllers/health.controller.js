@@ -28,6 +28,27 @@ const healthController = {
     }
   },
 
+  ready: async (req, res, next) => {
+    try {
+      const result = await healthUtil.getReadiness(req, next);
+      // getReadiness calls next(err) itself on failure, so guard against
+      // acting on an undefined result and racing Express's error handler.
+      if (!result || res.headersSent) {
+        return;
+      }
+
+      return res.status(result.status).json(result.data);
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   getJobMetrics: async (req, res, next) => {
     try {
       const result = await healthUtil.getJobMetrics(req, next);

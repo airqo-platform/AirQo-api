@@ -291,12 +291,10 @@ const admin = {
         before_setup: {
           user_email: initialUser.email,
           group_roles_count: initialUser.group_roles?.length || 0,
-          network_roles_count: initialUser.network_roles?.length || 0,
         },
         after_setup: {
           user_email: updatedUser.email,
           group_roles_count: updatedUser.group_roles?.length || 0,
-          network_roles_count: updatedUser.network_roles?.length || 0,
           is_super_admin: updatedUser.group_roles?.some(
             (gr) =>
               gr.role &&
@@ -567,10 +565,7 @@ const admin = {
           .lean(),
         RoleModel(tenant).findOne({ role_code: "AIRQO_SUPER_ADMIN" }).lean(),
         UserModel(tenant).countDocuments({
-          $or: [
-            { "group_roles.0": { $exists: true } },
-            { "network_roles.0": { $exists: true } },
-          ],
+          "group_roles.0": { $exists: true },
         }),
         UserModel(tenant).countDocuments(),
       ]);
@@ -763,9 +758,7 @@ const admin = {
                 user_id: userId,
                 email: user.email,
                 status: "audited",
-                has_roles: !!(
-                  user.group_roles?.length || user.network_roles?.length
-                ),
+                has_roles: !!user.group_roles?.length,
                 deprecated_fields: {
                   role: !!user.role,
                   privilege: !!user.privilege,
@@ -869,9 +862,6 @@ const admin = {
           firstName: user.firstName,
           lastName: user.lastName,
           has_group_roles: !!(user.group_roles && user.group_roles.length > 0),
-          has_network_roles: !!(
-            user.network_roles && user.network_roles.length > 0
-          ),
           deprecated_fields: {
             role: !!user.role,
             privilege: !!user.privilege,

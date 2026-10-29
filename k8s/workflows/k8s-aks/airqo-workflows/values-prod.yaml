@@ -10,7 +10,18 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-redis
     containers: airqoacr.azurecr.io/airqo-workflows
-  tag: prod-e33c46e2-1781080114
+  tag: prod-cb93ff59-1793191741
+inPodRedis:
+  enabled: true
+checkMigrations:
+  enabled: false
+  waitTimeoutSeconds: 600
+migrationJob:
+  enabled: true
+  args:
+    - db
+    - migrate
+  activeDeadlineSeconds: 1800
 nodeSelector:
   workload: airflow
 tolerations:
@@ -54,6 +65,20 @@ resources:
     limits:
       cpu: 300m
       memory: 256Mi
+  checkMigrations:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  migrationJob:
+    requests:
+      cpu: 500m
+      memory: 1000Mi
+    limits:
+      cpu: 1500m
+      memory: 1800Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

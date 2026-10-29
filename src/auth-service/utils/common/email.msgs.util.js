@@ -252,7 +252,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-    return constants.EMAIL_BODY({ email, content, fullName });
+    return constants.EMAIL_BODY({ email, content, name: fullName });
   },
   clientActivationRequest: ({
     name = "",
@@ -685,6 +685,9 @@ module.exports = {
     const locationLine = location
       ? `<p><strong>Location:</strong> ${escapeHtml(location)}</p>`
       : "";
+    const loginPageLine = constants.LOGIN_PAGE
+      ? `<p>If you are using the AirQo web platform, <a href="${escapeHtml(constants.LOGIN_PAGE)}">click here</a> to review your account security settings.</p>`
+      : "";
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -693,7 +696,7 @@ module.exports = {
         ${locationLine}
         <p><strong>Time:</strong> ${timeStr}</p>
         <p>If this was you, you can safely ignore this email. If you don't recognise this activity, please change your password immediately and contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
-        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">click here</a> to review your account security settings.</p>
+        ${loginPageLine}
       </td>
     </tr>
     `;
@@ -863,6 +866,30 @@ module.exports = {
     return constants.EMAIL_BODY({ email, content, name });
   },
 
+  subscriptionPastDueReminder: ({
+    firstName = "",
+    lastName = "",
+    email = "",
+    subscriptionId = "",
+  } = {}) => {
+    const name = `${firstName} ${lastName}`.trim() || "User";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We were unable to process the latest payment for your AirQo subscription${
+          subscriptionId ? ` (<code>${escapeHtml(subscriptionId)}</code>)` : ""
+        }.</p>
+        <div style="margin:16px 0; padding:12px 16px; background:#FFF3CD; border-left:4px solid #F59E0B; border-radius:4px;">
+          <p style="margin:0;">Your subscription is now past due. To avoid any interruption to your access, please update your payment details as soon as possible.</p>
+        </div>
+        <p>Log in to <a href="${constants.LOGIN_PAGE}">AirQo Nexus</a> and visit your billing settings to update your payment method.</p>
+        <p>If you believe this is a mistake or need help, contact us at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+      </td>
+    </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+
   bypassExpired: ({
     firstName = "",
     lastName = "",
@@ -958,16 +985,16 @@ module.exports = {
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Hello ${name},
                                     <br />
-                                    You have been assigned to a new Group or Network: ${assignedTo}.
+                                    You have been assigned to a new Group: ${assignedTo}.
                                     <br />
-                                    Please login to access your new Group or Network.
+                                    Please login to access your new Group.
                                     <br />
                                     If you have any questions or concerns, please feel free to contact your organization's administrator.
                                     <br />
                                     If you are using the AirQo web platform, Click here to log in: ${constants.LOGIN_PAGE}
                                     <br />
                                     <br />
-                                    If you are using the AirQo mobile app, you can view your new group or network directly within the app.
+                                    If you are using the AirQo mobile app, you can view your new group directly within the app.
                                     <br />
                                     <br />
                                 </td>
@@ -1032,6 +1059,34 @@ module.exports = {
                                     <br />
                                     <br />
                                     Enter this code directly in the AirQo mobile app to verify your email.
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+    return constants.EMAIL_BODY({ email, content });
+  },
+  signInLinkEmail: ({ email, link }) => {
+    const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Click the button below to securely sign in to your AirQo account. This link is time-sensitive, so please use it soon.
+                                    <br /><br />
+                                    <a href="${link}" target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Sign in</div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    Trouble with the button? Paste this URL into your browser:
+                                    <br />
+                                    <a href="${link}" target="_blank">${link}</a>
+                                    <br /><br />
+                                    <div
+                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                        If you didn't request this, you can safely ignore this email — no changes will be made to your account.</div>
                                     <br />
                                     <br />
                                 </td>
@@ -1169,6 +1224,49 @@ module.exports = {
   `;
 
     return constants.EMAIL_BODY({ email, content });
+  },
+
+  notifyGroupManagerOfJoinRequest: ({
+    email,
+    contact_name,
+    requester_name,
+    requester_email,
+    entity_title,
+    entity_slug,
+    request_id,
+  }) => {
+    // Nexus serves member requests per organization at
+    // /org/<organization_slug>/member-requests. Without a slug, fall back to
+    // the Nexus home page rather than a route that does not exist.
+    const reviewLink = entity_slug
+      ? `${constants.NEXUS_BASE_URL}/org/${encodeURIComponent(
+          entity_slug,
+        )}/member-requests?request_id=${encodeURIComponent(request_id)}`
+      : constants.NEXUS_BASE_URL;
+
+    // EMAIL_BODY already opens with "Dear <name>," — no second greeting here.
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p><strong>${escapeHtml(requester_name)}</strong> (${escapeHtml(
+          requester_email,
+        )}) has requested to join "<strong>${escapeHtml(
+          entity_title,
+        )}</strong>" on AirQo Nexus.</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${reviewLink}" style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Review Request</a>
+        </div>
+        <p>You can approve or reject this request from your organization's member requests page.</p>
+        <p>Best,<br/>The AirQo Team</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({
+      email,
+      content,
+      name: escapeHtml(contact_name),
+    });
   },
 
   notifyAdminsOfNewOrgRequest: ({
@@ -1651,6 +1749,40 @@ module.exports = {
       })
       .join("");
 
+    // A token seen from several different IPs in one day almost always means
+    // the caller's outbound IP changes per run (serverless, autoscaling, no
+    // static IP), so allowlisting a single IP from this email won't stick.
+    const ipsPerToken = uniqueCompromises.reduce((acc, c) => {
+      const key = c.tokenSuffix || "XXXX";
+      if (!acc.has(key)) acc.set(key, new Set());
+      acc.get(key).add(c.ip);
+      return acc;
+    }, new Map());
+    const rotatingTokens = [...ipsPerToken.entries()].filter(
+      ([, ips]) => ips.size > 1,
+    );
+    const rotatingIpsHtml =
+      rotatingTokens.length > 0
+        ? `
+        <p style="background: #FFFAEB; border-left: 4px solid #F79009; padding: 12px;">
+          <strong>Your outbound IP address appears to change.</strong>
+          ${rotatingTokens
+            .map(
+              ([suffix, ips]) =>
+                `Token ending in <strong>...${escapeHtml(suffix)}</strong> was used from ${ips.size} different IP addresses.`,
+            )
+            .join(" ")}
+          Allowlisting one of these addresses will not cover the next run. Give your
+          server a static outbound IP (for example an Elastic IP or NAT gateway) and
+          allowlist that address instead.
+        </p>`
+        : "";
+
+    const troubleshootingUrl = escapeHtml(
+      constants.API_ACCESS_TROUBLESHOOTING_URL ||
+        "https://platform.airqo.net/docs/api/reference/blocked-requests/",
+    );
+
     const content = `
     <tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -1659,14 +1791,16 @@ module.exports = {
           We detected <strong>${count}</strong> potential security event(s) involving your
           AirQo API token(s) in the last 24 hours. Below, we show
           <strong>${uniqueCompromises.length}</strong> unique token–IP combination(s) after
-          deduplicating repeated activity from the same token and IP. The IP addresses listed
-          below were automatically blacklisted by our security system.
+          deduplicating repeated activity from the same token and IP. Requests from the IP
+          addresses listed below are being blocked by our security system, unless you add
+          them to your API client's IP addresses.
         </p>
 
         <h4>Events Detected:</h4>
         <ul style="padding-left: 20px;">
           ${detailsHtml}
         </ul>
+        ${rotatingIpsHtml}
 
         <h4>Why am I seeing this?</h4>
         <p>
@@ -1680,10 +1814,12 @@ module.exports = {
         <h4>Recommended Actions:</h4>
         <ul style="padding-left: 20px;">
           <li style="margin-bottom: 8px;">
-            <strong>Whitelist your IP (recommended for static IPs):</strong> If your
-            infrastructure uses a fixed egress IP, add it to the allowlist in your
-            <em>API Client settings</em> on the AirQo platform. This prevents future alerts
-            from that IP.
+            <strong>Allowlist your IP (recommended for static IPs):</strong> If your
+            infrastructure uses a fixed outbound IP, open <em>Profile → API</em> on the AirQo
+            platform, edit the API client that owns this token, and add the exact public IP
+            under <em>IP Addresses</em>. Requests from that IP using this client's tokens
+            are then allowed and no longer trigger these alerts. To confirm the IP, run
+            <code>curl https://ifconfig.me</code> from the server that calls the API.
           </li>
           <li style="margin-bottom: 8px;">
             <strong>Use a fixed egress proxy (recommended for dynamic IPs):</strong> Route
@@ -1732,8 +1868,14 @@ module.exports = {
         </ul>
 
         <p>
-          If you have questions or need help configuring a whitelist, please contact our
-          support team — we're happy to assist.
+          <strong>Still blocked after allowlisting?</strong> Your token may have been
+          automatically suspended. Step-by-step instructions are in our guide:
+          <a href="${troubleshootingUrl}" style="color: #135DFF;">Troubleshooting blocked API requests</a>.
+        </p>
+
+        <p>
+          If you have questions or need help configuring your IP addresses, please contact
+          our support team — we're happy to assist.
         </p>
       </td>
     </tr>
@@ -2067,5 +2209,106 @@ module.exports = {
     // Use SUPPORT_EMAIL so the footer renders "This email was sent to <address>"
     // correctly rather than leaving the address blank.
     return constants.EMAIL_BODY({ email: constants.SUPPORT_EMAIL || "", content, name: "AirQo Support Team" });
+  },
+
+  // ===== BILLING =====
+  // Amounts and dates arrive pre-formatted from the billing util.
+  invoiceIssued: ({
+    email = "",
+    customer_name,
+    document_label,
+    invoice_number,
+    total,
+    amount_due,
+    due_date,
+    due_label,
+    subject,
+    message,
+  }) => {
+    const row = (label, value) =>
+      value
+        ? `<tr><td style="padding:6px 12px 6px 0;color:#667085;font-size:14px;">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#101828;">${escapeHtml(value)}</td></tr>`
+        : "";
+    const personal = message
+      ? `<p style="white-space:pre-line;">${escapeHtml(message)}</p>`
+      : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Please find attached ${escapeHtml(document_label)} <strong>${escapeHtml(invoice_number)}</strong> for your records.</p>
+        ${personal}
+        <table style="border-collapse:collapse;margin:12px 0 16px;">
+          ${row("Bill to", customer_name)}
+          ${row(document_label === "pro forma invoice" ? "Pro forma" : "Invoice", invoice_number)}
+          ${row("Subject", subject)}
+          ${row("Total", total)}
+          ${row("Amount due", amount_due)}
+          ${row(due_label, due_date)}
+        </table>
+        <p>Payment details are included in the attached document. If you have any questions, reply to this email or contact us at ${escapeHtml(constants.SUPPORT_EMAIL || "support@airqo.net")}.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  paymentReceipt: ({
+    email = "",
+    customer_name,
+    receipt_number,
+    invoice_number,
+    amount,
+    paid_at,
+    method,
+    reference,
+    balance,
+  }) => {
+    const row = (label, value) =>
+      value
+        ? `<tr><td style="padding:6px 12px 6px 0;color:#667085;font-size:14px;">${escapeHtml(label)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;color:#101828;">${escapeHtml(value)}</td></tr>`
+        : "";
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We received your payment. Thanks for your business!</p>
+        <table style="border-collapse:collapse;margin:12px 0 16px;">
+          ${row("Received from", customer_name)}
+          ${row("Amount paid", amount)}
+          ${row("Invoice", invoice_number)}
+          ${row("Receipt number", receipt_number)}
+          ${row("Payment method", method)}
+          ${row("Transaction reference", reference)}
+          ${row("Date", paid_at)}
+          ${row("Balance remaining", balance)}
+        </table>
+        <p>Your receipt is attached. If you have any questions, contact us at ${escapeHtml(constants.SUPPORT_EMAIL || "support@airqo.net")}.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
+  },
+
+  invoiceReminder: ({
+    email = "",
+    customer_name,
+    invoice_number,
+    amount_due,
+    due_date,
+    days,
+    overdue,
+  }) => {
+    const when = overdue
+      ? `was due on <strong>${escapeHtml(due_date)}</strong> and is now ${days} day${days === 1 ? "" : "s"} overdue`
+      : `is due on <strong>${escapeHtml(due_date)}</strong> (in ${days} day${days === 1 ? "" : "s"})`;
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>This is a friendly reminder that invoice <strong>${escapeHtml(invoice_number)}</strong> for ${escapeHtml(customer_name || "your organisation")} ${when}.</p>
+        <p>Amount due: <strong>${escapeHtml(amount_due)}</strong></p>
+        <p>The invoice is attached again for convenience, with payment details. If you have already paid, please disregard this message or reply with your payment reference so we can match it.</p>
+        <p>Thanks,<br/>The AirQo Team</p>
+      </td>
+    </tr>`;
+    return constants.EMAIL_BODY({ email, content, name: "" });
   },
 };

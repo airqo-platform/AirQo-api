@@ -185,6 +185,7 @@ try {
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/backfill-site-metadata-job");
+require("@bin/jobs/backfill-search-name-job");
 const runPendingBulkUpdateJobs = require("@bin/jobs/device-bulk-update-job");
 // Run after a short delay to ensure DB connection is stable.
 setTimeout(() => runPendingBulkUpdateJobs("airqo"), 5000);
@@ -217,6 +218,7 @@ try {
 }
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
+require("@bin/jobs/rate-limit-digest-job");
 require("@bin/jobs/site-categorization-job");
 require("@bin/jobs/site-categorization-notification-job");
 require("@bin/jobs/refresh-grids-job");
@@ -226,12 +228,6 @@ try {
   global.dedupLogger.error(
     `find-duplicate-cohorts-job failed to start: ${err.message}`,
   );
-}
-try {
-  const syncNetworksJob = require("@bin/jobs/sync-networks-job");
-  syncNetworksJob.start();
-} catch (err) {
-  global.dedupLogger.error(`sync-networks-job failed to start: ${err.message}`);
 }
 try {
   const backfillApiCodeJob = require("@bin/jobs/backfill-api-code-job");
@@ -315,6 +311,18 @@ try {
 } catch (jobError) {
   global.dedupLogger.error(
     `❌ cohort-snapshot-job failed to start: ${jobError.message}`
+  );
+  // Continue - server stays up
+}
+
+// Public cohort refresh — weekly (Mondays 02:20). Rebuilds the sample of
+// public devices drawn from every lowest-level Grid, replacing members that
+// have gone offline.
+try {
+  require("@bin/jobs/public-cohort-refresh-job");
+} catch (jobError) {
+  global.dedupLogger.error(
+    `❌ public-cohort-refresh-job failed to start: ${jobError.message}`
   );
   // Continue - server stays up
 }

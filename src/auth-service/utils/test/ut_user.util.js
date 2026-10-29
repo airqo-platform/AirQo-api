@@ -21,7 +21,6 @@ const {
   lookUpFirebaseUser,
   generateSignInWithEmailLink,
   delete: deleteUser,
-  sendFeedback,
   create,
   register,
   forgotPassword,
@@ -41,7 +40,6 @@ const rewire = require("rewire");
 const rewireCreateUser = rewire("@utils/user.util");
 const UserModel = require("@models/User");
 const LogModel = require("@models/log");
-const NetworkModel = require("@models/Network");
 const RoleModel = require("@models/Role");
 const ClientModel = require("@models/Client");
 const AccessTokenModel = require("@models/AccessToken");
@@ -140,6 +138,98 @@ describe("create-user-util", function () {
       expect(err.message).to.equal("Internal Server Error");
     });
   });
+  describe("listKnownDevices", function () {
+    let origUserModel;
+    let findByIdStub;
+    let selectStub;
+    let leanStub;
+
+    beforeEach(function () {
+      leanStub = sinon.stub();
+      selectStub = sinon.stub().returns({ lean: leanStub });
+      findByIdStub = sinon.stub().returns({ select: selectStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findById: findByIdStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should return known devices sorted by lastSeenAt, most recent first", async function () {
+      leanStub.resolves({
+        knownDevices: [
+          {
+            fingerprint: "older",
+            os: "Windows",
+            lastSeenAt: new Date("2026-01-01T00:00:00Z"),
+          },
+          {
+            fingerprint: "newer",
+            os: "macOS",
+            lastSeenAt: new Date("2026-06-01T00:00:00Z"),
+          },
+        ],
+      });
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(result.data).to.be.an("array").with.lengthOf(2);
+      expect(result.data[0].fingerprint).to.equal("newer");
+      expect(result.data[1].fingerprint).to.equal("older");
+      sinon.assert.calledWith(findByIdStub, "user_id");
+      sinon.assert.calledWith(selectStub, "knownDevices");
+    });
+
+    it("should return an empty array when the user has no known devices", async function () {
+      leanStub.resolves({ knownDevices: [] });
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("should return a 404 when the user is not found", async function () {
+      leanStub.resolves(null);
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "missing_user",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(result.message).to.equal("User not found");
+    });
+
+    it("should return a generic error message without leaking the raw exception", async function () {
+      leanStub.rejects(new Error("connection reset by peer"));
+
+      const result = await rewireCreateUser.listKnownDevices({
+        userId: "user_id",
+        tenant: "airqo",
+      });
+
+      expect(result.success).to.be.false;
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(result.errors.message).to.equal(
+        "Failed to retrieve known devices"
+      );
+      expect(result.errors.message).to.not.include("connection reset");
+    });
+  });
   describe("listStatistics", function () {
     let origUserModel;
     let listStatisticsStub;
@@ -174,6 +264,15 @@ describe("create-user-util", function () {
       expect(result.data).to.deep.equal(sampleStatisticsData);
     });
 
+    it("should pass next (not tenant) to UserModel.listStatistics", async function () {
+      const next = sinon.stub();
+      listStatisticsStub.resolves({ success: true, data: {} });
+
+      await rewireCreateUser.listStatistics("airqo", next);
+
+      sinon.assert.calledOnceWithExactly(listStatisticsStub, next);
+    });
+
     it("should handle errors from UserModel.listStatistics", async function () {
       const tenant = "example_tenant";
       const next = sinon.stub();
@@ -181,6 +280,452 @@ describe("create-user-util", function () {
       listStatisticsStub.rejects(new Error("Error fetching statistics"));
 
       await rewireCreateUser.listStatistics(tenant, next);
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("exportStatsSegment", function () {
+    let origUserModel;
+    let aggregateStub;
+    let allowDiskUseStub;
+
+    const buildRequest = (segment, extra = {}) => ({
+      query: { tenant: "airqo", segment, ...extra },
+    });
+
+    const facetResult = (users = [], counts = []) => [{ users, counts }];
+
+    const facetStage = (pipeline) => pipeline.find((s) => s.$facet).$facet;
+
+    beforeEach(function () {
+      allowDiskUseStub = sinon.stub();
+      aggregateStub = sinon.stub().returns({ allowDiskUse: allowDiskUseStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        aggregate: aggregateStub,
+      }));
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("returns users, totals and paging info for the total segment without extra filters", async function () {
+      const users = [{ _id: "1", email: "a@b.com", unsubscribed: false }];
+      allowDiskUseStub.resolves(facetResult(users, [{ _id: false, count: 1 }]));
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal({
+        segment: "total",
+        total: 1,
+        unsubscribed_total: 0,
+        skip: 0,
+        limit: 500,
+        has_more: false,
+        users,
+      });
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline[0]).to.deep.equal({
+        $match: { email: { $nin: [null, ""] } },
+      });
+      expect(pipeline.filter((s) => s.$match)).to.have.lengthOf(1);
+    });
+
+    it("filters the active segment on isActive", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("active"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { isActive: true } });
+    });
+
+    it("filters the verified segment on verified", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("verified"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline).to.deep.include({ $match: { verified: true } });
+    });
+
+    it("keeps only users with at least one client for the api segment", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("api"));
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "clients"))
+        .to.be.true;
+      expect(pipeline).to.deep.include({
+        $match: { "clients.0": { $exists: true } },
+      });
+    });
+
+    it("projects only lightweight contact fields", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"));
+
+      const project = aggregateStub.firstCall.args[0].find((s) => s.$project)
+        .$project;
+      expect(project).to.include.keys(["email", "firstName", "lastName"]);
+      expect(project).to.not.have.any.keys([
+        "permissions",
+        "clients",
+        "group_roles",
+      ]);
+    });
+
+    it("looks up local opt-outs and keeps unsubscribed users by default", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [
+            { _id: "1", email: "a@b.com", unsubscribed: false },
+            { _id: "2", email: "c@d.com", unsubscribed: true },
+          ],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total"),
+      );
+
+      expect(result.data.total).to.equal(2);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      const pipeline = aggregateStub.firstCall.args[0];
+      expect(pipeline.some((s) => s.$lookup && s.$lookup.from === "subscriptions"))
+        .to.be.true;
+      expect(facetStage(pipeline).users).to.not.deep.include({
+        $match: { unsubscribed: false },
+      });
+    });
+
+    it("excludes unsubscribed users and their count from total when exclude_unsubscribed is true", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "1", email: "a@b.com", unsubscribed: false }],
+          [
+            { _id: false, count: 1 },
+            { _id: true, count: 1 },
+          ],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { exclude_unsubscribed: true }),
+      );
+
+      expect(result.data.total).to.equal(1);
+      expect(result.data.unsubscribed_total).to.equal(1);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $match: { unsubscribed: false },
+      });
+    });
+
+    it("applies skip and limit, sorts deterministically, and reports has_more", async function () {
+      allowDiskUseStub.resolves(
+        facetResult(
+          [{ _id: "3", email: "c@d.com", unsubscribed: false }],
+          [{ _id: false, count: 5 }],
+        ),
+      );
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { skip: 2, limit: 1 }),
+      );
+
+      const usersStages = facetStage(aggregateStub.firstCall.args[0]).users;
+      expect(usersStages).to.deep.include({ $sort: { createdAt: -1, _id: -1 } });
+      expect(usersStages).to.deep.include({ $skip: 2 });
+      expect(usersStages).to.deep.include({ $limit: 1 });
+      expect(result.data.skip).to.equal(2);
+      expect(result.data.limit).to.equal(1);
+      expect(result.data.total).to.equal(5);
+      expect(result.data.has_more).to.be.true;
+    });
+
+    it("clamps limit to the maximum page size", async function () {
+      allowDiskUseStub.resolves(facetResult());
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("total", { limit: 999999 }),
+      );
+
+      expect(result.data.limit).to.equal(1000);
+      expect(facetStage(aggregateStub.firstCall.args[0]).users).to.deep.include({
+        $limit: 1000,
+      });
+    });
+
+    it("returns empty totals when nothing matches", async function () {
+      allowDiskUseStub.resolves([]);
+
+      const result = await rewireCreateUser.exportStatsSegment(
+        buildRequest("api"),
+      );
+
+      expect(result.data.total).to.equal(0);
+      expect(result.data.users).to.deep.equal([]);
+      expect(result.data.has_more).to.be.false;
+    });
+
+    it("forwards an Internal Server Error when the aggregation fails", async function () {
+      const next = sinon.stub();
+      allowDiskUseStub.rejects(new Error("db down"));
+
+      await rewireCreateUser.exportStatsSegment(buildRequest("total"), next);
+
+      sinon.assert.calledOnce(next);
+      expect(next.firstCall.args[0].message).to.equal("Internal Server Error");
+    });
+  });
+  describe("getStatsBreakdown", function () {
+    let origUserModel;
+    let origRedisGetAsync;
+    let origRedisSetWithTTLAsync;
+    let aggregateStub;
+
+    const buildRequest = (query = {}) => ({
+      query: { tenant: "airqo", ...query },
+    });
+
+    beforeEach(function () {
+      aggregateStub = sinon.stub();
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        aggregate: aggregateStub,
+      }));
+      // Force every test through the live-aggregation path: a real cache
+      // hit here would make tests order-dependent (same tenant/months/limit
+      // cache key across tests).
+      origRedisGetAsync = rewireCreateUser.__get__("redisGetAsync");
+      origRedisSetWithTTLAsync = rewireCreateUser.__get__(
+        "redisSetWithTTLAsync",
+      );
+      rewireCreateUser.__set__("redisGetAsync", sinon.stub().resolves(null));
+      rewireCreateUser.__set__(
+        "redisSetWithTTLAsync",
+        sinon.stub().resolves(),
+      );
+    });
+
+    afterEach(function () {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      rewireCreateUser.__set__("redisGetAsync", origRedisGetAsync);
+      rewireCreateUser.__set__(
+        "redisSetWithTTLAsync",
+        origRedisSetWithTTLAsync,
+      );
+      sinon.restore();
+    });
+
+    it("normalizes an empty aggregation result with safe defaults", async function () {
+      aggregateStub.resolves([{}]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.success).to.be.true;
+      expect(result.data.accountStatus).to.deep.equal({
+        active: 0,
+        inactive: 0,
+      });
+      expect(result.data.verificationStatus).to.deep.equal({
+        verified: 0,
+        unverified: 0,
+      });
+      expect(result.data.organizations).to.deep.equal([]);
+      expect(result.data.loginActivity).to.deep.equal([]);
+      expect(result.data.signupsOverTime).to.deep.equal([]);
+      expect(result.data.topGroups).to.deep.equal([]);
+      expect(result.data.roles).to.deep.equal([]);
+      expect(result.data.geography).to.deep.equal([]);
+      expect(result.data.verificationFunnel).to.deep.equal({
+        byCohort: [],
+        unverifiedAging: [],
+      });
+      expect(result.data.growth.newUsers).to.deep.equal({
+        current: 0,
+        previous: 0,
+        percentChange: 0,
+      });
+    });
+
+    it("maps account status, verification status, and login activity bucket labels", async function () {
+      aggregateStub.resolves([
+        {
+          accountStatus: [
+            { _id: true, count: 7 },
+            { _id: false, count: 3 },
+          ],
+          verificationStatus: [
+            { _id: true, count: 4 },
+            { _id: false, count: 6 },
+          ],
+          loginActivity: [
+            { _id: 0, count: 2 },
+            { _id: 1, count: 5 },
+            { _id: 6, count: 1 },
+            { _id: 11, count: 0 },
+            { _id: "21+", count: 3 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.accountStatus).to.deep.equal({
+        active: 7,
+        inactive: 3,
+      });
+      expect(result.data.verificationStatus).to.deep.equal({
+        verified: 4,
+        unverified: 6,
+      });
+      expect(result.data.loginActivity).to.deep.equal([
+        { range: "0", count: 2 },
+        { range: "1-5", count: 5 },
+        { range: "6-10", count: 1 },
+        { range: "11-20", count: 0 },
+        { range: "21+", count: 3 },
+      ]);
+    });
+
+    it("maps resolved role/group/geography lookup rows and drops unresolved ones", async function () {
+      aggregateStub.resolves([
+        {
+          topGroups: [
+            { group: "airqo", count: 5 },
+            { group: null, count: 1 },
+          ],
+          roles: [
+            { role: "SUPER_ADMIN", count: 8 },
+            { role: undefined, count: 2 },
+          ],
+          geography: [
+            { _id: "Uganda", count: 9 },
+            { _id: "Unspecified", count: 1 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.topGroups).to.deep.equal([
+        { group: "airqo", count: 5 },
+      ]);
+      expect(result.data.roles).to.deep.equal([
+        { role: "SUPER_ADMIN", count: 8 },
+      ]);
+      expect(result.data.geography).to.deep.equal([
+        { country: "Uganda", count: 9 },
+        { country: "Unspecified", count: 1 },
+      ]);
+    });
+
+    it("computes verification funnel cohort rates and unverified aging labels", async function () {
+      aggregateStub.resolves([
+        {
+          verificationByCohort: [
+            { _id: "2026-01", total: 10, verified: 5 },
+            { _id: "2026-02", total: 0, verified: 0 },
+          ],
+          unverifiedAging: [
+            { _id: 0, count: 2 },
+            { _id: 8, count: 1 },
+            { _id: 31, count: 4 },
+            { _id: "90d+", count: 6 },
+          ],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.verificationFunnel.byCohort).to.deep.equal([
+        { period: "2026-01", total: 10, verified: 5, verificationRate: 50 },
+        { period: "2026-02", total: 0, verified: 0, verificationRate: 0 },
+      ]);
+      expect(result.data.verificationFunnel.unverifiedAging).to.deep.equal([
+        { range: "0-7d", count: 2 },
+        { range: "8-30d", count: 1 },
+        { range: "31-90d", count: 4 },
+        { range: "90d+", count: 6 },
+      ]);
+    });
+
+    it("computes growth percentChange, including the zero-previous-period case", async function () {
+      aggregateStub.resolves([
+        {
+          newUsersLast30Days: [{ count: 15 }],
+          newUsersPrevious30Days: [{ count: 10 }],
+          activeUsersLast30Days: [{ count: 5 }],
+          activeUsersPrevious30Days: [],
+        },
+      ]);
+
+      const result = await rewireCreateUser.getStatsBreakdown(buildRequest());
+
+      expect(result.data.growth.newUsers).to.deep.equal({
+        current: 15,
+        previous: 10,
+        percentChange: 50,
+      });
+      expect(result.data.growth.activeUsers).to.deep.equal({
+        current: 5,
+        previous: 0,
+        percentChange: 100,
+      });
+    });
+
+    it("clamps out-of-range months/limit query params instead of erroring", async function () {
+      aggregateStub.resolves([{}]);
+
+      await rewireCreateUser.getStatsBreakdown(
+        buildRequest({ months: "999", limit: "0" }),
+      );
+
+      const pipeline = aggregateStub.firstCall.args[0];
+      const facet = pipeline[0].$facet;
+      const organizationsLimitStage = facet.organizations.find(
+        (stage) => stage.$limit,
+      );
+      expect(organizationsLimitStage.$limit).to.equal(1);
+    });
+
+    it("computeMonthRangeStart does not skip a month when the reference date overflows a shorter target month", function () {
+      // Regression test: subtracting months before clamping to day 1 can
+      // roll a 31st over into the following month (e.g. Mar 31 - 1 month
+      // lands on Mar ~2-3, not Feb), silently dropping a month from range.
+      const computeMonthRangeStart = rewireCreateUser.__get__(
+        "computeMonthRangeStart",
+      );
+      const referenceDate = new Date(2026, 2, 31); // Mar 31, 2026
+
+      const rangeStart = computeMonthRangeStart(referenceDate, 2);
+
+      expect(rangeStart.getFullYear()).to.equal(2026);
+      expect(rangeStart.getMonth()).to.equal(1); // February
+      expect(rangeStart.getDate()).to.equal(1);
+      expect(rangeStart.getHours()).to.equal(0);
+    });
+
+    it("should handle errors from UserModel.aggregate", async function () {
+      const next = sinon.stub();
+      aggregateStub.rejects(new Error("Aggregation failed"));
+
+      await rewireCreateUser.getStatsBreakdown(buildRequest(), next);
 
       sinon.assert.calledOnce(next);
       const err = next.firstCall.args[0];
@@ -370,6 +915,85 @@ describe("create-user-util", function () {
       expect(result.message).to.equal("Error updating user");
     });
 
+    describe("production notification branch", function () {
+      let envStub;
+      let mailerUpdateStub;
+
+      beforeEach(function () {
+        envStub = sinon.stub(constants, "ENVIRONMENT").value(
+          "PRODUCTION ENVIRONMENT",
+        );
+        mailerUpdateStub = sinon
+          .stub(mailer, "update")
+          .resolves({ success: true, message: "email sent" });
+      });
+
+      it("should call mailer.update when payload contains only a notifiable field (phoneNumber)", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { phoneNumber: 256700000000 },
+        };
+        const fakeUser = { _id: "uid1", email: "u@example.com", consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { phoneNumber: 256700000000 },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.calledOnce).to.be.true;
+        expect(result.success).to.be.true;
+      });
+
+      it("should not call mailer.update when payload has no notifiable fields", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { jobTitle: "Engineer" },
+        };
+        const fakeUser = { _id: "uid1", email: "u@example.com", consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { jobTitle: "Engineer" },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.called).to.be.false;
+        expect(result.success).to.be.true;
+      });
+
+      it("should not call mailer.update when the user has no email", async function () {
+        const request = {
+          query: { tenant: "example_tenant" },
+          body: { phoneNumber: 256700000000 },
+        };
+        const fakeUser = { _id: "uid1", email: undefined, consent: {} };
+        mockModel.findOne.returns({
+          select: () => ({ lean: () => Promise.resolve(fakeUser) }),
+        });
+        mockModel.modify.resolves({
+          success: true,
+          message: "User updated successfully",
+          data: { phoneNumber: 256700000000 },
+        });
+        sinon.stub(generateFilter, "users").returns({ _id: "uid1" });
+
+        const result = await rewireCreateUser.update(request);
+
+        expect(mailerUpdateStub.called).to.be.false;
+        expect(result.success).to.be.true;
+      });
+    });
   });
   describe("lookUpFirebaseUser()", () => {
     let getAuthStub;
@@ -510,6 +1134,10 @@ describe("create-user-util", function () {
       },
     };
     let origGenerateNumericToken;
+    let origUserModel;
+    let existsStub;
+    let modifyStub;
+    let internalModule;
 
     beforeEach(() => {
       origGenerateNumericToken = rewireCreateUser.__get__(
@@ -519,6 +1147,20 @@ describe("create-user-util", function () {
         "generateNumericToken",
         sinon.stub().returns("54321")
       );
+
+      existsStub = sinon.stub().resolves(true);
+      modifyStub = sinon.stub().resolves({ success: true });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        exists: existsStub,
+        modify: modifyStub,
+      }));
+
+      internalModule = rewireCreateUser.__get__("createUserModule");
+      sinon.stub(internalModule, "generateResetToken").returns({
+        success: true,
+        data: "SAMPLECODE",
+      });
     });
 
     afterEach(() => {
@@ -526,17 +1168,11 @@ describe("create-user-util", function () {
         "generateNumericToken",
         origGenerateNumericToken
       );
+      rewireCreateUser.__set__("UserModel", origUserModel);
       sinon.restore();
     });
 
     it("should generate the sign-in link with email correctly and send email for authentication", async () => {
-      const generateSignInWithEmailLinkStub = sinon
-        .stub()
-        .resolves("https://example.com/?a=1%26oobCode%3DSAMPLECODE");
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: generateSignInWithEmailLinkStub,
-      });
-
       const authenticateEmailStub = sinon
         .stub(mailer, "authenticateEmail")
         .resolves({ success: true });
@@ -550,26 +1186,43 @@ describe("create-user-util", function () {
         message: "process successful, check your email for token",
         status: httpStatus.OK,
         data: {
-          link: "https://example.com/?a=1%26oobCode%3DSAMPLECODE",
+          link: `${constants.SIGN_IN_LINK}?token=SAMPLECODE&email=test%40example.com`,
           token: "54321",
           email: "test@example.com",
           emailLinkCode: "SAMPLECODE",
         },
       });
 
-      sinon.assert.calledOnce(generateSignInWithEmailLinkStub);
+      sinon.assert.calledOnce(existsStub);
+      sinon.assert.calledOnce(modifyStub);
       sinon.assert.calledOnceWithMatch(authenticateEmailStub, {
         email: "test@example.com",
         token: "54321",
       });
     });
 
+    it("should return a 400 error and not send an email when the account does not exist", async () => {
+      existsStub.resolves(false);
+      const authenticateEmailStub = sinon
+        .stub(mailer, "authenticateEmail")
+        .resolves({ success: true });
+      const next = sinon.stub();
+
+      await rewireCreateUser.generateSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
+      sinon.assert.notCalled(modifyStub);
+      sinon.assert.notCalled(authenticateEmailStub);
+    });
+
     it("should handle errors and return an error response", async () => {
-      sinon.stub(firebaseAuthModule, "getAuth").returns({
-        generateSignInWithEmailLink: sinon
-          .stub()
-          .rejects(new Error("Some error")),
-      });
+      existsStub.rejects(new Error("Some error"));
       const next = sinon.stub();
 
       await rewireCreateUser.generateSignInWithEmailLink(
@@ -582,6 +1235,74 @@ describe("create-user-util", function () {
       expect(err).to.be.instanceOf(Error);
       expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(err.message).to.equal("Internal Server Error");
+    });
+  });
+  describe("completeSignInWithEmailLink()", () => {
+    const sampleRequest = {
+      body: {
+        email: "test@example.com",
+        token: "SAMPLECODE",
+      },
+      query: {},
+    };
+    let origUserModel;
+    let findOneAndUpdateStub;
+    let internalModule;
+
+    beforeEach(() => {
+      findOneAndUpdateStub = sinon.stub();
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findOneAndUpdate: findOneAndUpdateStub,
+      }));
+      internalModule = rewireCreateUser.__get__("createUserModule");
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should complete sign-in and return the enhanced login response when the token is valid", async () => {
+      findOneAndUpdateStub.resolves({ _id: "u1", email: "test@example.com" });
+      const loginStub = sinon
+        .stub(internalModule, "loginWithEnhancedTokens")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+        });
+
+      const result = await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest
+      );
+
+      expect(result).to.deep.equal({
+        success: true,
+        status: httpStatus.OK,
+        data: { _id: "u1", email: "test@example.com", token: "JWT abc" },
+      });
+      sinon.assert.calledOnceWithMatch(
+        loginStub,
+        { body: { email: "test@example.com" } },
+        sinon.match.any,
+        { skipPasswordCheck: true }
+      );
+    });
+
+    it("should call next with a 400 error when the token is invalid or expired", async () => {
+      findOneAndUpdateStub.resolves(null);
+      const next = sinon.stub();
+
+      await rewireCreateUser.completeSignInWithEmailLink(
+        sampleRequest,
+        next
+      );
+
+      sinon.assert.calledOnce(next);
+      const err = next.firstCall.args[0];
+      expect(err).to.be.instanceOf(Error);
+      expect(err.statusCode).to.equal(httpStatus.BAD_REQUEST);
     });
   });
   describe("delete()", () => {
@@ -670,121 +1391,6 @@ describe("create-user-util", function () {
       expect(result.message).to.equal("Internal Server Error");
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(result.errors.message).to.equal("Role update error");
-    });
-  });
-  describe("sendFeedback()", () => {
-    afterEach(() => {
-      sinon.restore(); // Restore any stubs after each test
-    });
-
-    it("should send feedback email successfully", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to return a successful response
-      sinon.stub(mailer, "feedback").resolves({
-        success: true,
-        message: "Email sent successfully",
-      });
-      sinon
-        .stub(mailer, "feedbackConfirmation")
-        .resolves({ success: true, message: "Confirmation sent" });
-
-      // Call the sendFeedback function with the mocked request
-      const response = await sendFeedback(request);
-
-      // Assert the response from the function
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        status: httpStatus.OK,
-      });
-      expect(mailer.feedbackConfirmation.calledOnce).to.be.true;
-    });
-
-    it("should still return success when confirmation email fails", async () => {
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      sinon.stub(mailer, "feedback").resolves({
-        success: true,
-        message: "Email sent successfully",
-      });
-      sinon
-        .stub(mailer, "feedbackConfirmation")
-        .rejects(new Error("SMTP error"));
-
-      const response = await sendFeedback(request);
-
-      expect(response).to.deep.equal({
-        success: true,
-        message: "email successfully sent",
-        status: httpStatus.OK,
-      });
-    });
-
-    it("should handle email sending error", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to return an error response
-      sinon.stub(mailer, "feedback").resolves({
-        success: false,
-        message: "Error sending email",
-        // Any other data you want to include in the response
-      });
-
-      // Call the sendFeedback function with the mocked request
-      const response = await sendFeedback(request);
-
-      // Assert the response from the function
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Error sending email",
-        // Any other data you expect in the response
-      });
-    });
-
-    it("should handle internal server error", async () => {
-      // Mock the request object with the required body data
-      const request = {
-        body: {
-          email: "test@example.com",
-          message: "Test message",
-          subject: "Test subject",
-        },
-      };
-
-      // Stub the mailer.feedback function to throw an error
-      sinon.stub(mailer, "feedback").throws(new Error("Internal server error"));
-      const next = sinon.stub();
-
-      // Call the sendFeedback function with the mocked request
-      await sendFeedback(request, next);
-
-      // Assert that next was called with the expected HttpError
-      sinon.assert.calledOnce(next);
-      const err = next.firstCall.args[0];
-      expect(err).to.be.instanceOf(Error);
-      expect(err.message).to.equal("Internal Server Error");
-      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
     });
   });
   describe("submitFeedback()", () => {
@@ -880,6 +1486,456 @@ describe("create-user-util", function () {
       });
 
       expect(response.success).to.equal(true);
+    });
+
+    it("should skip the confirmation email for short, highly rated general notes", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Nexus feedback - General",
+          message: "Love the new dashboard",
+          rating: 5,
+          category: "general",
+        },
+        query: {},
+        user: null,
+      };
+
+      const response = await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(response.success).to.equal(true);
+      expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(false);
+      expect(confirmStub.called).to.be.false;
+    });
+
+    it("should skip the confirmation email when the submitter declines contact", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "App bug",
+          message: "The map crashes on load",
+          category: "bug",
+          contact_consent: false,
+        },
+        query: {},
+        user: null,
+      };
+
+      await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(feedbackRegisterStub.firstCall.args[0].contact_consent).to.equal(
+        false,
+      );
+      expect(confirmStub.called).to.be.false;
+    });
+
+    it("should keep low-rated general notes actionable", async () => {
+      sinon.stub(mailer, "feedback").resolves({ success: true });
+      const confirmStub = sinon
+        .stub(mailer, "feedbackConfirmation")
+        .resolves({ success: true });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Nexus feedback - General",
+          message: "Hard to find exports",
+          rating: 2,
+          category: "general",
+        },
+        query: {},
+        user: null,
+      };
+
+      await rewireCreateUser.submitFeedback(request, (err) => {
+        throw err;
+      });
+
+      expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(true);
+      expect(confirmStub.calledOnce).to.be.true;
+    });
+
+    describe("page_satisfaction", () => {
+      let recordStub;
+      let origPageSatisfactionModel;
+
+      beforeEach(() => {
+        recordStub = sinon.stub().resolves({ success: true });
+        origPageSatisfactionModel = rewireCreateUser.__get__(
+          "PageSatisfactionDailyModel",
+        );
+        const fakeModel = () => ({ record: recordStub });
+        fakeModel.pageFromSubject = origPageSatisfactionModel.pageFromSubject;
+        rewireCreateUser.__set__("PageSatisfactionDailyModel", fakeModel);
+      });
+
+      afterEach(() => {
+        rewireCreateUser.__set__(
+          "PageSatisfactionDailyModel",
+          origPageSatisfactionModel,
+        );
+      });
+
+      const request = {
+        body: {
+          email: "user@example.com",
+          subject: "Page Satisfaction: CSIR International Convention Center",
+          message: "Loved it",
+          rating: 5,
+          category: "page_satisfaction",
+          app: "website",
+        },
+        query: {},
+        user: null,
+      };
+
+      it("should email support and record counters without storing a Feedback item", async () => {
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+        const confirmStub = sinon
+          .stub(mailer, "feedbackConfirmation")
+          .resolves({ success: true });
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(true);
+        expect(response.status).to.equal(httpStatus.CREATED);
+        expect(response.data.stored).to.equal(false);
+        expect(feedbackRegisterStub.called).to.be.false;
+        expect(confirmStub.called).to.be.false;
+        expect(feedbackStub.calledOnce).to.be.true;
+        expect(feedbackStub.firstCall.args[0].message).to.include("Rating: 5/5");
+        expect(recordStub.calledOnce).to.be.true;
+        const recorded = recordStub.firstCall.args[0];
+        expect(recorded).to.deep.include({
+          page: "CSIR International Convention Center",
+          app: "website",
+          rating: 5,
+          hasMessage: true,
+        });
+        expect(recorded).to.not.have.property("email");
+      });
+
+      it("should fail without emailing support when the counters cannot be written", async () => {
+        recordStub.resolves({ success: false, message: "write conflict" });
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(false);
+        expect(response.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(feedbackStub.called).to.be.false;
+      });
+
+      it("should only record counters for a bare click with no written detail", async () => {
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+        const integrationsStub = sinon.stub().resolves();
+        const origDispatchIntegrations = rewireCreateUser.__get__(
+          "dispatchIntegrations",
+        );
+        rewireCreateUser.__set__("dispatchIntegrations", integrationsStub);
+
+        try {
+          const response = await rewireCreateUser.submitFeedback(
+            {
+              ...request,
+              body: {
+                ...request.body,
+                subject: "Login Experience",
+                message: "Positive",
+                app: "vertex",
+              },
+            },
+            (err) => {
+              throw err;
+            },
+          );
+
+          expect(response.success).to.equal(true);
+          expect(feedbackStub.called).to.be.false;
+          expect(integrationsStub.called).to.be.false;
+          expect(recordStub.firstCall.args[0].hasMessage).to.equal(false);
+        } finally {
+          rewireCreateUser.__set__(
+            "dispatchIntegrations",
+            origDispatchIntegrations,
+          );
+        }
+      });
+
+      it("should still succeed when the support email throws", async () => {
+        sinon.stub(mailer, "feedback").rejects(new Error("SMTP timeout"));
+
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
+
+        expect(response.success).to.equal(true);
+        expect(recordStub.calledOnce).to.be.true;
+      });
+    });
+  });
+
+  describe("getFeedbackStats()", () => {
+    let origFeedbackModel;
+    let origPageSatisfactionModel;
+    let getStatsStub;
+    let summarizeStub;
+
+    beforeEach(() => {
+      origFeedbackModel = rewireCreateUser.__get__("FeedbackModel");
+      origPageSatisfactionModel = rewireCreateUser.__get__(
+        "PageSatisfactionDailyModel",
+      );
+      getStatsStub = sinon.stub().resolves({
+        overall: [{ total: 4, actionable: 3, replied: 1, open: 3 }],
+        by_status: [
+          { _id: "pending", count: 2 },
+          { _id: "reviewed", count: 1 },
+          { _id: "resolved", count: 1 },
+        ],
+        by_category: [{ _id: "bug", count: 4 }],
+        by_app: [],
+        by_platform: [],
+        by_rating: [{ _id: 5, count: 2 }],
+      });
+      summarizeStub = sinon.stub().resolves({ submissions: 10 });
+      rewireCreateUser.__set__("FeedbackModel", () => ({ getStats: getStatsStub }));
+      rewireCreateUser.__set__("PageSatisfactionDailyModel", () => ({
+        summarize: summarizeStub,
+      }));
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("FeedbackModel", origFeedbackModel);
+      rewireCreateUser.__set__(
+        "PageSatisfactionDailyModel",
+        origPageSatisfactionModel,
+      );
+      sinon.restore();
+    });
+
+    it("should return card counts with every status present", async () => {
+      const response = await rewireCreateUser.getFeedbackStats(
+        { query: {} },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(true);
+      const { feedback, page_satisfaction } = response.data;
+      expect(feedback).to.deep.include({
+        total: 4,
+        actionable: 3,
+        pending: 2,
+        reviewed: 1,
+        resolved: 1,
+        archived: 0,
+        resolution_rate: 25,
+        reply_rate: 25,
+      });
+      expect(feedback.rating.distribution[5]).to.equal(2);
+      expect(feedback.by_category).to.deep.equal([{ category: "bug", count: 4 }]);
+      expect(page_satisfaction.submissions).to.equal(10);
+    });
+
+    it("should apply shared filters and treat a date-only endDate as the whole day", async () => {
+      await rewireCreateUser.getFeedbackStats(
+        {
+          query: {
+            app: "website",
+            platform: "web",
+            startDate: "2026-06-01",
+            endDate: "2026-06-30",
+          },
+        },
+        (err) => {
+          throw err;
+        },
+      );
+
+      const { match } = getStatsStub.firstCall.args[0];
+      expect(match).to.deep.include({ app: "website", platform: "web" });
+      expect(match.createdAt.$lte.toISOString()).to.equal(
+        "2026-06-30T23:59:59.999Z",
+      );
+      expect(summarizeStub.firstCall.args[0].match.day).to.deep.equal({
+        $gte: "2026-06-01",
+        $lte: "2026-06-30",
+      });
+    });
+  });
+
+  describe("updateFeedbackStatus()", () => {
+    let origFeedbackModel;
+
+    const stubFeedback = (category, extra = {}) => {
+      rewireCreateUser.__set__("FeedbackModel", () => ({
+        findSingle: sinon.stub().resolves({
+          success: true,
+          data: {
+            _id: "fb1",
+            email: "user@example.com",
+            subject: "Some subject",
+            status: "reviewed",
+            category,
+            watchers: [],
+            ...extra,
+          },
+        }),
+        modify: sinon.stub().resolves({ success: true, data: {} }),
+      }));
+    };
+
+    beforeEach(() => {
+      origFeedbackModel = rewireCreateUser.__get__("FeedbackModel");
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("FeedbackModel", origFeedbackModel);
+      sinon.restore();
+    });
+
+    const request = {
+      body: { status: "resolved" },
+      query: {},
+      params: { feedback_id: "fb1" },
+    };
+
+    it("should not email the submitter for page_satisfaction items", async () => {
+      stubFeedback("page_satisfaction");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      const response = await rewireCreateUser.updateFeedbackStatus(
+        request,
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(true);
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter when an item is archived", async () => {
+      stubFeedback("bug");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(
+        { ...request, body: { status: "archived" } },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter for non-actionable items", async () => {
+      stubFeedback("general", { actionable: false });
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should not email the submitter when they declined contact", async () => {
+      stubFeedback("bug", { contact_consent: false });
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.called).to.be.false;
+    });
+
+    it("should refuse to reply when the submitter declined contact", async () => {
+      const addReplyStub = sinon.stub().resolves({ success: true });
+      rewireCreateUser.__set__("FeedbackModel", () => ({
+        findSingle: sinon.stub().resolves({
+          success: true,
+          data: { _id: "fb1", email: "user@example.com", contact_consent: false },
+        }),
+        addReply: addReplyStub,
+      }));
+      const replyStub = sinon
+        .stub(mailer, "feedbackAdminReply")
+        .resolves({ success: true });
+
+      const response = await rewireCreateUser.replyToFeedback(
+        {
+          body: { message: "Thanks" },
+          query: {},
+          params: { feedback_id: "fb1" },
+          user: {},
+        },
+        (err) => {
+          throw err;
+        },
+      );
+
+      expect(response.success).to.equal(false);
+      expect(response.status).to.equal(httpStatus.CONFLICT);
+      expect(addReplyStub.called).to.be.false;
+      expect(replyStub.called).to.be.false;
+    });
+
+    it("should email the submitter for other categories", async () => {
+      stubFeedback("bug");
+      const statusStub = sinon
+        .stub(mailer, "feedbackStatusUpdate")
+        .resolves({ success: true });
+
+      await rewireCreateUser.updateFeedbackStatus(request, (err) => {
+        throw err;
+      });
+
+      expect(statusStub.calledOnce).to.be.true;
     });
   });
 
@@ -1162,6 +2218,86 @@ describe("create-user-util", function () {
 
     // Add more test cases to cover other scenarios
     // For example, when generating the reset token fails, when modifying the user fails, etc.
+  });
+  describe("checkEmailExists", () => {
+    let origUserModel;
+    let findOneStub;
+    let selectStub;
+    let leanStub;
+
+    beforeEach(() => {
+      leanStub = sinon.stub();
+      selectStub = sinon.stub().returns({ lean: leanStub });
+      findOneStub = sinon.stub().returns({ select: selectStub });
+      origUserModel = rewireCreateUser.__get__("UserModel");
+      rewireCreateUser.__set__("UserModel", () => ({
+        findOne: findOneStub,
+      }));
+    });
+
+    afterEach(() => {
+      rewireCreateUser.__set__("UserModel", origUserModel);
+      sinon.restore();
+    });
+
+    it("should return exists:false when no account matches the email", async () => {
+      leanStub.resolves(null);
+
+      const response = await rewireCreateUser.checkEmailExists({
+        email: "unknown@example.com",
+        tenant: "airqo",
+      });
+
+      expect(response.success).to.equal(true);
+      expect(response.exists).to.equal(false);
+      expect(response).to.not.have.property("authMethods");
+      sinon.assert.calledWith(findOneStub, { email: "unknown@example.com" });
+    });
+
+    it("should normalize the email (lowercase + trim) before querying", async () => {
+      leanStub.resolves(null);
+
+      await rewireCreateUser.checkEmailExists({
+        email: "  Known@Example.COM  ",
+        tenant: "airqo",
+      });
+
+      sinon.assert.calledWith(findOneStub, { email: "known@example.com" });
+    });
+
+    it("should return exists:true with authMethods when an account matches", async () => {
+      leanStub.resolves({
+        _id: "user_id",
+        password: "hashed",
+        hasSetPassword: true,
+        google_id: "google123",
+      });
+
+      const response = await rewireCreateUser.checkEmailExists({
+        email: "known@example.com",
+        tenant: "airqo",
+      });
+
+      expect(response.success).to.equal(true);
+      expect(response.exists).to.equal(true);
+      expect(response.authMethods.password).to.equal(true);
+      expect(response.authMethods.google).to.equal(true);
+      expect(response.authMethods.github).to.equal(false);
+    });
+
+    it("should throw an HttpError on a database failure", async () => {
+      leanStub.rejects(new Error("connection lost"));
+
+      try {
+        await rewireCreateUser.checkEmailExists({
+          email: "known@example.com",
+          tenant: "airqo",
+        });
+        expect.fail("should have thrown");
+      } catch (error) {
+        expect(error.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      }
+    });
   });
   describe("updateForgottenPassword", () => {
     let origUserModel;
@@ -2652,5 +3788,65 @@ describe("computeUserOnboardingChecklist (personal onboarding checklist logic)",
     const result = computeUserOnboardingChecklist(user);
     expect(result.completed_steps).to.include("download-desktop-app");
     expect(result.completed_steps).to.include("invite-team");
+  });
+});
+
+describe("_getEnhancedProfile", () => {
+  let userModelStub;
+  let findByIdStub;
+  let createUserModuleRef;
+  let getUserContextPermissionsStub;
+
+  beforeEach(() => {
+    createUserModuleRef = rewireCreateUser.__get__("createUserModule");
+    getUserContextPermissionsStub = sinon
+      .stub(createUserModuleRef, "getUserContextPermissions")
+      .resolves({
+        success: true,
+        data: {
+          permissions: {
+            allPermissions: ["VIEW_DASHBOARD"],
+            groupMemberships: [],
+            isSuperAdmin: false,
+          },
+        },
+      });
+
+    findByIdStub = sinon.stub();
+    userModelStub = sinon.stub().returns({ findById: findByIdStub });
+    rewireCreateUser.__set__("UserModel", userModelStub);
+  });
+
+  afterEach(() => {
+    getUserContextPermissionsStub.restore();
+    rewireCreateUser.__set__("UserModel", UserModel);
+  });
+
+  it("strips legacy network_roles data left over on the raw user document", async () => {
+    findByIdStub.returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({
+          _id: "u1",
+          email: "u1@example.com",
+          group_roles: [],
+          network_roles: [{ network: "legacyNetworkId", role: "legacyRoleId" }],
+          networks: ["legacyNetworkId"],
+          my_networks: ["legacyNetworkId"],
+        }),
+      }),
+    });
+
+    const _getEnhancedProfile = rewireCreateUser.__get__(
+      "createUserModule",
+    )._getEnhancedProfile;
+    const result = await _getEnhancedProfile(
+      { userId: "u1", tenant: "airqo" },
+      sinon.stub(),
+    );
+
+    expect(result.success).to.equal(true);
+    expect(result.data).to.not.have.property("network_roles");
+    expect(result.data).to.not.have.property("networks");
+    expect(result.data).to.not.have.property("my_networks");
   });
 });

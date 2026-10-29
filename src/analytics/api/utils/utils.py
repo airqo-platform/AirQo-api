@@ -3,11 +3,8 @@ from pathlib import Path
 import json
 from typing import Dict
 
-from config import BaseConfig
 from api.utils.messages import RATE_LIMIT_ERROR
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask import jsonify
+from config import normalize_table_name
 
 import logging
 
@@ -16,13 +13,6 @@ logger = logging.getLogger(__name__)
 
 def ratelimit_response():
     return RATE_LIMIT_ERROR
-
-
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=BaseConfig.CACHE_REDIS_URL,
-    default_limits=["100 per minute"],
-)
 
 
 class Utils:
@@ -57,10 +47,17 @@ class Utils:
         table name is correctly interpreted by BigQuery, especially if it contains
         special characters like dots (`.`).
 
+        Wrapping is idempotent: a name that already carries backticks — some
+        deployments configure them that way — comes back with one pair, not two.
+
         Args:
-            table (str): Fully-qualified BigQuery table name in the form 'project.dataset.table'.
+            table (str): BigQuery table name, bare or 'project.dataset.table'.
 
         Returns:
             str: The table name wrapped in backticks (e.g., '`project.dataset.table`').
+
+        Raises:
+            ValueError: If the name is empty or contains anything outside
+                letters, digits, underscore, hyphen and up to two dots.
         """
-        return f"`{table}`"
+        return f"`{normalize_table_name(table)}`"

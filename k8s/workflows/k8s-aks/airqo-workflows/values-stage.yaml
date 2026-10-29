@@ -10,7 +10,18 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-53a18128-1780692377
+  tag: stage-f3c0fd83-1793191521
+inPodRedis:
+  enabled: true
+checkMigrations:
+  enabled: true
+  waitTimeoutSeconds: 600
+migrationJob:
+  enabled: true
+  args:
+    - db
+    - migrate
+  activeDeadlineSeconds: 1800
 resources:
   initContainer:
     requests:
@@ -47,6 +58,20 @@ resources:
     limits:
       cpu: 250m
       memory: 256Mi
+  checkMigrations:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  migrationJob:
+    requests:
+      cpu: 500m
+      memory: 1000Mi
+    limits:
+      cpu: 1500m
+      memory: 1800Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

@@ -11,7 +11,7 @@ const { LogThrottleManager, getSchedule } = require("@utils/common");
 const moment = require("moment-timezone");
 
 const JOB_NAME = "check-unassigned-sites-job";
-const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+const JOB_SCHEDULE = "32 */2 * * *"; // At minute 32 of every 2nd hour (staggered off :30, shared by several other every-2h jobs and the every-hour precompute-activities-job)
 
 const checkUnassignedSites = async () => {
   // Check if job should stop (for graceful shutdown)

@@ -151,6 +151,7 @@ const createClient = {
           success: true,
           message: result.message ? result.message : "",
           clients: result.data ? result.data : [],
+          meta: result.meta ? result.meta : undefined,
         });
       } else if (result.success === false) {
         const status = result.status

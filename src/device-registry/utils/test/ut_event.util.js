@@ -3085,8 +3085,14 @@ describe("create Event utils", function() {
     let aggregateStub;
     let next;
 
+    // Rows use the pipeline's compound _id shape ({ name, country }) as of
+    // the country-filter change; the $facet stage wraps them in
+    // [{ data, totalCount }].
     const mockAggregateChain = (rows) => ({
-      option: () => Promise.resolve(rows),
+      option: () =>
+        Promise.resolve([
+          { data: rows, totalCount: [{ count: rows.length }] },
+        ]),
     });
 
     beforeEach(() => {
@@ -3110,8 +3116,18 @@ describe("create Event utils", function() {
     it("returns a ranked, country-level list by default with codes and AQI category", async () => {
       aggregateStub.returns(
         mockAggregateChain([
-          { _id: "Kenya", avg_pm2_5: 23.32, site_count: 4 },
-          { _id: "Uganda", avg_pm2_5: 55.1, site_count: 2 },
+          {
+            _id: { key: "kenya", country: "Kenya" },
+            name: "Kenya",
+            avg_pm2_5: 23.32,
+            site_count: 4,
+          },
+          {
+            _id: { key: "uganda", country: "Uganda" },
+            name: "Uganda",
+            avg_pm2_5: 55.1,
+            site_count: 2,
+          },
         ])
       );
 
@@ -3143,7 +3159,14 @@ describe("create Event utils", function() {
       // boundary at 9.1), but rounds to a displayed 9.1 — which is exactly
       // the "good" boundary. The category must match what's displayed.
       aggregateStub.returns(
-        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 9.1005, site_count: 1 }])
+        mockAggregateChain([
+          {
+            _id: { key: "kenya", country: "Kenya" },
+            name: "Kenya",
+            avg_pm2_5: 9.1005,
+            site_count: 1,
+          },
+        ])
       );
 
       const result = await proxiedEventUtil.getAirQualityRankings(
@@ -3190,7 +3213,9 @@ describe("create Event utils", function() {
         },
       });
       aggregateStub.returns(
-        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 6, site_count: 1 }])
+        mockAggregateChain([
+          { _id: { key: "kenya", country: "Kenya" }, name: "Kenya", avg_pm2_5: 6, site_count: 1 },
+        ])
       );
 
       const result = await customProxiedEventUtil.getAirQualityRankings(
@@ -3207,7 +3232,9 @@ describe("create Event utils", function() {
       // @models/SystemConfig mock resolves null, so resolveActiveAqiRanges
       // correctly produces the real "default" source end-to-end.
       aggregateStub.returns(
-        mockAggregateChain([{ _id: "Kenya", avg_pm2_5: 20, site_count: 1 }])
+        mockAggregateChain([
+          { _id: { key: "kenya", country: "Kenya" }, name: "Kenya", avg_pm2_5: 20, site_count: 1 },
+        ])
       );
 
       const result = await proxiedEventUtil.getAirQualityRankings(
@@ -3218,10 +3245,15 @@ describe("create Event utils", function() {
       expect(result.data[0].aqi_index).to.be.a("number");
     });
 
-    it("groups by city and leaves country_code null when level=city", async () => {
+    it("groups by city and derives country_code from the grouped country when level=city", async () => {
       aggregateStub.returns(
         mockAggregateChain([
-          { _id: "Kampala", avg_pm2_5: 30, site_count: 3 },
+          {
+            _id: { key: "kampala", country: "Uganda" },
+            name: "Kampala",
+            avg_pm2_5: 30,
+            site_count: 3,
+          },
         ])
       );
 
@@ -3231,13 +3263,56 @@ describe("create Event utils", function() {
       );
 
       expect(result.data[0].level).to.equal("city");
-      expect(result.data[0].country_code).to.equal(null);
+      expect(result.data[0].name).to.equal("Kampala");
+      expect(result.data[0].country_code).to.equal("ug");
+      expect(result.data[0].country_name).to.equal("Uganda");
 
       const pipeline = aggregateStub.getCall(0).args[0];
       const groupByEntity = pipeline.find(
-        (stage) => stage.$group && stage.$group._id === "$siteDetails.city"
+        (stage) => stage.$group && stage.$group._id && stage.$group._id.key
       );
-      expect(groupByEntity).to.exist;
+      expect(groupByEntity.$group._id.key).to.deep.equal({
+        $trim: { input: { $toLower: "$siteDetails.city" } },
+      });
+    });
+
+    it("leaves country_code/country_name null when a city has no grouped country", async () => {
+      aggregateStub.returns(
+        mockAggregateChain([
+          {
+            _id: { key: "kampala", country: null },
+            name: "Kampala",
+            avg_pm2_5: 30,
+            site_count: 3,
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: { level: "city" } },
+        next
+      );
+
+      expect(result.data[0].country_code).to.equal(null);
+      expect(result.data[0].country_name).to.equal(null);
+    });
+
+    it("excludes an empty-after-trim city/country group from the results", async () => {
+      // The pipeline itself is what does this filtering (via the
+      // "_id.key": { $nin: [null, ""] } match stage) — this test only
+      // documents that the match stage exists and targets the right field,
+      // since the actual filtering happens inside Mongo, not in this util.
+      aggregateStub.returns(mockAggregateChain([]));
+
+      await proxiedEventUtil.getAirQualityRankings({ query: {} }, next);
+
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const emptyKeyMatch = pipeline.find(
+        (stage) => stage.$match && stage.$match["_id.key"]
+      );
+      expect(emptyKeyMatch.$match["_id.key"]).to.deep.equal({
+        $nin: [null, ""],
+      });
     });
 
     it("sorts descending (most polluted first) when sort=worst", async () => {
@@ -3276,7 +3351,19 @@ describe("create Event utils", function() {
       const sortStage = pipeline.find(
         (stage) => stage.$sort && "avg_pm2_5" in stage.$sort
       );
-      expect(sortStage.$sort._id).to.equal(1);
+      expect(sortStage.$sort.name).to.equal(1);
+    });
+
+    it("breaks a same-avg_pm2_5-and-name tie with a tertiary sort on country", async () => {
+      aggregateStub.returns(mockAggregateChain([]));
+
+      await proxiedEventUtil.getAirQualityRankings({ query: {} }, next);
+
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const sortStage = pipeline.find(
+        (stage) => stage.$sort && "avg_pm2_5" in stage.$sort
+      );
+      expect(sortStage.$sort["_id.country"]).to.equal(1);
     });
 
     it("returns an empty array (not an error) when nothing qualifies", async () => {
@@ -3305,6 +3392,65 @@ describe("create Event utils", function() {
       expect(next.calledOnce).to.equal(true);
       const err = next.getCall(0).args[0];
       expect(err.message).to.equal("Internal Server Error");
+    });
+
+    it("resolves a country code to its name and scopes the $match stage to it", async () => {
+      aggregateStub.returns(
+        mockAggregateChain([
+          { _id: { key: "kampala", country: "Uganda" }, name: "Kampala", avg_pm2_5: 30, site_count: 3 },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: { level: "city", country: "ug" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(1);
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const matchStage = pipeline.find((stage) => stage.$match && stage.$match.time);
+      expect(matchStage.$match["siteDetails.country"]).to.equal("Uganda");
+    });
+
+    it("accepts an uppercase country code the same as lowercase", async () => {
+      aggregateStub.returns(mockAggregateChain([]));
+
+      await proxiedEventUtil.getAirQualityRankings(
+        { query: { level: "city", country: "UG" } },
+        next
+      );
+
+      const pipeline = aggregateStub.getCall(0).args[0];
+      const matchStage = pipeline.find((stage) => stage.$match && stage.$match.time);
+      expect(matchStage.$match["siteDetails.country"]).to.equal("Uganda");
+    });
+
+    it("returns an empty 200 result without querying Mongo when the country code is well-formed but unrecognized", async () => {
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: { country: "zz" } },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([]);
+      expect(result.meta).to.deep.equal({ total: 0, limit: 20, skip: 0 });
+      expect(aggregateStub.called).to.equal(false);
+    });
+
+    it("includes meta.total from the $facet totalCount alongside the limited data", async () => {
+      aggregateStub.returns(
+        mockAggregateChain([
+          { _id: { key: "kenya", country: "Kenya" }, name: "Kenya", avg_pm2_5: 23.32, site_count: 4 },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankings(
+        { query: { limit: "1" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(1);
+      expect(result.meta).to.deep.equal({ total: 1, limit: 1, skip: 0 });
     });
   });
 
@@ -3443,6 +3589,347 @@ describe("create Event utils", function() {
       expect(result).to.be.undefined;
       expect(next.calledOnce).to.equal(true);
     });
+
+    it("filters level=country history by entity when a country code is given", async () => {
+      findStub.returns(
+        mockFindChain([
+          { entity: "Uganda", year: 2023, sum_pm2_5: 60, reading_count: 2, contributing_sites: ["s1"] },
+        ])
+      );
+
+      await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "country", country: "ug", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      const filter = findStub.getCall(0).args[0];
+      expect(filter.entity).to.equal("Uganda");
+    });
+
+    it("filters level=city history by the stored country field when a country code is given, and emits country_code/country_name", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Kampala",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 60,
+            reading_count: 2,
+            contributing_sites: ["s1", "s2"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", country: "ug", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      const filter = findStub.getCall(0).args[0];
+      expect(filter.country).to.equal("Uganda");
+      expect(result.data[0].country_code).to.equal("ug");
+      expect(result.data[0].country_name).to.equal("Uganda");
+    });
+
+    it("returns an empty 200 result without querying the summary collection when the country code is well-formed but unrecognized", async () => {
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", country: "zz", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([]);
+      expect(findStub.called).to.equal(false);
+    });
+
+    it("merges whitespace/case variants of the same city+year into one row instead of two", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Kampala",
+            country: null,
+            year: 2023,
+            sum_pm2_5: 60,
+            reading_count: 2,
+            contributing_sites: ["s1", "s2"],
+          },
+          {
+            entity: "kampala ",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 40,
+            reading_count: 2,
+            contributing_sites: ["s2", "s3"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(1);
+      const entry = result.data[0];
+      // Canonical casing is lexicographically-min of the trimmed variants —
+      // "Kampala" < "kampala" (uppercase sorts before lowercase in ASCII).
+      expect(entry.name).to.equal("Kampala");
+      expect(entry.country_code).to.equal("ug");
+      // (60 + 40) / (2 + 2) = 25, not an average-of-averages.
+      expect(entry.values[0].avg_pm2_5).to.equal(25);
+      // s1, s2, s3 deduped across both docs — s2 is not double-counted.
+      expect(entry.values[0].site_count).to.equal(3);
+    });
+
+    it("drops a summary doc whose entity is empty after trimming", async () => {
+      findStub.returns(
+        mockFindChain([
+          { entity: "   ", country: null, year: 2023, sum_pm2_5: 10, reading_count: 1, contributing_sites: ["s1"] },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("does not merge two docs sharing a normalized name but carrying two different non-null countries", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Springfield",
+            country: "Kenya",
+            year: 2023,
+            sum_pm2_5: 100,
+            reading_count: 2,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "springfield",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 10,
+            reading_count: 2,
+            contributing_sites: ["s2"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      // Two separate response rows, not one row averaging 100 and 10
+      // together under a single, misleading country.
+      expect(result.data).to.have.lengthOf(2);
+      const countries = result.data.map((entry) => entry.country_name).sort();
+      expect(countries).to.deep.equal(["Kenya", "Uganda"]);
+      const kenyaEntry = result.data.find((e) => e.country_name === "Kenya");
+      const ugandaEntry = result.data.find((e) => e.country_name === "Uganda");
+      expect(kenyaEntry.values[0].avg_pm2_5).to.equal(50);
+      expect(ugandaEntry.values[0].avg_pm2_5).to.equal(5);
+    });
+
+    it("keeps a null-country doc in its own unattributed group rather than guessing between two conflicting countries (Kenya/Uganda/null)", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Springfield",
+            country: "Kenya",
+            year: 2023,
+            sum_pm2_5: 100,
+            reading_count: 2,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "springfield",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 10,
+            reading_count: 2,
+            contributing_sites: ["s2"],
+          },
+          {
+            // Legacy, unattributed doc for the same normalized name — must
+            // not be silently folded into either Kenya's or Uganda's total,
+            // regardless of which order the docs are processed in.
+            entity: "Springfield",
+            country: null,
+            year: 2023,
+            sum_pm2_5: 1000,
+            reading_count: 2,
+            contributing_sites: ["s3"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(3);
+      const kenyaEntry = result.data.find((e) => e.country_name === "Kenya");
+      const ugandaEntry = result.data.find((e) => e.country_name === "Uganda");
+      const unattributedEntry = result.data.find((e) => e.country_name === null);
+
+      // Kenya/Uganda averages are untouched by the null-country doc's 1000.
+      expect(kenyaEntry.values[0].avg_pm2_5).to.equal(50);
+      expect(ugandaEntry.values[0].avg_pm2_5).to.equal(5);
+      // The unattributed doc surfaces as its own row instead of vanishing
+      // or being attributed to either country.
+      expect(unattributedEntry).to.exist;
+      expect(unattributedEntry.country_code).to.equal(null);
+      expect(unattributedEntry.values[0].avg_pm2_5).to.equal(500);
+    });
+
+    it("still merges a null-country doc with a differently-cased non-null-country doc for the same real place", async () => {
+      findStub.returns(
+        mockFindChain([
+          {
+            entity: "Kampala",
+            country: null,
+            year: 2023,
+            sum_pm2_5: 30,
+            reading_count: 1,
+            contributing_sites: ["s1"],
+          },
+          {
+            entity: "kampala",
+            country: "Uganda",
+            year: 2023,
+            sum_pm2_5: 40,
+            reading_count: 1,
+            contributing_sites: ["s2"],
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsHistory(
+        { query: { level: "city", start_year: "2023", end_year: "2023" } },
+        next
+      );
+
+      expect(result.data).to.have.lengthOf(1);
+      expect(result.data[0].country_name).to.equal("Uganda");
+      expect(result.data[0].values[0].avg_pm2_5).to.equal(35);
+    });
+  });
+
+  // Nexus: rankings filter-option metadata — country selector for the
+  // rankings page, scoped to the same "latest reading per site, last 3 days"
+  // universe as getAirQualityRankings itself.
+  describe("getAirQualityRankingsCountries", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedEventUtil;
+    let aggregateStub;
+    let summaryAggregateStub;
+    let next;
+
+    const mockAggregateChain = (rows) => ({
+      option: () => Promise.resolve(rows),
+    });
+
+    beforeEach(() => {
+      aggregateStub = sinon.stub();
+      // AirQualitySummaryModel(tenant).aggregate(...) is called directly
+      // (no .option() chain) for the history_from lookup.
+      summaryAggregateStub = sinon.stub().resolves([]);
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/Reading": () => ({ aggregate: aggregateStub }),
+        "@models/AirQualitySummary": () => ({
+          aggregate: summaryAggregateStub,
+        }),
+      });
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("returns country_code/country_name plus site/city counts for each rankable country", async () => {
+      const latest = new Date();
+      aggregateStub.returns(
+        mockAggregateChain([
+          {
+            _id: "Uganda",
+            site_count: 5,
+            cities: ["kampala", "gulu", ""],
+            latest_reading_at: latest,
+          },
+        ])
+      );
+
+      const result = await proxiedEventUtil.getAirQualityRankingsCountries(
+        { query: {} },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([
+        {
+          country_code: "ug",
+          country_name: "Uganda",
+          city_count: 2,
+          site_count: 5,
+          latest_reading_at: latest.toISOString(),
+          history_from: null,
+        },
+      ]);
+    });
+
+    it("includes history_from per country from the AirQualitySummary min-year lookup", async () => {
+      aggregateStub.returns(
+        mockAggregateChain([
+          { _id: "Uganda", site_count: 5, cities: ["kampala"], latest_reading_at: new Date() },
+        ])
+      );
+      summaryAggregateStub.resolves([{ _id: "Uganda", history_from: 2026 }]);
+
+      const result = await proxiedEventUtil.getAirQualityRankingsCountries(
+        { query: {} },
+        next
+      );
+
+      expect(result.data[0].history_from).to.equal(2026);
+      const summaryPipeline = summaryAggregateStub.getCall(0).args[0];
+      expect(summaryPipeline[0].$match).to.deep.equal({
+        tenant: "airqo",
+        level: "city",
+        country: { $ne: null },
+      });
+    });
+
+    it("returns an empty list when nothing qualifies", async () => {
+      aggregateStub.returns(mockAggregateChain([]));
+
+      const result = await proxiedEventUtil.getAirQualityRankingsCountries(
+        { query: {} },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([]);
+    });
+
+    it("reports an internal error via next() when the aggregation fails", async () => {
+      aggregateStub.returns({
+        option: () => Promise.reject(new Error("Mongo error")),
+      });
+
+      const result = await proxiedEventUtil.getAirQualityRankingsCountries(
+        { query: {} },
+        next
+      );
+
+      expect(result).to.be.undefined;
+      expect(next.calledOnce).to.equal(true);
+    });
   });
 
   // Nexus: nearest-readings freshness flag — additive is_stale /
@@ -3552,6 +4039,598 @@ describe("create Event utils", function() {
       expect(result.data[0].site_id).to.equal("site1");
       expect(result.data[0].pm2_5.value).to.equal(20);
       expect(result.data[0].distance).to.be.a("number");
+    });
+  });
+
+  // Regression coverage for a privacy gap: when every requested cohort_id
+  // resolves to a private cohort the caller can't see (no user_id bypass),
+  // processCohortIds must scope the query to "nothing", not leave
+  // request.query.device_id unset — which would fall through to an
+  // UNSCOPED query instead of an empty one.
+  describe("getRepresentativeAirQualityForGrid — two-level cache", () => {
+    const proxyquire = require("proxyquire");
+    const gridId = "64b7f325d7249f0029fed743";
+    const cacheKey = `representative_aq_grid_${gridId}`;
+    const reading = {
+      _id: "66f0000000000000000000a1",
+      site_id: "site_1",
+      time: new Date("2026-10-11T08:00:00.000Z"),
+      pm2_5: { value: 31.2 },
+      aqi_category: "Moderate",
+    };
+    const computed = {
+      success: true,
+      message: "Successfully retrieved representative air quality value.",
+      data: reading,
+      status: httpStatus.OK,
+    };
+    let proxiedEventUtil;
+    let findOneStub;
+    let findOneAndUpdateStub;
+    let computeStub;
+    let next;
+
+    const l2Returns = (doc) =>
+      findOneStub.returns({ lean: () => Promise.resolve(doc) });
+    const makeRequest = (query = {}) => ({
+      query: { tenant: "airqo", grid_id: gridId, ...query },
+    });
+    // A cache hit is the uncached result plus the entry's remaining lifetime.
+    const expectHit = (result, minSeconds, maxSeconds) => {
+      const { cacheMaxAgeSeconds, ...rest } = result;
+      expect(rest).to.deep.equal(computed);
+      expect(cacheMaxAgeSeconds).to.be.within(minSeconds, maxSeconds);
+    };
+
+    beforeEach(() => {
+      findOneStub = sinon.stub();
+      findOneAndUpdateStub = sinon.stub().resolves(null);
+      l2Returns(null);
+      // A fresh module per test also gives each test an empty L1 cache.
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/ComputedCache": () => ({
+          findOne: findOneStub,
+          findOneAndUpdate: findOneAndUpdateStub,
+        }),
+      });
+      computeStub = sinon
+        .stub(proxiedEventUtil, "getRepresentativeAirQuality")
+        .resolves(computed);
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("computes on a miss and stores the reading in MongoDB with a 5 minute expiry", async () => {
+      const before = Date.now();
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(computeStub.calledOnce).to.equal(true);
+      expect(findOneStub.firstCall.args[0]).to.deep.equal({
+        key: cacheKey,
+        tenant: "airqo",
+      });
+      expect(findOneAndUpdateStub.calledOnce).to.equal(true);
+      const [filter, update, options] = findOneAndUpdateStub.firstCall.args;
+      expect(filter).to.deep.equal({ key: cacheKey, tenant: "airqo" });
+      expect(update.$set.data).to.equal(reading);
+      expect(update.$set.expiresAt.getTime() - before).to.be.within(
+        299000,
+        301000,
+      );
+      expect(options.upsert).to.equal(true);
+    });
+
+    it("serves the next request from pod memory without touching MongoDB or recomputing", async () => {
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expectHit(result, 298, 300);
+      expect(computeStub.calledOnce).to.equal(true);
+      expect(findOneStub.calledOnce).to.equal(true);
+    });
+
+    it("serves a fresh MongoDB entry without recomputing, then refills pod memory", async () => {
+      l2Returns({
+        key: cacheKey,
+        tenant: "airqo",
+        data: reading,
+        expiresAt: new Date(Date.now() + 60000),
+      });
+
+      const first = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const second = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      // max-age is the MongoDB entry's remaining 60s, not a fresh 5 minutes.
+      expectHit(first, 58, 60);
+      expectHit(second, 58, 60);
+      expect(computeStub.called).to.equal(false);
+      expect(findOneStub.calledOnce).to.equal(true);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("returns a body identical to the uncached response on a cache hit", async () => {
+      const miss = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const hit = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      const { cacheMaxAgeSeconds, ...hitBody } = hit;
+      expect(JSON.stringify(hitBody)).to.equal(JSON.stringify(miss));
+    });
+
+    it("ignores an expired MongoDB entry", async () => {
+      l2Returns({
+        key: cacheKey,
+        tenant: "airqo",
+        data: { stale: true },
+        expiresAt: new Date(Date.now() - 1000),
+      });
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(computeStub.calledOnce).to.equal(true);
+    });
+
+    it("still returns the computed result when the MongoDB read and write both fail", async () => {
+      findOneStub.returns({
+        lean: () => Promise.reject(new Error("mongo down")),
+      });
+      findOneAndUpdateStub.rejects(new Error("mongo down"));
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.deep.equal(computed);
+      expect(next.called).to.equal(false);
+    });
+
+    it("does not store an empty result", async () => {
+      const empty = {
+        success: true,
+        message: "No recent readings available for the specified group.",
+        data: {},
+        status: httpStatus.OK,
+      };
+      computeStub.resolves(empty);
+
+      const first = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(first).to.deep.equal(empty);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+      expect(computeStub.calledTwice).to.equal(true);
+    });
+
+    it("does not store a failed or already-forwarded (undefined) result", async () => {
+      computeStub.resolves(undefined);
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+
+      expect(result).to.equal(undefined);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("bypasses the cache entirely when the caller supplies site_id", async () => {
+      const request = makeRequest({ site_id: "site_9" });
+
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(request, next);
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(request, next);
+
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.called).to.equal(false);
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("keeps the 400 conflict when cohort_id is supplied, even with a warm cache", async () => {
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      const conflict = {
+        success: false,
+        message: "Bad Request",
+        errors: {
+          message: "Provide either grid_id or cohort_id, but not both.",
+        },
+        status: httpStatus.BAD_REQUEST,
+      };
+      computeStub.resolves(conflict);
+      findOneStub.resetHistory();
+
+      const result = await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest({ cohort_id: "64b7f325d7249f0029fed7c1" }),
+        next,
+      );
+
+      expect(result).to.deep.equal(conflict);
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.called).to.equal(false);
+    });
+
+    it("computes once for concurrent misses on the same grid", async () => {
+      const results = await Promise.all([
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+        proxiedEventUtil.getRepresentativeAirQualityForGrid(
+          makeRequest(),
+          next,
+        ),
+      ]);
+
+      results.forEach((result) => expect(result).to.deep.equal(computed));
+      expect(computeStub.calledOnce).to.equal(true);
+    });
+
+    it("replays a computation failure to every concurrent caller's own next", async () => {
+      const failure = new Error("aggregation failed");
+      // The real util forwards the error via next() and resolves undefined.
+      computeStub.callsFake(async (request, forward) => {
+        forward(failure);
+      });
+      const nexts = [sinon.stub(), sinon.stub(), sinon.stub()];
+
+      const results = await Promise.all(
+        nexts.map((callerNext) =>
+          proxiedEventUtil.getRepresentativeAirQualityForGrid(
+            makeRequest(),
+            callerNext,
+          ),
+        ),
+      );
+
+      expect(computeStub.calledOnce).to.equal(true);
+      results.forEach((result) => expect(result).to.equal(undefined));
+      nexts.forEach((callerNext) => {
+        expect(callerNext.calledOnce).to.equal(true);
+        expect(callerNext.firstCall.args[0]).to.equal(failure);
+      });
+      expect(findOneAndUpdateStub.called).to.equal(false);
+    });
+
+    it("keeps separate entries per grid", async () => {
+      const otherGridId = "64b7f325d7249f0029fed744";
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest(),
+        next,
+      );
+      await proxiedEventUtil.getRepresentativeAirQualityForGrid(
+        makeRequest({ grid_id: otherGridId }),
+        next,
+      );
+
+      expect(computeStub.calledTwice).to.equal(true);
+      expect(findOneStub.secondCall.args[0].key).to.equal(
+        `representative_aq_grid_${otherGridId}`,
+      );
+    });
+  });
+
+  describe("processCohortIds — suppressed (private) cohorts", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedEventUtil;
+    let cohortListStub;
+
+    beforeEach(() => {
+      cohortListStub = sinon.stub();
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/Cohort": () => ({ list: cohortListStub }),
+      });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("sets an unmatchable device_id, and does not error, when the only requested cohort is private with no bypass", async () => {
+      const cohortId = "60d5f77bcf86cd799439011";
+      cohortListStub.resolves({
+        data: [{ _id: cohortId, visibility: false }],
+      });
+
+      const request = { query: { tenant: "airqo" } };
+      const result = await proxiedEventUtil.processCohortIds(cohortId, request);
+
+      // Not an error response — suppression is a valid, silent outcome.
+      expect(result).to.be.undefined;
+      // But the query must now be scoped to match nothing, not left open.
+      expect(request.query.device_id).to.exist;
+      expect(request.query.device_id).to.not.be.empty;
+    });
+
+    it("still returns the real device set when a visible cohort is mixed with a suppressed one", async () => {
+      const visibleCohortId = "60d5f77bcf86cd799439012";
+      const privateCohortId = "60d5f77bcf86cd799439013";
+      // processCohortIds calls getDevicesFromCohort once per cohort_id, in
+      // array order — stub by call index rather than matching the filter
+      // object (generateFilter.cohorts casts the id to an ObjectId
+      // instance internally, so matching the raw string arg is brittle).
+      cohortListStub.onCall(0).resolves({
+        data: [
+          {
+            _id: visibleCohortId,
+            visibility: true,
+            devices: [{ _id: "device-1" }],
+          },
+        ],
+      });
+      cohortListStub
+        .onCall(1)
+        .resolves({ data: [{ _id: privateCohortId, visibility: false }] });
+
+      const request = { query: { tenant: "airqo" } };
+      const result = await proxiedEventUtil.processCohortIds(
+        [visibleCohortId, privateCohortId],
+        request
+      );
+
+      expect(result).to.be.undefined;
+      expect(request.query.device_id).to.equal("device-1");
+    });
+  });
+
+  // POST /readings/comparisons — one reading entry guaranteed per requested
+  // site_id, real reading or a has_reading:false placeholder.
+  describe("compareSiteReadings", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedEventUtil;
+    let recentStub;
+    let siteFindStub;
+    let siteSelectStub;
+    let siteLeanStub;
+    let next;
+
+    const siteA = "624d2f9a994194001ddccbb6"; // has a reading
+    const siteB = "623d84340e8054001eaaaa13"; // no reading, site still exists
+    const siteC = "6a1b2c3d4e5f60718293a4b5"; // no reading, site no longer exists
+
+    beforeEach(() => {
+      recentStub = sinon.stub().resolves({ success: true, data: [] });
+      siteLeanStub = sinon.stub().resolves([]);
+      siteSelectStub = sinon.stub().returns({ lean: siteLeanStub });
+      siteFindStub = sinon.stub().returns({ select: siteSelectStub });
+
+      proxiedEventUtil = proxyquire("../event.util", {
+        "@models/Reading": () => ({ recent: recentStub }),
+        "@models/Site": () => ({ find: siteFindStub }),
+      });
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("dedupes repeated site_ids and returns exactly one entry per unique id, in first-occurrence order", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([]);
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        {
+          query: { tenant: "airqo" },
+          body: { site_ids: [siteA, siteB, siteA, siteC] },
+        },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.have.lengthOf(3);
+      expect(result.data.map((r) => r.site_id)).to.deep.equal([
+        siteA,
+        siteB,
+        siteC,
+      ]);
+
+      // recent() must be asked for the full 14-day TTL window, not the
+      // tighter DIAGNOSTIC_WINDOW_DAYS default other /recent callers use.
+      expect(recentStub.calledOnce).to.be.true;
+      expect(recentStub.args[0][0].lookbackDays).to.equal(14);
+      expect(recentStub.args[0][0].filter.site_id.$in).to.have.lengthOf(3);
+    });
+
+    it("maps a matched reading to has_reading:true with rounded pollutants and a color_name derived from aqi_category, not the raw color name", async () => {
+      const readingTime = new Date(Date.now() - 24 * 60 * 1000); // 24 min ago
+      recentStub.resolves({
+        success: true,
+        data: [
+          {
+            site_id: siteA,
+            time: readingTime,
+            pm2_5: { value: 24.34 },
+            pm10: { value: 41.0 },
+            // no2 intentionally absent
+            siteDetails: {
+              name: "Mukono Health Centre III",
+              location_name: "Mukono",
+              city: "Mukono",
+              country: "Uganda",
+              approximate_latitude: 0.3533,
+              approximate_longitude: 32.7553,
+            },
+            aqi_index: 72,
+            aqi_category: "Moderate",
+            aqi_color: "ECAA06",
+          },
+        ],
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(true);
+      expect(row.site).to.deep.equal({
+        name: "Mukono Health Centre III",
+        location_name: "Mukono",
+        city: "Mukono",
+        country: "Uganda",
+        latitude: 0.3533,
+        longitude: 32.7553,
+      });
+      expect(row.pollutants).to.deep.equal({
+        pm2_5: { value: 24.3 },
+        pm10: { value: 41 },
+        no2: { value: null },
+      });
+      expect(row.aqi.index).to.equal(72);
+      expect(row.aqi.category).to.equal("Moderate");
+      expect(row.aqi.color).to.equal("ECAA06");
+      // "Moderate" -> "moderate": the contract's color_name is the lowercase
+      // category key, not a human color word (AQI_COLOR_NAMES.moderate is
+      // "Yellow") — and it must come from this reading's own aqi_category,
+      // not a fresh recompute that could disagree under a custom AQI config.
+      expect(row.aqi.color_name).to.equal("moderate");
+      expect(row.time_difference_hours).to.be.closeTo(0.4, 0.05);
+    });
+
+    it("falls back to categoryFromConcentration for color_name when aqi_category is missing", async () => {
+      recentStub.resolves({
+        success: true,
+        data: [
+          {
+            site_id: siteA,
+            time: new Date(),
+            pm2_5: { value: 5 }, // within the "good" band
+            siteDetails: {},
+          },
+        ],
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      expect(result.data[0].aqi.color_name).to.equal("good");
+    });
+
+    it("returns a has_reading:false row backed by the Site collection when a site has no matching reading", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([
+        {
+          _id: siteB,
+          name: "Bwaise Police Post",
+          location_name: "Bwaise",
+          city: "Kampala",
+          country: "Uganda",
+          latitude: 0.3512,
+          longitude: 32.5678,
+        },
+      ]);
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteB] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(false);
+      expect(row.time).to.be.null;
+      expect(row.aqi).to.be.null;
+      expect(row.pollutants).to.be.null;
+      expect(row.site).to.deep.equal({
+        name: "Bwaise Police Post",
+        location_name: "Bwaise",
+        city: "Kampala",
+        country: "Uganda",
+        latitude: 0.3512,
+        longitude: 32.5678,
+      });
+      expect(row.site.site_exists).to.be.undefined;
+    });
+
+    it("flags site.site_exists:false when a site has no reading and no longer exists in the Site collection", async () => {
+      recentStub.resolves({ success: true, data: [] });
+      siteLeanStub.resolves([]); // siteC not found anywhere
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteC] } },
+        next
+      );
+
+      const row = result.data[0];
+      expect(row.has_reading).to.equal(false);
+      expect(row.site.site_exists).to.equal(false);
+      expect(row.site.name).to.be.null;
+    });
+
+    it("only queries the Site collection for sites missing a reading, not for every requested site", async () => {
+      recentStub.resolves({
+        success: true,
+        data: [{ site_id: siteA, time: new Date(), pm2_5: { value: 10 }, siteDetails: {} }],
+      });
+      siteLeanStub.resolves([]);
+
+      await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA, siteB] } },
+        next
+      );
+
+      expect(siteFindStub.calledOnce).to.be.true;
+      const missingIdFilter = siteFindStub.args[0][0]._id.$in;
+      expect(missingIdFilter).to.have.lengthOf(1);
+      expect(missingIdFilter[0].toString()).to.equal(siteB);
+    });
+
+    it("returns an error result (without throwing) when ReadingModel.recent fails", async () => {
+      recentStub.resolves({
+        success: false,
+        status: 500,
+        message: "Internal Server Error",
+        errors: { message: "db unavailable" },
+      });
+
+      const result = await proxiedEventUtil.compareSiteReadings(
+        { query: { tenant: "airqo" }, body: { site_ids: [siteA] } },
+        next
+      );
+
+      expect(result.success).to.equal(false);
     });
   });
 });

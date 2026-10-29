@@ -47,28 +47,6 @@ const listInformation = [validateTenant, validateIdParam];
 
 const create = [
   validateTenant,
-  body("defaultNetwork")
-    .exists()
-    .withMessage("the defaultNetwork is missing in the request body")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("the defaultNetwork should be a valid object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-  body("defaultNetworkRole")
-    .exists()
-    .withMessage("the defaultNetworkRole is missing in the request body")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("the defaultNetworkRole should be a valid object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
   body("defaultGroup")
     .exists()
     .withMessage("the defaultGroup is missing in the request body")
@@ -107,24 +85,6 @@ const create = [
 const update = [
   validateTenant,
   validateIdParam,
-  body("defaultNetwork")
-    .optional()
-    .trim()
-    .isMongoId()
-    .withMessage("the defaultNetwork should be a valid object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
-  body("defaultNetworkRole")
-    .optional()
-    .trim()
-    .isMongoId()
-    .withMessage("the defaultNetworkRole should be a valid object ID")
-    .bail()
-    .customSanitizer((value) => {
-      return ObjectId(value);
-    }),
   body("defaultGroup")
     .optional()
     .trim()

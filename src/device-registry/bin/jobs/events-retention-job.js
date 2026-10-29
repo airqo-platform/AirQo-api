@@ -39,8 +39,9 @@ const logger = log4js.getLogger(
 // ── Configuration ─────────────────────────────────────────────────────────────
 
 const JOB_NAME = "events-retention-job";
-// Once a day at 03:00 — offset from device-metadata-cleanup-job (02:00/10:00/18:00)
-const JOB_SCHEDULE = getSchedule("0 3 * * *", constants.ENVIRONMENT);
+// Once a day at 03:08 — offset from device-metadata-cleanup-job (02:09/10:09/18:09);
+// minute staggered off :00, shared by backfill-api-code-job's 03:00 run
+const JOB_SCHEDULE = getSchedule("8 3 * * *", constants.ENVIRONMENT);
 const TIMEZONE = constants.TIMEZONE || moment.tz.guess();
 const POD_ID = process.env.HOSTNAME || os.hostname();
 const LOCK_TTL_SECONDS = 60 * 60;           // 1 h initial grant (could be a large first run)

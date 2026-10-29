@@ -34,12 +34,6 @@ const CandidateSchema = new mongoose.Schema(
       required: [true, "firstName is required!"],
       trim: true,
     },
-    network_id: {
-      type: ObjectId,
-      required: [true, "network_id is required!"],
-      trim: true,
-      ref: "network",
-    },
     lastName: {
       type: String,
       required: [true, "lastName is required"],
@@ -69,26 +63,6 @@ CandidateSchema.statics = {
   async register(args, next) {
     try {
       let newArgs = Object.assign({}, args);
-
-      // Preserve complex network_id default assignment logic
-      if (isEmpty(newArgs.network_id)) {
-        if (isEmpty(constants.DEFAULT_NETWORK)) {
-          logger.error(
-            `Unable to determine the Network to which User will belong`
-          );
-          return {
-            success: false,
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: {
-              message:
-                "Contact support@airqo.net -- unable to determine the Network to which User will belong",
-            },
-          };
-        }
-        newArgs.network_id = constants.DEFAULT_NETWORK;
-        logObject("newArgs.network_id", newArgs.network_id);
-      }
 
       const data = await this.create({
         ...newArgs,
@@ -138,12 +112,6 @@ CandidateSchema.statics = {
           localField: "email",
           foreignField: "email",
           as: "user",
-        })
-        .lookup({
-          from: "networks",
-          localField: "network_id",
-          foreignField: "_id",
-          as: "network",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -239,7 +207,6 @@ CandidateSchema.methods = {
       long_organization: this.long_organization,
       jobTitle: this.jobTitle,
       website: this.website,
-      network_id: this.network_id,
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

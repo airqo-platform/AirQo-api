@@ -37,6 +37,7 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 const mongoose = require("mongoose");
+const { resolveCohortObjectIds } = require("@utils/cohort.util");
 const { isValidObjectId } = mongoose;
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -46,11 +47,17 @@ const getSiteCountSummary = async (request, next) => {
     const filter = generateFilter.sites(request, next);
 
     if (cohort_id) {
-      const cohortObjectIds = cohort_id
+      // cohort_id may be a comma-separated mix of ObjectIds and
+      // cohort_slugs — resolve to canonical ObjectIds before matching the
+      // snapshot collection (which stores real ObjectIds).
+      const identifiers = cohort_id
         .split(",")
         .map((id) => id.trim())
-        .filter((id) => isValidObjectId(id))
-        .map((id) => ObjectId(id));
+        .filter(Boolean);
+      const { resolvedIds: cohortObjectIds } = await resolveCohortObjectIds(
+        tenant,
+        identifiers,
+      );
 
       if (cohortObjectIds.length === 0) {
         filter._id = { $in: [] };
@@ -255,6 +262,65 @@ const refreshSiteDataProvider = async (tenant, siteId) => {
 // preventing repeated credit burn on coordinates that consistently return nothing.
 // Reset to 0 whenever altitude is successfully written.
 const ALTITUDE_FAILURE_THRESHOLD = 3;
+
+// OpenRouteService is the open-source/free routing provider for trip
+// directions — chosen over Google Directions to avoid per-request billing.
+const OPENROUTESERVICE_DIRECTIONS_URL =
+  "https://api.openrouteservice.org/v2/directions/driving-car";
+
+// Mirrors the short "12 km" / "850 m" style Google Directions used to return,
+// since the mobile client's UI already expects a human-readable string here.
+const formatDirectionsDistanceText = (meters) => {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${(meters / 1000).toFixed(1)} km`;
+};
+
+// Mirrors Google's "28 mins" / "1 hour 5 mins" style duration text.
+const formatDirectionsDurationText = (seconds) => {
+  const totalMinutes = Math.round(seconds / 60);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} mins`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours} hour${hours > 1 ? "s" : ""} ${minutes} mins`;
+};
+
+// ORS returns raw [lng, lat] GeoJSON coordinates rather than a pre-encoded
+// polyline, so the backend encodes them itself using Google's standard
+// Encoded Polyline Algorithm Format (precision 1e5) — the exact format the
+// mobile client's existing polyline decoder already expects.
+const encodeDirectionsPolyline = (coordinates) => {
+  const encodeSignedNumber = (num) => {
+    let signedNum = num << 1;
+    if (num < 0) {
+      signedNum = ~signedNum;
+    }
+    let output = "";
+    let value = signedNum;
+    while (value >= 0x20) {
+      output += String.fromCharCode((0x20 | (value & 0x1f)) + 63);
+      value >>= 5;
+    }
+    output += String.fromCharCode(value + 63);
+    return output;
+  };
+
+  let output = "";
+  let prevLat = 0;
+  let prevLng = 0;
+  for (const [lng, lat] of coordinates) {
+    const lat5 = Math.round(lat * 1e5);
+    const lng5 = Math.round(lng * 1e5);
+    output += encodeSignedNumber(lat5 - prevLat);
+    output += encodeSignedNumber(lng5 - prevLng);
+    prevLat = lat5;
+    prevLng = lng5;
+  }
+  return output;
+};
 
 const createSite = {
   getSiteById: async (req, next) => {
@@ -2201,52 +2267,27 @@ const createSite = {
   },
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant } = {
+      let { radius, latitude, longitude, tenant, limit } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
-      const responseFromListSites = await createSite.listAirQoActive(
-        request,
+      const filter = generateFilter.sites(request, next);
+
+      const responseFromFindNearestSites = await SiteModel(
+        tenant,
+      ).findNearestSites(
+        {
+          longitude,
+          latitude,
+          radius,
+          filter,
+          limit,
+        },
         next,
       );
 
-      if (responseFromListSites.success === true) {
-        let sites = responseFromListSites.data;
-        let status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        let nearest_sites = [];
-        sites.forEach((site) => {
-          if ("latitude" in site && "longitude" in site) {
-            const distanceBetweenTwoPoints = distance.calculateDistance(
-              {
-                latitude1: latitude,
-                longitude1: longitude,
-                latitude2: site["latitude"],
-                longitude2: site["longitude"],
-              },
-              next,
-            );
-
-            if (distanceBetweenTwoPoints < radius) {
-              site["distance"] = distanceBetweenTwoPoints;
-              nearest_sites.push(site);
-            }
-          }
-        });
-
-        logObject("nearest_sites", nearest_sites);
-
-        return {
-          success: true,
-          data: nearest_sites,
-          message: "successfully retrieved the nearest sites",
-          status,
-        };
-      } else if (responseFromListSites.success === false) {
-        return responseFromListSites;
-      }
+      return responseFromFindNearestSites;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2278,6 +2319,118 @@ const createSite = {
         data: responseFromDistanceUtil,
         message: "successfully approximated the GPS coordinates",
       };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+  findRouteDirections: async (request, next) => {
+    try {
+      const {
+        origin_latitude,
+        origin_longitude,
+        destination_latitude,
+        destination_longitude,
+      } = request.body;
+
+      const orsApiKey = process.env.OPENROUTESERVICE_API_KEY;
+      if (!orsApiKey) {
+        logger.warn(
+          "findRouteDirections failed — OPENROUTESERVICE_API_KEY is not configured",
+        );
+        return {
+          success: false,
+          message: "unable to retrieve trip directions",
+          errors: { message: "Directions provider is not configured" },
+          status: httpStatus.SERVICE_UNAVAILABLE,
+        };
+      }
+
+      try {
+        const response = await axios.get(OPENROUTESERVICE_DIRECTIONS_URL, {
+          params: {
+            api_key: orsApiKey,
+            start: `${origin_longitude},${origin_latitude}`,
+            end: `${destination_longitude},${destination_latitude}`,
+          },
+          timeout: 10000, // milliseconds
+        });
+
+        const feature = response.data?.features?.[0];
+        const coordinates = feature?.geometry?.coordinates;
+        if (!feature || !Array.isArray(coordinates) || coordinates.length < 2) {
+          return {
+            success: true,
+            message: "no route was found between the given points",
+            data: { status: "ZERO_RESULTS", routes: [] },
+            status: httpStatus.OK,
+          };
+        }
+
+        const distanceMeters = feature.properties?.summary?.distance ?? 0;
+        const durationSeconds = feature.properties?.summary?.duration ?? 0;
+
+        return {
+          success: true,
+          message: "successfully retrieved trip directions",
+          data: {
+            status: "OK",
+            routes: [
+              {
+                overview_polyline: {
+                  points: encodeDirectionsPolyline(coordinates),
+                },
+                legs: [
+                  {
+                    distance: {
+                      text: formatDirectionsDistanceText(distanceMeters),
+                      value: distanceMeters,
+                    },
+                    duration: {
+                      text: formatDirectionsDurationText(durationSeconds),
+                      value: durationSeconds,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          status: httpStatus.OK,
+        };
+      } catch (e) {
+        // ORS returns 404 for a genuinely unroutable pair of points — that's
+        // a normal outcome the mobile client already knows how to explain to
+        // the user, not a provider failure.
+        if (e.response?.status === 404) {
+          return {
+            success: true,
+            message: "no route was found between the given points",
+            data: { status: "ZERO_RESULTS", routes: [] },
+            status: httpStatus.OK,
+          };
+        }
+
+        const safeError = {
+          code: e.code,
+          responseStatus: e.response?.status,
+          responseErrorCode: e.response?.data?.error?.code,
+        };
+        logger.warn(`findRouteDirections failed — ${JSON.stringify(safeError)}`);
+        return {
+          success: false,
+          message: "unable to retrieve trip directions",
+          errors: {
+            message: e.response?.data?.error?.message || e.message,
+          },
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2576,10 +2729,148 @@ const getMySites = async (request, next) => {
   }
 };
 
+// GET /sites/picker — the Nexus "Compare locations" site picker: paginated,
+// searchable, sortable, and scoped to a single group_id via the same
+// group -> cohort -> CohortSiteSnapshot -> site resolution getMySites uses
+// above (group_ids plural there vs. a single required group_id here, since
+// the picker is always scoped to the caller's one active group).
+const SITE_PICKER_SORT_FIELDS = {
+  location: "location_name",
+  city: "city",
+  country: "country",
+};
+
+const listForComparisonPicker = async (request, next) => {
+  try {
+    const { tenant } = request.query;
+    const {
+      group_id,
+      search,
+      sort_by = "location",
+      sort_order = "asc",
+    } = request.query;
+    const limit = Math.min(parseInt(request.query.limit, 10) || 6, 80);
+    const skip = Math.max(parseInt(request.query.skip, 10) || 0, 0);
+
+    const emptyResult = (message) => ({
+      success: true,
+      message,
+      data: [],
+      status: httpStatus.OK,
+      meta: {
+        total: 0,
+        total_pages: 0,
+        page: Math.floor(skip / limit) + 1,
+        skip,
+        limit,
+      },
+    });
+
+    // 1. Resolve group_id -> linked cohorts
+    const groupCohorts = await CohortModel(tenant)
+      .find({ grp_id: ObjectId(group_id) })
+      .select("_id")
+      .lean();
+    const cohortIds = groupCohorts.map((c) => c._id);
+
+    if (cohortIds.length === 0) {
+      return emptyResult("Sites retrieved successfully");
+    }
+
+    // 2. Resolve cohorts -> site_ids
+    const snapshots = await CohortSiteSnapshotModel(tenant)
+      .find({ cohort_id: { $in: cohortIds }, tenant })
+      .select("site_id")
+      .lean();
+    const siteIds = [
+      ...new Map(
+        snapshots.map((s) => [s.site_id.toString(), s.site_id]),
+      ).values(),
+    ];
+
+    if (siteIds.length === 0) {
+      return emptyResult("Sites retrieved successfully");
+    }
+
+    // 3. Paginated, searchable, sortable site fetch
+    const siteFilter = { _id: { $in: siteIds } };
+    const trimmedSearch = typeof search === "string" ? search.trim() : "";
+    if (!isEmpty(trimmedSearch)) {
+      const regex = new RegExp(
+        trimmedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i",
+      );
+      siteFilter.$or = [
+        { name: regex },
+        { location_name: regex },
+        { city: regex },
+        { country: regex },
+      ];
+    }
+
+    const sortField = SITE_PICKER_SORT_FIELDS[sort_by] || "location_name";
+    const sortDirection = sort_order === "desc" ? -1 : 1;
+
+    const [total, sites] = await Promise.all([
+      SiteModel(tenant).countDocuments(siteFilter),
+      SiteModel(tenant)
+        .find(siteFilter)
+        .select("name location_name city country latitude longitude")
+        .sort({ [sortField]: sortDirection })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const data = sites.map((site) => ({
+      id: site._id.toString(),
+      name: site.name || null,
+      location: site.location_name || null,
+      city: site.city || null,
+      country: site.country || null,
+      latitude: typeof site.latitude === "number" ? site.latitude : null,
+      longitude: typeof site.longitude === "number" ? site.longitude : null,
+    }));
+
+    return {
+      success: true,
+      message: "Sites retrieved successfully",
+      data,
+      status: httpStatus.OK,
+      meta: {
+        total,
+        total_pages: Math.ceil(total / limit),
+        page: Math.floor(skip / limit) + 1,
+        skip,
+        limit,
+      },
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- listForComparisonPicker: ${error.message}`);
+
+    if (error.name === "CastError") {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "group_id has an invalid format" },
+      };
+    }
+
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+
 module.exports = {
   ...createSite,
   getSiteCountSummary,
   computeSiteDataProvider,
   refreshSiteDataProvider,
   getMySites,
+  listForComparisonPicker,
 };

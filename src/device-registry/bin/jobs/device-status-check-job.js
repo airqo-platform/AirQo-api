@@ -16,7 +16,7 @@ const DUE_FOR_MAINTENANCE_DURATION = 86400 * 7; // 7 days
 const BATCH_SIZE = 100; // Process devices in batches for better memory management
 
 const JOB_NAME = "device-status-check-job";
-const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+const JOB_SCHEDULE = "7 */2 * * *"; // At minute 7 of every 2nd hour (staggered off :00, shared by several other every-2h jobs and the hourly device-status-hourly-check-job)
 
 const processDeviceBatch = async (devices) => {
   const metrics = {

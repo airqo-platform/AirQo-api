@@ -17,14 +17,13 @@ const {
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
 const analyticsMiddleware = require("@middleware/analytics");
+const { trackApiUsage } = require("@middleware/usage-tracker.middleware");
 
 const {
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
-  requireNetworkPermissions,
   requireGroupMembership,
-  requireNetworkMembership,
   debugPermissions,
 } = require("@middleware/permissionAuth");
 
@@ -155,11 +154,11 @@ router.put(
 
 /**
  * @route GET /api/v2/users/context-permissions
- * @desc Get user permissions in specific context (group/network)
+ * @desc Get user permissions in specific context (group)
  * @access Private
  * @query {string} [userId] - User ID (defaults to authenticated user)
- * @query {string} [contextId] - Context ID (group/network ID)
- * @query {string} [contextType] - Context type ('group' or 'network')
+ * @query {string} [contextId] - Context ID (group ID)
+ * @query {string} [contextType] - Context type ('group')
  */
 router.get(
   "/context-permissions",
@@ -183,6 +182,33 @@ router.get(
   "/profile/enhanced",
   enhancedJWTAuth,
   userController.getEnhancedProfile
+);
+
+/**
+ * @route GET /api/v3/users/known-devices
+ * @desc Get the authenticated user's known sign-in devices
+ * @access Private
+ */
+router.get(
+  "/known-devices",
+  enhancedJWTAuth,
+  userValidations.tenant,
+  validate,
+  userController.listKnownDevices
+);
+
+/**
+ * @route GET /api/v3/users/email-queue
+ * @desc Admin diagnostic view of the email queue (pending/processing/failed jobs)
+ * @access Private (SYSTEM_ADMIN)
+ */
+router.get(
+  "/email-queue",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listEmailQueue,
+  validate,
+  userController.listEmailQueue
 );
 
 // ================================
@@ -372,7 +398,14 @@ router.post(
   userController.emailAuth
 );
 
-router.post("/feedback", userValidations.feedback, userController.sendFeedback);
+router.post(
+  "/completeEmailLogin",
+  userValidations.completeEmailLogin,
+  userController.completeEmailLogin
+);
+
+// Decommissioned — responds 410 Gone. Use POST /feedback/submit.
+router.post("/feedback", userController.sendFeedback);
 
 router.post(
   "/firebase/lookup",
@@ -417,7 +450,7 @@ router.post(
   userController.verifyFirebaseCustomToken
 );
 
-router.post("/verify", enhancedJWTAuth, userController.verify);
+router.post("/verify", enhancedJWTAuth, trackApiUsage, userController.verify);
 
 router.get(
   "/combined",
@@ -428,6 +461,7 @@ router.get(
 
 router.get(
   "/verify/:user_id/:token",
+  rateLimiter.emailVerification,
   userValidations.verifyEmail,
   userController.verifyEmail
 );
@@ -474,6 +508,13 @@ router.post(
   "/reset-password-request",
   userValidations.resetPasswordRequest,
   userController.resetPasswordRequest
+);
+
+router.post(
+  "/check-email",
+  rateLimiter.login,
+  userValidations.checkEmail,
+  userController.checkEmail
 );
 
 router.post(

@@ -18,7 +18,7 @@ const NodeCache = require("node-cache");
 // Constants
 const TIMEZONE = moment.tz.guess();
 const JOB_NAME = "store-signals-job";
-const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+const JOB_SCHEDULE = "40 * * * *"; // At minute 40 of every hour (staggered off :30, which precompute-activities-job/store-readings-job also used)
 const FETCH_BATCH_SIZE = 200;
 const MAX_FETCH_ITERATIONS = 100; // safety limit for fetching
 const ACCEPTABLE_FAILURE_RATE = 0.05;

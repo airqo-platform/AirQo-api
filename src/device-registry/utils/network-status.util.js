@@ -9,6 +9,20 @@ const logger = log4js.getLogger(
 const { Kafka } = require("kafkajs");
 const isEmpty = require("is-empty");
 const moment = require("moment-timezone");
+const { resolveCohortObjectIds } = require("@utils/cohort.util");
+
+// cohort_breakdown.cohort_id is stored as a plain string (the cohort's
+// canonical ObjectId, written by the snapshot job) — resolve an incoming
+// ObjectId-or-cohort_slug filter value to that canonical string before
+// matching. Returns a sentinel that can never match a real record when the
+// identifier doesn't resolve to any cohort, so the query correctly comes
+// back empty instead of silently matching everything.
+const NO_MATCHING_COHORT = "__cohort_not_found__";
+const resolveCohortIdParam = async (tenant, cohortId) => {
+  if (!cohortId) return cohortId;
+  const { resolvedIds } = await resolveCohortObjectIds(tenant, [cohortId]);
+  return resolvedIds.length > 0 ? resolvedIds[0].toString() : NO_MATCHING_COHORT;
+};
 
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
@@ -152,8 +166,9 @@ const networkStatusUtil = {
       }
 
       if (cohort_id) {
+        const resolvedCohortId = await resolveCohortIdParam(tenant, cohort_id);
         filter.cohort_breakdown = {
-          $elemMatch: { cohort_id },
+          $elemMatch: { cohort_id: resolvedCohortId },
         };
       }
 
@@ -204,9 +219,10 @@ const networkStatusUtil = {
       }
 
       if (cohort_id) {
+        const resolvedCohortId = await resolveCohortIdParam(tenant, cohort_id);
         const response = await NetworkStatusAlertModel(
           tenant
-        ).getStatisticsByCohort({ filter, cohort_id }, next);
+        ).getStatisticsByCohort({ filter, cohort_id: resolvedCohortId }, next);
         return response;
       }
 
@@ -249,9 +265,10 @@ const networkStatusUtil = {
       }
 
       if (cohort_id) {
+        const resolvedCohortId = await resolveCohortIdParam(tenant, cohort_id);
         const response = await NetworkStatusAlertModel(
           tenant
-        ).getHourlyTrendsByCohort({ filter, cohort_id }, next);
+        ).getHourlyTrendsByCohort({ filter, cohort_id: resolvedCohortId }, next);
         return response;
       }
 
@@ -290,9 +307,10 @@ const networkStatusUtil = {
           },
         };
       } else if (cohort_id) {
+        const resolvedCohortId = await resolveCohortIdParam(tenant, cohort_id);
         filter.cohort_breakdown = {
           $elemMatch: {
-            cohort_id,
+            cohort_id: resolvedCohortId,
             not_transmitting_percentage: { $gte: 35 },
           },
         };
@@ -338,9 +356,10 @@ const networkStatusUtil = {
       }
 
       if (cohort_id) {
+        const resolvedCohortId = await resolveCohortIdParam(tenant, cohort_id);
         const response = await NetworkStatusAlertModel(
           tenant
-        ).getUptimeSummaryByCohort({ filter, cohort_id }, next);
+        ).getUptimeSummaryByCohort({ filter, cohort_id: resolvedCohortId }, next);
         return response;
       }
 

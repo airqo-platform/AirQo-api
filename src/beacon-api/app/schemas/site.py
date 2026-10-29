@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from app.schemas.device import MetaData
+from app.schemas.diagnostics import DeviceDiagnostics, DiagnosticsSummary
 
 
 class SiteDevice(BaseModel):
@@ -70,6 +71,11 @@ class SyncedSiteDevice(BaseModel):
     device_id: str
     device_name: Optional[str] = None
     is_active: bool = False
+    uptime: Optional[float] = None
+    data_completeness: Optional[float] = None
+    averages: Optional[Dict[str, Any]] = None
+    data: List[Dict[str, Any]] = []
+    diagnostics: Optional[DeviceDiagnostics] = None
 
 
 class SyncedSite(BaseModel):
@@ -90,6 +96,11 @@ class SyncedSite(BaseModel):
     site_codes: List[str] = []
     number_of_devices: int = 0
     devices: List[SyncedSiteDevice] = []
+    uptime: Optional[float] = None
+    data_completeness: Optional[float] = None
+    averages: Optional[Dict[str, Any]] = None
+    data: List[Dict[str, Any]] = []
+    diagnostics_summary: Optional[DiagnosticsSummary] = None
 
 
 class SyncedSiteResponse(BaseModel):

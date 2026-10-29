@@ -1,81 +1,321 @@
-from flask import request, jsonify, Response
-from typing import Any, Dict, List
-from datetime import datetime
+"""
+Grid and cohort air-quality report processing.
+
+Grids and cohorts share one pipeline; only membership resolution and the
+measurement filter column differ (see ``_ENTITY_KINDS``).
+
+Pipeline (both entity kinds):
+1. Resolve the entity to its members from BigQuery metadata — a grid to its
+   site IDs via grids_sites, a cohort to its device IDs via cohorts_devices
+   (``fetch_grid_sites`` / ``fetch_cohort_devices``, api/utils/pollutants/report.py).
+2. Optionally drop members marked private in the device registry
+   (``_screen_private_members``) — the public v3 path only.
+3. Query hourly consolidated PM data for those members from BigQuery
+   (``query_bigquery``, parameterized).
+4. Enrich into a DataFrame with date/hour/month breakdown columns
+   (``results_to_dataframe``).
+5. Aggregate with ``PManalysis`` and shape the response dict.
+
+Everything here is blocking I/O + pandas; callers on the event loop must run
+these via ``asyncio.to_thread`` (AirQualityReportService does).
+
+An entity that cannot be resolved and a window that holds no data are
+different outcomes and answer differently: the first is a 404, the second is a
+200 carrying the standard no-data message and empty aggregates, matching how
+every other endpoint answers an empty result.
+
+Raises:
+    ValueError: invalid date range (equal start/end, or span over the
+        MAX_AGGREGATION_QUERY_DAYS limit).
+    LookupError: no members found for the entity — mapped to HTTP 404 by the
+        service layer.
+    QueryTooLarge: window too wide to scan within the byte ceiling — mapped to
+        HTTP 400 by the service layer.
+    QueryTimedOut: query stopped at the job timeout — mapped to HTTP 400 by
+        the service layer.
+    QueryCancelled: query cancelled before it finished — mapped to HTTP 503 by
+        the service layer.
+    QueryForbidden: BigQuery refused the query with HTTP 403 — the service
+        layer answers it with HTTP 503 and a fixed message.
+    QueryRateLimited: BigQuery refused the query for rate — the service layer
+        answers it with HTTP 503 and the same fixed message.
+    PrivacyScreeningUnavailable: screening was requested and device-registry
+        could not be reached — mapped to HTTP 503 by the service layer.
+"""
+
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
+from config import settings
+from api.utils.data_formatters import filter_non_private_sites_devices
+from api.utils.exceptions import PrivacyScreeningUnavailable
+from api.utils.messages import no_data_message
 from api.utils.pollutants.report import (
-    fetch_air_quality_data,
+    PManalysis,
+    fetch_cohort_devices,
+    fetch_grid_sites,
     query_bigquery,
     results_to_dataframe,
-    PManalysis,
 )
 
 import logging
 
-logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
+logger = logging.getLogger(__name__)
 
 
-def air_quality_data() -> Response:
+def validate_dates(start: datetime, end: datetime) -> None:
     """
-    Fetch and process air quality data for a specified grid and time range.
+    Validate a reporting window.
 
-    This function:
-    1. Parses input JSON for grid_id, start_time, and end_time.
-    2. Validates the time range (must not exceed 12 months and start != end).
-    3. Fetches air quality site IDs for the given grid and timeframe.
-    4. Queries BigQuery for PM2.5 data for the selected sites.
-    5. Processes the results into various aggregated forms (daily, monthly, yearly, etc.).
-    6. Returns a structured JSON response with air quality statistics.
+    Rules:
+    - Start time cannot equal end time.
+    - The full span must not exceed MAX_AGGREGATION_QUERY_DAYS whole days.
 
-    **Request JSON Format**
-    {
-        "grid_id": "<grid_identifier>",
-        "start_time": "YYYY-MM-DDTHH:MM:SS",
-        "end_time": "YYYY-MM-DDTHH:MM:SS"
+    Raises:
+        ValueError: When either rule is violated.
+    """
+    if start == end:
+        raise ValueError("Start time and end time cannot be the same.")
+    max_days = settings.aggregation_query_days()
+    if end - start > timedelta(days=max_days):
+        raise ValueError(f"Time range must not exceed {max_days} days.")
+
+
+# Each entity kind differs only in how membership resolves and which column
+# the measurement query filters on; everything downstream is shared.
+#   id_column    -> the consolidated column those members match
+#   members_key  -> response key holding them ("sites" / "devices")
+#   member_ids_key / count_key -> the nested keys inside it
+_ENTITY_KINDS = {
+    "grid": {
+        "id_column": "site_id",
+        "id_key": "grid_id",
+        "members_key": "sites",
+        "member_ids_key": "site_ids",
+        "count_key": "number_of_sites",
+        "name_key": "grid name",
+        "missing": "No site IDs found for the given parameters.",
+    },
+    "cohort": {
+        "id_column": "device_id",
+        "id_key": "cohort_id",
+        "members_key": "devices",
+        "member_ids_key": "device_ids",
+        "count_key": "number_of_devices",
+        "name_key": "cohort name",
+        "missing": "No device IDs found for the given parameters.",
+    },
+}
+
+
+def _resolve_members(kind: str, entity_id: str) -> List[str]:
+    """
+    Membership lookup for one entity kind, or LookupError when empty.
+
+    Dispatched by name rather than held in _ENTITY_KINDS: a function object
+    stored in that dict would bind at import time, so the resolver could never
+    be substituted afterwards.
+    """
+    if kind == "grid":
+        members: List[str] = fetch_grid_sites(entity_id)
+    else:
+        members = fetch_cohort_devices(entity_id)
+    if not members:
+        raise LookupError(_ENTITY_KINDS[kind]["missing"])
+    return members
+
+
+def _screen_private_members(kind: str, members: List[str]) -> List[str]:
+    """
+    Drop members marked private in the device registry.
+
+    Applied on the public (v3) path only.  Screening happens here rather than
+    at the filter layer used by the download paths because those screen site
+    and device IDs, not the grids and cohorts that resolve to them — but once
+    membership *has* resolved, the list is exactly site IDs or device IDs,
+    which is what the registry screens.
+
+    Known limitation: this is all-or-nothing.  ``filter_non_private_sites_devices``
+    drops every entry marked private regardless of who is asking, so a user
+    requesting a report over their own grid does not see their own private
+    sites in it.  That is the wrong answer for them, and it is why this is
+    confined to v3 rather than applied everywhere.
+
+    The filter should take the requesting user into account: keep the private
+    entries that belong to the caller, drop the rest.  Two things are needed
+    before that can happen, and neither is local to this function:
+
+    * A caller identity reaching this far down.  ``optional_caller_id``
+      (api/dependencies.py) already resolves the gateway-asserted user, but the
+      report routes do not depend on it, and it returns None until
+      ``REQUIRE_GATEWAY_IDENTITY`` is switched on — so ownership is
+      unenforceable in the meantime, not merely unimplemented.
+    * A device-registry call that screens by owner rather than by flag.  The
+      current endpoints answer "which of these are public", not "which of these
+      may this user see".
+
+    Raises:
+        PrivacyScreeningUnavailable: the registry could not be reached or
+            answered with an error. Fail-closed on purpose; see the exception.
+    """
+    filter_type = "sites" if kind == "grid" else "device_ids"
+    result = filter_non_private_sites_devices(filter_type, members)
+    if not result or result.get("status") != "success":
+        logger.warning("Privacy screening failed for %s members", kind)
+        raise PrivacyScreeningUnavailable()
+    return result.get("data", []) or []
+
+
+def _members_block(kind: str, members: List[str], name: Any) -> Dict[str, Any]:
+    """The `sites`/`devices` block of the response for one entity kind."""
+    spec = _ENTITY_KINDS[kind]
+    return {
+        spec["members_key"]: {
+            spec["member_ids_key"]: members,
+            spec["count_key"]: len(members),
+            spec["name_key"]: name,
+        }
     }
 
-    **Response**
-    JSON containing:
-        - grid metadata
-        - time period
-        - various aggregated PM2.5 data (daily, hourly, monthly, yearly)
-        - site/city/country/region-level statistics
+
+# Every aggregate key the report emits. A no-data window returns all of them as
+# empty lists rather than omitting them, so a client can iterate any aggregate
+# without first checking the key exists. Kept in step with compute_pm_aggregates
+# by test_no_data_report_carries_every_aggregate_key.
+_AGGREGATE_KEYS = (
+    "daily_mean_pm",
+    "datetime_mean_pm",
+    "diurnal",
+    "annual_pm",
+    "monthly_pm",
+    "pm_by_month_year",
+    "pm_by_month_name",
+    "site_monthly_mean_pm",
+    "site_annual_mean_pm",
+    "site_mean_pm",
+    "mean_pm_by_city",
+    "mean_pm_by_country",
+    "mean_pm_by_region",
+    "mean_pm_by_day_of_week",
+    "mean_pm_by_day_hour",
+)
+
+
+def _report_envelope(
+    kind: str,
+    entity_id: str,
+    members: List[str],
+    name: Any,
+    start_time: datetime,
+    end_time: datetime,
+    aggregates: Dict[str, Any],
+    message: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Assemble the response body shared by the populated and no-data cases.
+
+    Both carry the same keys, so a client parses one shape either way; only
+    `message` and the contents of the aggregates differ.
+    """
+    spec = _ENTITY_KINDS[kind]
+    airquality: Dict[str, Any] = {"status": "success"}
+    if message:
+        airquality["message"] = message
+    airquality.update(
+        {
+            spec["id_key"]: entity_id,
+            **_members_block(kind, members, name),
+            "period": {
+                "startTime": start_time.isoformat(),
+                "endTime": end_time.isoformat(),
+            },
+            **aggregates,
+        }
+    )
+    return {"airquality": airquality}
+
+
+def build_entity_report(
+    kind: str,
+    entity_id: str,
+    start_time: datetime,
+    end_time: datetime,
+    screen_private: bool = False,
+) -> Dict[str, Any]:
+    """
+    Build the full air-quality report for a grid or cohort.
+
+    Args:
+        kind: "grid" or "cohort".
+        entity_id: The grid or cohort identifier.
+        start_time: Start of the reporting window.
+        end_time: End of the reporting window.
+        screen_private: Drop members marked private in the device registry.
+            Set on the public (v3) path; the internal path leaves it off.
 
     Returns:
-        flask.Response:
-            - 200 with structured air quality data (if successful)
-            - 400 for invalid time range or date format
-            - 404 if no site data is available
+        The ``{"airquality": {...}}`` response dict with daily/monthly/annual,
+        site/city/country/region-level PM aggregates (NaN already nullified).
+        A window holding no measurements returns the same shape with every
+        aggregate empty and a ``message`` naming the period.
+
+    Raises:
+        ValueError: Invalid date range.
+        LookupError: No members for the entity.
+        QueryTooLarge: Window too wide to scan within the byte ceiling.
+        QueryTimedOut: Query stopped at the job timeout.
+        QueryCancelled: Query cancelled before it finished.
+        QueryForbidden: BigQuery refused the query with HTTP 403.
+        QueryRateLimited: BigQuery refused the query for rate.
+        PrivacyScreeningUnavailable: Screening was requested and the registry
+            could not be reached.
     """
-    data: Dict[str, str] = request.get_json() or {}
-    grid_id: str = data.get("grid_id", "")
-    start_time_str: str = data.get("start_time", "")
-    end_time_str: str = data.get("end_time", "")
+    validate_dates(start_time, end_time)
+    spec = _ENTITY_KINDS[kind]
 
-    # Validate and parse time range
-    try:
-        start_time: datetime = datetime.fromisoformat(start_time_str)
-        end_time: datetime = datetime.fromisoformat(end_time_str)
-        validate_dates(start_time, end_time)
-    except ValueError as e:
-        logging.error("Invalid date format: %s", e)
-        return jsonify({"error": "Invalid date format"}), 400
+    members = _resolve_members(kind, entity_id)
 
-    # Fetch available site IDs for the requested grid & timeframe
-    site_ids: list[str] = fetch_air_quality_data(grid_id, start_time, end_time)
+    if screen_private:
+        # Screened after the LookupError above, deliberately. An entity with no
+        # members at all is a 404; an entity whose members are all private is a
+        # resolved entity with nothing to report, which is the same answer as a
+        # window holding no measurements — a 200 with empty aggregates.
+        members = _screen_private_members(kind, members)
+        if not members:
+            logger.info("Every member of %s %s is private", kind, entity_id)
+            return _report_envelope(
+                kind,
+                entity_id,
+                members,
+                [],
+                start_time,
+                end_time,
+                {key: [] for key in _AGGREGATE_KEYS},
+                message=no_data_message(start_time, end_time, f"{kind} {entity_id}"),
+            )
 
-    if not site_ids:
-        return jsonify({"message": "No site IDs found for the given parameters."}), 404
-
-    # Query BigQuery for raw air quality measurements
-    results: Any = query_bigquery(site_ids, start_time, end_time)
+    results = query_bigquery(members, start_time, end_time, id_column=spec["id_column"])
     if results is None:
-        return jsonify({"message": "No data available for the given time frame."}), 404
+        # The entity resolved and the query ran; the period simply holds no
+        # measurements. That is a valid request with an empty answer, so it
+        # returns a success body rather than the 404 an unresolvable entity
+        # gets.
+        logger.info("No air quality data for %s %s in the window", kind, entity_id)
+        return _report_envelope(
+            kind,
+            entity_id,
+            members,
+            [],
+            start_time,
+            end_time,
+            {key: [] for key in _AGGREGATE_KEYS},
+            message=no_data_message(start_time, end_time, f"{kind} {entity_id}"),
+        )
 
     processed_data = results_to_dataframe(results)
-
-    # ✅ Extracted helper function for all PM aggregations
-    aggregated_pm: Dict[str, Any] = compute_pm_aggregates(processed_data)
+    aggregated_pm = compute_pm_aggregates(processed_data)
 
     # Convert timestamps into human-readable formats
     aggregated_pm["daily_mean_pm"]["date"] = aggregated_pm["daily_mean_pm"][
@@ -85,124 +325,32 @@ def air_quality_data() -> Response:
         "timestamp"
     ].dt.strftime("%Y-%m-%d %H:%M %Z")
 
-    logging.info("Successfully processed air quality data for grid_id %s", grid_id)
+    logger.info("Successfully processed air quality data for %s %s", kind, entity_id)
 
-    # Build structured response
-    response_data: Dict[str, Any] = {
-        "airquality": {
-            "status": "success",
-            "grid_id": grid_id,
-            "sites": {
-                "site_ids": site_ids,
-                "number_of_sites": len(site_ids),
-                "grid name": aggregated_pm["grid_name"],
-            },
-            "period": {
-                "startTime": start_time.isoformat(),
-                "endTime": end_time.isoformat(),
-            },
-            **aggregated_pm["final_dict"],  # directly merge all computed aggregates
-        }
-    }
-
-    # Replace NaN with None for JSON serialization
-    return jsonify(replace_nan_with_null(response_data))
-
-
-def air_quality_data_diurnal() -> Response:
-    """
-    Fetch and process **diurnal (hourly)** air quality data for a specified grid and time range.
-
-    This function:
-    1. Parses input JSON for `grid_id`, `start_time`, and `end_time`.
-    2. Validates the time range:
-        - Start time cannot equal end time.
-        - Maximum range is 12 months.
-    3. Fetches available site IDs for the grid within the specified time frame.
-    4. Queries BigQuery for raw PM2.5 data for those sites.
-    5. Processes the results into **hourly/diurnal PM2.5 aggregates**.
-    6. Returns a structured JSON response with diurnal statistics.
-
-    **Request JSON Example**
-    ```json
-    {
-        "grid_id": "grid_123",
-        "start_time": "2024-01-01T00:00:00",
-        "end_time": "2024-02-01T00:00:00"
-    }
-    ```
-
-    **Response Example**
-    ```json
-    {
-        "airquality": {
-            "status": "success",
-            "grid_id": "grid_123",
-            "sites": {
-                "site_ids": ["site1", "site2"],
-                "number_of_sites": 2,
-                "grid name": "Example Grid"
-            },
-            "period": {
-                "startTime": "2024-01-01T00:00:00",
-                "endTime": "2024-02-01T00:00:00"
-            },
-            "diurnal": [... hourly mean PM2.5 data ...],
-            "mean_pm_by_day_hour": [... day-hour aggregated PM2.5 data ...]
-        }
-    }
-    ```
-
-    Returns:
-        Response:
-            - `200 OK` with JSON data containing diurnal PM2.5 statistics.
-            - `400 Bad Request` if the date format is invalid or the time range is invalid.
-            - `404 Not Found` if no site IDs or no data is available for the given parameters.
-    """
-    # ✅ Parse incoming JSON request safely
-    data: Dict[str, str] = request.get_json() or {}
-    grid_id: str = data.get("grid_id", "")
-    start_time_str: str = data.get("start_time", "")
-    end_time_str: str = data.get("end_time", "")
-
-    # ✅ Validate and parse time range
-    try:
-        start_time: datetime = datetime.fromisoformat(start_time_str)
-        end_time: datetime = datetime.fromisoformat(end_time_str)
-        validate_dates(start_time, end_time)
-
-    except ValueError as e:
-        logging.error("Invalid date format: %s", e)
-        return jsonify({"error": "Invalid date format"}), 400
-
-    # ✅ Fetch available site IDs for the requested grid & timeframe
-    site_ids: List[str] = fetch_air_quality_data(grid_id, start_time, end_time)
-
-    if not site_ids:
-        return jsonify({"message": "No site IDs found for the given parameters."}), 404
-
-    # ✅ Query BigQuery for raw air quality measurements
-    results: Any = query_bigquery(site_ids, start_time, end_time)
-    if results is None:
-        return jsonify({"message": "No data available for the given time frame."}), 404
-
-    processed_data = results_to_dataframe(results)
-    computed_data = compute_pm_aggregates_diurnal(
-        processed_data, start_time, end_time, grid_id, site_ids
+    return replace_nan_with_null(
+        _report_envelope(
+            kind,
+            entity_id,
+            members,
+            aggregated_pm["grid_name"],
+            start_time,
+            end_time,
+            aggregated_pm["final_dict"],
+        )
     )
-    response_data = replace_nan_with_null(computed_data)
-    return jsonify(response_data)
 
 
 def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
     """
-    Compute various PM2.5 aggregations for a given dataframe.
+    Compute the full set of PM2.5/PM10 aggregations for the standard report.
 
     Args:
-        processed_data: DataFrame containing air quality readings.
+        processed_data: DataFrame from ``results_to_dataframe``.
 
     Returns:
-        dict: A dictionary of all computed PM2.5 statistics, including daily, monthly, yearly, site-level, city-level, and region-level data.
+        dict with the two frames needing timestamp formatting
+        (``daily_mean_pm``, ``datetime_mean_pm``), the grid name, and
+        ``final_dict`` holding every aggregate as JSON-ready records.
     """
     daily_mean_pm2_5 = PManalysis.mean_daily_pm2_5(processed_data)
     datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
@@ -247,55 +395,15 @@ def compute_pm_aggregates(processed_data: Any) -> Dict[str, Any]:
     }
 
 
-def compute_pm_aggregates_diurnal(
-    processed_data: Any, start_time: datetime, end_time: datetime, grid_id, site_ids
-) -> Dict[str, Any]:
-    daily_mean_pm2_5 = PManalysis.mean_daily_pm2_5(processed_data)
-    datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
-    hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
-    mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
-    grid_name: str = PManalysis.gridname(processed_data)
-
-    # ✅ Convert timestamps into human-readable formats
-    daily_mean_pm2_5["date"] = daily_mean_pm2_5["date"].dt.strftime("%Y-%m-%d")
-    datetime_mean_pm2_5["timestamp"] = datetime_mean_pm2_5["timestamp"].dt.strftime(
-        "%Y-%m-%d %H:%M %Z"
-    )
-
-    logging.info(
-        "Successfully processed diurnal air quality data for grid_id %s", grid_id
-    )
-
-    # ✅ Prepare the JSON response
-    response_data: Dict[str, Any] = {
-        "airquality": {
-            "status": "success",
-            "grid_id": grid_id,
-            "sites": {
-                "site_ids": site_ids,
-                "number_of_sites": len(site_ids),
-                "grid name": grid_name,
-            },
-            "period": {
-                "startTime": start_time.isoformat(),
-                "endTime": end_time.isoformat(),
-            },
-            "diurnal": hour_mean_pm2_5.to_dict(orient="records"),
-            "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(orient="records"),
-        }
-    }
-    return response_data
-
-
 def replace_nan_with_null(obj: Any) -> Any:
     """
     Recursively replace NaN values with None for JSON serialization.
 
     Args:
-        obj: A nested list, dict, or primitive type.
+        obj: A nested list, dict, or primitive.
 
     Returns:
-        A structure with NaN replaced by None.
+        The same structure with every NaN replaced by None.
     """
     if isinstance(obj, list):
         return [replace_nan_with_null(item) for item in obj]
@@ -304,32 +412,3 @@ def replace_nan_with_null(obj: Any) -> Any:
     elif isinstance(obj, float) and np.isnan(obj):
         return None
     return obj
-
-
-def validate_dates(start: datetime, end: datetime) -> None:
-    """
-    Validate a start and end datetime for an API request.
-
-    Rules:
-    - Start time cannot equal end time.
-    - The date range must not exceed 12 months (365 days).
-
-    Args:
-        start (datetime): The start time.
-        end (datetime): The end time.
-
-    Returns:
-        Tuple[bool, Union[None, Response]]:
-            - (True, None) if the date range is valid.
-            - (False, Response) if invalid, with a Flask JSON error response.
-
-    Example:
-        >>> valid, error = validate_dates(dt1, dt2)
-        >>> if not valid:
-        >>>     return error
-    """
-    if start == end:
-        raise ValueError("error: Start time and end time cannot be the same.")
-
-    if (end - start).days > 365:
-        raise ValueError("error Time range exceeded 12 months")

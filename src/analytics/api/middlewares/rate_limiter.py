@@ -1,0 +1,375 @@
+import ipaddress
+import logging
+import time
+from typing import Callable, Dict, List, Optional, Tuple
+from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from config import settings
+from api.utils.cache import cache_incr
+
+logger = logging.getLogger(__name__)
+
+
+def _trusted_proxies() -> List[ipaddress._BaseNetwork]:
+    """Parse TRUSTED_PROXIES into networks, ignoring unparseable entries."""
+    networks = []
+    for entry in settings.trusted_proxies.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logger.warning("Ignoring unparseable TRUSTED_PROXIES entry: %s", entry)
+    return networks
+
+
+def _is_trusted_peer(peer: str) -> bool:
+    try:
+        address = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(address in network for network in _trusted_proxies())
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    Resolve the real client IP for rate-limit keying.
+
+    This service runs behind an API gateway, so request.client.host is the
+    gateway's address for every request — keying rate limits on it would
+    throttle all users as a single client.  The gateway appends the original
+    client to X-Forwarded-For.
+    """
+    peer = request.client.host if request.client else None
+
+    if peer and _is_trusted_peer(peer):
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            # Right-most entry the trusted hop appended is the one it observed;
+            # entries to its left may be forged by the client.
+            candidates = [p.strip() for p in forwarded.split(",") if p.strip()]
+            if candidates:
+                return candidates[-1]
+
+    return peer or "unknown"
+
+
+class RateLimiterMiddleware(BaseHTTPMiddleware):
+    """
+    Rate limiting middleware for FastAPI.
+
+    Counters live in Redis and are incremented atomically *before* the request
+    is handled, so concurrent bursts cannot all pass the check on a stale read.
+    """
+
+    def __init__(self, app: Callable, rate_limit: int = 100, window_seconds: int = 60):
+        """
+        Initialize the rate limiter middleware.
+
+        Args:
+            app: The FastAPI application
+            rate_limit: Maximum number of requests per window
+            window_seconds: Time window in seconds
+        """
+        super().__init__(app)
+        self.rate_limit = rate_limit
+        self.window_seconds = window_seconds
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    async def dispatch(self, request: Request, call_next):
+        """
+        Process the request and apply rate limiting.
+
+        Args:
+            request: The incoming request
+            call_next: The next middleware/route handler
+
+        Returns:
+            Response from the next handler or rate limit exceeded response
+        """
+        # Skip rate limiting for health checks and documentation
+        if self._should_skip_rate_limit(request):
+            return await call_next(request)
+
+        # Get client identifier (IP address for now)
+        client_id = self._get_client_identifier(request)
+
+        # Consume quota *before* handling the request. Incrementing afterwards
+        # meant N concurrent requests all read the same pre-increment value and
+        # were admitted together — exactly the burst the limit exists to stop,
+        # and each one a multi-second BigQuery job.
+        allowed = await self._consume_quota(client_id)
+
+        if not allowed:
+            self.logger.warning(f"Rate limit exceeded for client: {client_id}")
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "message": "Rate limit exceeded",
+                    "status": "error",
+                    "retry_after": self.window_seconds,
+                    "data": None,
+                    "metadata": None,
+                },
+                headers={"Retry-After": str(self.window_seconds)},
+            )
+
+        # Process the request
+        return await call_next(request)
+
+    def _should_skip_rate_limit(self, request: Request) -> bool:
+        """
+        Determine if rate limiting should be skipped for this request.
+
+        Args:
+            request: The incoming request
+
+        Returns:
+            True if rate limiting should be skipped
+        """
+        # Skip health checks (liveness and readiness probes)
+        if request.url.path in ("/health", "/health/ready"):
+            return True
+
+        # Skip documentation endpoints
+        if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            return True
+
+        # Skip OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return True
+
+        return False
+
+    def _get_client_identifier(self, request: Request) -> str:
+        """
+        Get a unique identifier for the client.
+
+        Args:
+            request: The incoming request
+
+        Returns:
+            Client identifier string
+        """
+        # Keyed on the forwarded client IP (see get_client_ip) — auth is
+        # handled upstream at the API gateway, so IP is the available identity.
+        return f"ip:{get_client_ip(request)}"
+
+    async def _consume_quota(self, client_id: str) -> bool:
+        """
+        Atomically consume one unit of the client's quota.
+
+        Args:
+            client_id: Unique client identifier
+
+        Returns:
+            True if the request is allowed, False if the limit is exceeded.
+        """
+        cache_key = f"{settings.cache_key_prefix}:ratelimit:{client_id}"
+        return await _consume(cache_key, self.rate_limit, self.window_seconds)
+
+
+class RateLimitExceeded(HTTPException):
+    """
+    This exception gives the 429 answer to a client that is over the
+    per-route limit.
+
+    RouteRateLimit raises it.  The answer carries the message "Rate limit
+    exceeded" and a Retry-After header that names the seconds to wait.
+    """
+
+    def __init__(self, retry_after: int = 60):
+        super().__init__(
+            status_code=429,
+            detail="Rate limit exceeded",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+# ---------------------------------------------------------------------------
+# In-process fallback, used only while Redis is unreachable.
+#
+# Counters live in this process, so the effective ceiling becomes roughly
+# (gunicorn workers x replicas) x the configured limit, and they reset on
+# restart. That is deliberately approximate: it keeps the API serving and
+# still bounds a runaway caller, which beats both 429-ing every request and
+# waving everything through unmetered.
+# ---------------------------------------------------------------------------
+
+_local_counters: Dict[str, Tuple[int, float]] = {}
+_local_prune_due = 0.0
+# None marks that no warning has been emitted yet.  time.monotonic() counts
+# from machine boot on Linux and from process start on macOS, so a numeric
+# starting value reads as "logged moments ago" whenever the clock is still
+# below _DEGRADED_LOG_INTERVAL, which holds the first warning back through the
+# first minute after boot.
+_degraded_logged_at: Optional[float] = None
+
+_PRUNE_INTERVAL = 60.0
+# Redis being down would otherwise log once per request.
+_DEGRADED_LOG_INTERVAL = 60.0
+
+
+def _prune_local(now: float) -> None:
+    """Drop expired windows so the dict cannot grow without bound."""
+    global _local_prune_due
+    if now < _local_prune_due:
+        return
+    _local_prune_due = now + _PRUNE_INTERVAL
+    for key, (_, expires_at) in list(_local_counters.items()):
+        if now >= expires_at:
+            del _local_counters[key]
+
+
+def _consume_locally(cache_key: str, limit: int, window_seconds: int) -> bool:
+    """Fixed-window counter held in this process. Returns False when exhausted."""
+    # monotonic: immune to wall-clock adjustments mid-window.
+    now = time.monotonic()
+    _prune_local(now)
+
+    count, expires_at = _local_counters.get(cache_key, (0, 0.0))
+    if now >= expires_at:
+        count, expires_at = 0, now + window_seconds
+
+    count += 1
+    _local_counters[cache_key] = (count, expires_at)
+    return count <= limit
+
+
+def _log_degraded() -> None:
+    """Warn that limiting is degraded, at most once a minute.
+
+    The first call always warns, whatever the monotonic clock reads.
+    """
+    global _degraded_logged_at
+    now = time.monotonic()
+    if (
+        _degraded_logged_at is None
+        or now - _degraded_logged_at >= _DEGRADED_LOG_INTERVAL
+    ):
+        _degraded_logged_at = now
+        logger.warning(
+            "Redis unavailable — rate limiting has fallen back to per-process "
+            "counters. Limits are now approximate (roughly workers x replicas "
+            "times the configured value) until Redis returns."
+        )
+
+
+async def _consume(cache_key: str, limit: int, window_seconds: int) -> bool:
+    """
+    Atomically consume one unit of quota. Returns False when exhausted.
+
+    Redis is the source of truth; `cache_incr` returns None when it is
+    unreachable, and that is treated as "unknown" rather than "under the
+    limit" — the request falls through to the in-process counter above.
+    """
+    count = await cache_incr(cache_key, window_seconds)
+
+    if count is None:
+        _log_degraded()
+        return _consume_locally(cache_key, limit, window_seconds)
+
+    return count <= limit
+
+
+async def _carries_cursor(request: Request) -> bool:
+    """
+    Report whether the JSON body of ``request`` holds a non-empty ``cursor``.
+
+    FastAPI reads the body of a route before it solves the route
+    dependencies, so this call reads the cached body.  An empty body or a
+    body outside JSON counts as a body without a cursor.
+    """
+    try:
+        body = await request.json()
+    except ValueError:
+        return False
+    cursor = body.get("cursor") if isinstance(body, dict) else None
+    return isinstance(cursor, str) and bool(cursor)
+
+
+class RouteRateLimit:
+    """
+    FastAPI dependency for per-route rate limiting.
+
+    Applies a stricter per-route limit on top of the global middleware,
+    keyed by route path + client IP so different routes have independent windows.
+
+    Each router declares the shared ``route_rate_limit`` instance below as a
+    router dependency, so every route it holds carries the limit once::
+
+        router = APIRouter(dependencies=[Depends(route_rate_limit)])
+
+    ``path_limits`` maps a path suffix to its own limit.  A route whose path
+    ends with the suffix takes that limit, and every other route takes
+    ``limit``.  One instance serves both, so each counted request takes one
+    unit from one counter.
+
+    ``paged_paths`` lists the path suffixes of the routes that page.  On
+    such a route, the limit counts the request that starts an export.  A
+    request whose body carries a non-empty ``cursor`` reads the next page of
+    the stored BigQuery result of that export, and it passes this limit.  The
+    global RateLimiterMiddleware limit counts every request.  An empty
+    cursor starts a new export, so it counts.
+    """
+
+    def __init__(
+        self,
+        limit: int = 10,
+        window: int = 60,
+        path_limits: Optional[Dict[str, int]] = None,
+        paged_paths: Tuple[str, ...] = (),
+    ):
+        self.limit = limit
+        self.window = window
+        self.path_limits = dict(path_limits or {})
+        self.paged_paths = tuple(paged_paths)
+
+    def limit_for(self, path: str) -> int:
+        """
+        Return the limit of the first suffix that ``path`` ends with, and
+        ``limit`` for every other path.
+        """
+        for suffix, limit in self.path_limits.items():
+            if path.endswith(suffix):
+                return limit
+        return self.limit
+
+    def is_paged(self, path: str) -> bool:
+        """Return True when ``path`` ends with one of ``paged_paths``."""
+        return path.endswith(self.paged_paths)
+
+    async def __call__(self, request: Request) -> None:
+        path = request.url.path
+        if self.is_paged(path) and await _carries_cursor(request):
+            return
+
+        cache_key = (
+            f"{settings.cache_key_prefix}:route_ratelimit:"
+            f"{path}:{get_client_ip(request)}"
+        )
+
+        if not await _consume(cache_key, self.limit_for(path), self.window):
+            raise RateLimitExceeded(retry_after=self.window)
+
+
+#: The limit that every router applies to each of its routes: 10 requests in
+#: 60 seconds for each route path and client IP, and 5 for the raw-data route
+#: of v2 and v3.  On the routes that page, the limit counts the request that
+#: starts an export, and the requests that carry a cursor pass it.  The global
+#: RateLimiterMiddleware limit counts every request.
+route_rate_limit = RouteRateLimit(
+    limit=10,
+    window=60,
+    path_limits={"/raw-data": 5},
+    paged_paths=(
+        "/data-download",
+        "/raw-data",
+        "/forecast-data",
+        "/chart/data",
+        "/chart/d3/data",
+    ),
+)

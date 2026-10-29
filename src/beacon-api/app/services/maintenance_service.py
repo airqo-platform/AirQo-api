@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 from app.services import cohort_service
 from app.utils.performance import PerformanceAnalysis
 from app.core.config import settings
-from app.crud.crud_sync_device_data import get_latest_raw_timestamps
+from app.crud.crud_sync_device_data import (
+    get_latest_raw_timestamps,
+    get_device_metrics_for_map_view,
+)
+from app.utils.networks import source_key_for_platform_device
 from app.db.session import SessionLocal
 from app.models.sync import SyncGrid, SyncGridSite, SyncDevice
 
@@ -178,12 +182,43 @@ async def get_map_view(
     local sync tables are the single source of truth.
     """
     _ = live  # kept for signature compatibility
-    cohorts = await _fetch_cohorts_with_performance(
-        token, days, tags=tags, paginate_all=True, include_device_data=True,
-        frequency=frequency,
-    )
+    start_dt, end_dt = _compute_date_range(days)
+    fetch_params: Dict[str, Any] = {}
+    if tags:
+        fetch_params["tags"] = ",".join(tags)
+
+    result = await cohort_service.get_all_cohorts_paginated(token, fetch_params)
+    if not result.get("success", True):
+        status_code = result.get("status_code", 400)
+        message = result.get("message", "Error fetching cohorts from platform")
+        logger.error(f"Failed to fetch paginated cohorts: {message}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status_code, detail=message)
+    cohorts = result.get("cohorts", [])
 
     device_map, name_to_channel = _build_map_view_devices(cohorts)
+
+    if name_to_channel:
+        session = SessionLocal()
+        try:
+            channel_metrics = get_device_metrics_for_map_view(
+                session,
+                channel_ids=name_to_channel.values(),
+                start=start_dt,
+                end=end_dt,
+                frequency=frequency,
+            )
+        finally:
+            session.close()
+
+        for d_name, ch_id in name_to_channel.items():
+            if d_name in device_map:
+                metrics = channel_metrics.get(ch_id)
+                if metrics:
+                    device_map[d_name]["uptime"] = sanitize_metric(metrics["uptime"])
+                    device_map[d_name]["data_completeness"] = sanitize_metric(metrics["data_completeness"])
+                    device_map[d_name]["error_margin"] = sanitize_metric(metrics["error_margin"])
+
     _override_last_active_from_local(device_map, name_to_channel)
 
     output = []
@@ -215,13 +250,25 @@ def get_synced_map_view(
     )
     cohorts = result.get("cohorts", [])
 
-    if cohorts:
-        cohort_service.apply_local_performance(
-            cohorts, db, start_dt, end_dt, frequency=frequency,
-        )
+    device_map, name_to_channel = _build_map_view_devices(cohorts, db=db)
 
-    device_map, name_to_channel = _build_map_view_devices(cohorts)
-    _override_last_active_from_local(device_map, name_to_channel)
+    if name_to_channel:
+        channel_metrics = get_device_metrics_for_map_view(
+            db,
+            channel_ids=name_to_channel.values(),
+            start=start_dt,
+            end=end_dt,
+            frequency=frequency,
+        )
+        for d_name, ch_id in name_to_channel.items():
+            if d_name in device_map:
+                metrics = channel_metrics.get(ch_id)
+                if metrics:
+                    device_map[d_name]["uptime"] = sanitize_metric(metrics["uptime"])
+                    device_map[d_name]["data_completeness"] = sanitize_metric(metrics["data_completeness"])
+                    device_map[d_name]["error_margin"] = sanitize_metric(metrics["error_margin"])
+
+    _override_last_active_from_local(device_map, name_to_channel, db=db)
 
     output = []
     for d in device_map.values():
@@ -234,6 +281,7 @@ def get_synced_map_view(
 
 def _build_map_view_devices(
     cohorts: List[Dict[str, Any]],
+    db: Optional[Any] = None,
 ) -> tuple:
     """Build the device_map + name->channel index from a list of cohorts."""
     device_map: Dict[str, Dict[str, Any]] = {}
@@ -253,9 +301,9 @@ def _build_map_view_devices(
 
             if d_name not in device_map:
                 device_map[d_name] = _make_map_view_entry(dev)
-                dn = dev.get("device_number")
-                if dn is not None:
-                    name_to_channel[d_name] = str(dn)
+                source_key = source_key_for_platform_device(dev)
+                if source_key:
+                    name_to_channel[d_name] = source_key
                 d_id = dev.get("_id")
                 if d_id:
                     name_to_device_id[d_name] = d_id
@@ -265,11 +313,14 @@ def _build_map_view_devices(
     # Link path: SyncDevice.site_id -> SyncGridSite.site_id -> SyncGrid
     if name_to_device_id:
         device_ids = list(set(name_to_device_id.values()))
-        db = SessionLocal()
-        try:
+        if db is not None:
             device_grids = _fetch_grids_by_device_ids(db, device_ids)
-        finally:
-            db.close()
+        else:
+            session = SessionLocal()
+            try:
+                device_grids = _fetch_grids_by_device_ids(session, device_ids)
+            finally:
+                session.close()
         for d_name, d_id in name_to_device_id.items():
             if d_name in device_map:
                 device_map[d_name]["grids"] = device_grids.get(d_id, [])
@@ -283,6 +334,7 @@ def _make_map_view_entry(dev: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "device_id": dev.get("_id", ""),
         "device_name": dev.get("name"),
+        "device_number": dev.get("device_number"),
         "latitude": dev.get("latitude"),
         "longitude": dev.get("longitude"),
         "last_active": dev.get("lastActive"),
@@ -297,16 +349,20 @@ def _make_map_view_entry(dev: Dict[str, Any]) -> Dict[str, Any]:
 def _override_last_active_from_local(
     device_map: Dict[str, Dict[str, Any]],
     name_to_channel: Dict[str, str],
+    db: Optional[Any] = None,
 ) -> None:
     """Replace last_active timestamps with the latest local raw record per channel."""
     if not name_to_channel:
         return
 
-    db = SessionLocal()
-    try:
+    if db is not None:
         latest_by_channel = get_latest_raw_timestamps(db, name_to_channel.values())
-    finally:
-        db.close()
+    else:
+        session = SessionLocal()
+        try:
+            latest_by_channel = get_latest_raw_timestamps(session, name_to_channel.values())
+        finally:
+            session.close()
 
     for d_name, ch_id in name_to_channel.items():
         ts = latest_by_channel.get(ch_id)
@@ -377,23 +433,28 @@ def _enrich_single_cohort(
         return False
 
 
-def _resolve_stream_last_active(dev: Dict[str, Any]) -> Optional[str]:
+def _resolve_stream_last_active(dev: Dict[str, Any], db: Optional[Any] = None) -> Optional[str]:
     """Return the latest raw timestamp for a device, falling back to lastActive."""
     last_active = dev.get("lastActive")
-    dn = dev.get("device_number")
-    if dn is None:
+    source_key = source_key_for_platform_device(dev)
+    if source_key is None:
         return last_active
 
-    db = SessionLocal()
-    try:
-        latest = get_latest_raw_timestamps(db, [str(dn)])
-    finally:
-        db.close()
-    ts = latest.get(str(dn))
+    if db is not None:
+        latest = get_latest_raw_timestamps(db, [source_key])
+    else:
+        session = SessionLocal()
+        try:
+            latest = get_latest_raw_timestamps(session, [source_key])
+        finally:
+            session.close()
+    ts = latest.get(source_key)
     return ts.isoformat() if ts is not None else last_active
 
 
-def _build_stream_device_event(dev: Dict[str, Any], cohort_name: str) -> Dict[str, Any]:
+def _build_stream_device_event(
+    dev: Dict[str, Any], cohort_name: str, db: Optional[Any] = None
+) -> Dict[str, Any]:
     """Build an SSE 'device' event payload for a freshly-seen device."""
     err = _error_margin_from_averages(dev.get("averages") or {})
     return {
@@ -401,9 +462,10 @@ def _build_stream_device_event(dev: Dict[str, Any], cohort_name: str) -> Dict[st
         "data": {
             "device_id": dev.get("_id", ""),
             "device_name": dev.get("name"),
+            "device_number": dev.get("device_number"),
             "latitude": dev.get("latitude"),
             "longitude": dev.get("longitude"),
-            "last_active": _resolve_stream_last_active(dev),
+            "last_active": _resolve_stream_last_active(dev, db=db),
             "uptime": sanitize_metric(dev.get("uptime")),
             "data_completeness": sanitize_metric(dev.get("data_completeness")),
             "error_margin": sanitize_metric(err),

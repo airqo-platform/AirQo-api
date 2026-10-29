@@ -14,7 +14,7 @@ const { logObject, logText } = require("@utils/shared");
 const TIMEZONE = moment.tz.guess();
 
 const JOB_NAME = "network-uptime-analysis-job";
-const JOB_SCHEDULE = "0 0 * * *"; // At midnight every day
+const JOB_SCHEDULE = "42 0 * * *"; // At 00:42 daily (staggered off :00, shared by many other midnight-running jobs and the hourly device-status-hourly-check-job)
 
 class NetworkUptimeAnalysis {
   constructor() {
@@ -109,6 +109,7 @@ class NetworkUptimeAnalysis {
       const deviceUptimeData = {
         created_at: new Date(),
         device_name: device.name,
+        network: device.network,
         uptime: uptimePercentage,
         downtime: downtimePercentage,
         battery_voltage: avgBatteryVoltage,

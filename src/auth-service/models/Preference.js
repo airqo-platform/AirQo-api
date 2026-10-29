@@ -25,14 +25,60 @@ const { logObject, HttpError } = require("@utils/shared");
 const chartConfigSchema = new Schema({
   fieldId: { type: Number, required: true, min: 1, max: 8 }, // ThingSpeak field ID
   title: { type: String, default: "Chart Title" },
+  subTitle: { type: String },
+  // Which specific devices/sites this individual chart is about — lets one
+  // chart compare multiple locations (e.g. Kampala + Jinja together), same
+  // sites[]/devices[] flexibility the old, deprecated Defaults model had.
+  device_ids: [{ type: ObjectId, ref: "device" }],
+  site_ids: [{ type: ObjectId, ref: "site" }],
+  // Optional display-name snapshot for the ids above, stored and returned
+  // verbatim as sent by the client so the frontend can render chart labels
+  // without a separate fleet-wide name-resolution call. Not kept in sync if
+  // the underlying site/device is renamed later — a deliberate snapshot,
+  // not a live reference.
+  sites: [
+    {
+      site_id: { type: ObjectId, ref: "site", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
+      _id: false,
+    },
+  ],
+  devices: [
+    {
+      device_id: { type: ObjectId, ref: "device", required: true },
+      name: { type: String, required: true, trim: true, maxlength: 200 },
+      _id: false,
+    },
+  ],
+  // Optional per-location color override for the ids selected above (e.g.
+  // Kampala in red, Jinja in yellow) — falls back to the chart-wide `color`
+  // below when a selected location has no entry here.
+  locationColors: [
+    {
+      id: { type: ObjectId, required: true },
+      color: { type: String, required: true },
+      _id: false,
+    },
+  ],
   xAxisLabel: { type: String, default: "Time" },
   yAxisLabel: { type: String, default: "Value" },
   color: { type: String, default: "#d62020" },
   backgroundColor: { type: String, default: "#ffffff" },
   chartType: {
     type: String,
-    enum: ["Column", "Line", "Bar", "Spline", "Step"],
-    default: "line",
+    enum: [
+      "Column",
+      "Line",
+      "Bar",
+      "Spline",
+      "Step",
+      "Area",
+      "Scatter",
+      "Bubble",
+      "Heatmap",
+      "Pie",
+    ],
+    default: "Line",
   },
   days: { type: Number, default: 1 },
   results: { type: Number, default: 20 },
@@ -97,6 +143,32 @@ const chartConfigSchema = new Schema({
   ],
   isPublic: { type: Boolean, default: false },
   refreshInterval: { type: Number, default: 0 }, // 0 means no auto-refresh, value in seconds
+});
+
+// A locationColors entry only makes sense for an id the chart is actually
+// scoped to — otherwise it's a color assigned to a location this chart
+// never shows, which is silently confusing rather than a real config.
+chartConfigSchema.pre("validate", function(next) {
+  if (isEmpty(this.locationColors)) return next();
+
+  const selectedIds = new Set(
+    [...(this.device_ids || []), ...(this.site_ids || [])].map((id) =>
+      id.toString()
+    )
+  );
+  const unknownEntry = this.locationColors.find(
+    (entry) => !entry.id || !selectedIds.has(entry.id.toString())
+  );
+
+  if (unknownEntry) {
+    return next(
+      new Error(
+        `locationColors references id ${unknownEntry.id} which isn't in this chart's device_ids or site_ids`
+      )
+    );
+  }
+
+  next();
 });
 
 const periodSchema = new mongoose.Schema(
@@ -295,17 +367,6 @@ const PreferenceSchema = new mongoose.Schema(
         ref: "cohort",
       },
     ],
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-    },
-    network_ids: [
-      {
-        type: ObjectId,
-        ref: "network",
-      },
-    ],
     group_id: {
       type: ObjectId,
       ref: "group",
@@ -424,7 +485,6 @@ PreferenceSchema.pre(
         "airqloud_ids",
         "grid_ids",
         "cohort_ids",
-        "network_ids",
         "site_ids",
         "device_ids",
         "group_ids",
@@ -483,9 +543,7 @@ PreferenceSchema.methods = {
       chartSubTitle: this.chartSubTitle,
       site_ids: this.site_ids,
       device_ids: this.device_ids,
-      network_id: this.network_id,
       group_id: this.group_id,
-      network_ids: this.network_ids,
       group_ids: this.group_ids,
       period: this.period,
       createdAt: this.createdAt,
@@ -538,8 +596,30 @@ PreferenceSchema.statics = {
       }
     } catch (err) {
       logObject("error in the object", err);
-      logger.error(`Data conflicts detected -- ${err.message}`);
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      if (err.code === 11000 || err.code === 11001) {
+        logger.error(`Data conflicts detected -- ${err.message}`);
+        const response = createErrorResponse(err, "create", logger, "preference");
+        // Every user already has (or will very quickly get) a preference
+        // doc for a given (user_id, group_id) pair — that's the norm here,
+        // not an edge case, so a plain create() on this endpoint fails for
+        // almost every caller after the first. POST /upsert is the endpoint
+        // meant to be called repeatedly; surface that directly instead of
+        // leaving the caller to guess why "create" doesn't work the second
+        // time. Gated on the actual conflicting index (via MongoDB's own
+        // keyPattern) rather than assumed for every duplicate-key error —
+        // this schema only has the one unique index today, but checking
+        // keeps the hint from becoming misleading if that ever changes.
+        if (err.keyPattern && err.keyPattern.user_id && err.keyPattern.group_id) {
+          response.errors = {
+            ...response.errors,
+            hint:
+              "A preference for this user_id/group_id combination already exists. Use POST /upsert instead of POST / for anything other than a first-time create.",
+          };
+        }
+        return response;
+      } else {
+        logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      }
       return createErrorResponse(err, "create", logger, "preference");
     }
   },
@@ -657,7 +737,6 @@ PreferenceSchema.statics = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -784,5 +863,10 @@ const PreferenceModel = (tenant) => {
     return preferences;
   }
 };
+
+// Attached to the export (not a named export — PreferenceModel itself is a
+// function) so GroupChartConfig.js can reuse the exact same chart field
+// definitions/validation instead of duplicating ~90 lines of schema.
+PreferenceModel.chartConfigSchema = chartConfigSchema;
 
 module.exports = PreferenceModel;

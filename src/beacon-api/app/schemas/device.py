@@ -1,9 +1,11 @@
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Optional, Union, Dict, Any
 
 class DeviceBase(BaseModel):
     device_id: str
     network_id: Optional[str] = None
+    profile_id: Optional[Union[UUID, str]] = None
     current_firmware: Optional[str] = None
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False
@@ -13,8 +15,9 @@ class DeviceBase(BaseModel):
     readKey: Optional[str] = None
 
 class DeviceBeaconData(BaseModel):
-    network_id: Optional[str] = None
+    network_id: Optional[str] = None   # sensor manufacturer / network (airqo, airgradient, ...)
     site_id: Optional[str] = None
+    profile_id: Optional[Union[UUID, str]] = None
     current_firmware: Optional[str] = None
     previous_firmware: Optional[str] = None
     file_upload_state: Optional[bool] = False
@@ -22,6 +25,12 @@ class DeviceBeaconData(BaseModel):
     device_number: Optional[int] = None
     writeKey: Optional[str] = None
     readKey: Optional[str] = None
+    status: Optional[str] = None
+    # Non-airqo manufacturers identify devices by serial number + manufacturer API URL.
+    serial_number: Optional[str] = None
+    api_code: Optional[str] = None
+    auth_required: Optional[bool] = None
+    data_source: Optional[str] = None  # thingspeak | external_api | none
 
 class DeviceCategory(BaseModel):
     level: str

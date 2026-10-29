@@ -23,6 +23,7 @@ const httpStatus = require("http-status");
 
 const transactions = require("@utils/transaction.util");
 const paddleConfig  = require("@config/paddle");
+const constants = require("@config/constants");
 
 // ── Scope / rate-limit constants mirrored from transaction.util.js ────────────
 const FREE_SCOPES = [
@@ -767,9 +768,133 @@ describe("transactions.getSubscriptionStatus", () => {
   });
 });
 
+describe("Paddle 'forbidden' errors on subscription endpoints", () => {
+  let localTransactions;
+  let localPaddleClient;
+  let opsLoggerErrorStub;
+  let shouldAlertStub;
+  let originalPremiumPriceId;
+
+  const forbiddenError = () =>
+    Object.assign(new Error("You aren't permitted to perform this request."), {
+      type: "request_error",
+      code: "forbidden",
+    });
+
+  const mockRequest = (body = {}) => ({
+    user: { _id: "user123" },
+    query: { tenant: "airqo" },
+    body,
+  });
+
+  before(() => {
+    // Intercept loggers before transaction.util.js binds opsLogger at load time.
+    const log4js = require("log4js");
+    const fakeLogger = { error: sinon.stub(), info: () => {}, warn: () => {} };
+    opsLoggerErrorStub = fakeLogger.error;
+
+    const getLoggerStub = sinon.stub(log4js, "getLogger").callsFake(() => fakeLogger);
+    delete require.cache[require.resolve("@config/paddle")];
+    delete require.cache[require.resolve("@utils/transaction.util")];
+    localTransactions = require("@utils/transaction.util");
+    localPaddleClient = require("@config/paddle").paddleClient;
+    getLoggerStub.restore();
+  });
+
+  beforeEach(() => {
+    sinon.restore();
+    opsLoggerErrorStub.resetHistory();
+
+    const UserModel = require("@models/User");
+    sinon.stub(UserModel("airqo"), "findById").returns({
+      select: sinon.stub().returns({
+        lean: sinon.stub().resolves({
+          _id: "user123",
+          currentSubscriptionId: "sub_forbidden",
+          subscriptionTier: "Standard",
+        }),
+      }),
+    });
+
+    const {
+      opsAlertDeduplicator,
+    } = require("@utils/common/ops-alert-dedup.util");
+    shouldAlertStub = sinon.stub(opsAlertDeduplicator, "shouldAlert").resolves(true);
+
+    originalPremiumPriceId = constants.PADDLE_PREMIUM_PRICE_ID;
+    constants.PADDLE_PREMIUM_PRICE_ID = "pri_premium_test";
+  });
+
+  afterEach(() => {
+    sinon.restore();
+    constants.PADDLE_PREMIUM_PRICE_ID = originalPremiumPriceId;
+  });
+
+  it("getSubscriptionStatus returns 503 with a clear message instead of 500", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    const result = await localTransactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    expect(result.success).to.equal(false);
+    expect(result.message).to.equal("The payment provider rejected this request");
+  });
+
+  it("changeSubscriptionTier returns 503 with a clear message instead of 500", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "update").rejects(forbiddenError());
+
+    const result = await localTransactions.changeSubscriptionTier(
+      mockRequest({ tier: "Premium" }),
+    );
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    expect(result.success).to.equal(false);
+    expect(result.message).to.equal("The payment provider rejected this request");
+  });
+
+  it("sends one PADDLE_REQUEST_FORBIDDEN ops alert keyed on the operation", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    await localTransactions.getSubscriptionStatus(mockRequest());
+
+    sinon.assert.calledWith(shouldAlertStub, "paddle-forbidden:subscriptions.get");
+    const alertCalls = opsLoggerErrorStub
+      .getCalls()
+      .filter((c) => c.args[0] === "PADDLE_REQUEST_FORBIDDEN");
+    expect(alertCalls).to.have.lengthOf(1);
+    expect(alertCalls[0].args[1].environment).to.equal(constants.ENVIRONMENT);
+  });
+
+  it("suppresses the ops alert while the cooldown is active", async () => {
+    shouldAlertStub.resolves(false);
+    sinon.stub(localPaddleClient.subscriptions, "get").rejects(forbiddenError());
+
+    const result = await localTransactions.getSubscriptionStatus(mockRequest());
+
+    expect(result.status).to.equal(httpStatus.SERVICE_UNAVAILABLE);
+    const alertCalls = opsLoggerErrorStub
+      .getCalls()
+      .filter((c) => c.args[0] === "PADDLE_REQUEST_FORBIDDEN");
+    expect(alertCalls).to.have.lengthOf(0);
+  });
+
+  it("still returns 500 for other Paddle errors", async () => {
+    sinon.stub(localPaddleClient.subscriptions, "update").rejects(new Error("Paddle API down"));
+
+    const result = await localTransactions.changeSubscriptionTier(
+      mockRequest({ tier: "Premium" }),
+    );
+
+    expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    expect(result.message).to.equal("Failed to change subscription tier");
+    sinon.assert.notCalled(shouldAlertStub);
+  });
+});
+
 describe("transactions.notifyAdminOfTransactionError", () => {
   let localTransactions;
   let opsLoggerErrorStub;
+  let shouldAlertStub;
 
   before(() => {
     // log4js.getLogger returns a new object per call, so we must intercept it
@@ -782,13 +907,26 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     delete require.cache[require.resolve("@utils/transaction.util")];
     localTransactions = require("@utils/transaction.util");
     getLoggerStub.restore();
+
+    // Same module instance transaction.util.js imports — stubbing it here
+    // reaches the code under test without touching MongoDB.
+    const {
+      opsAlertDeduplicator,
+    } = require("@utils/common/ops-alert-dedup.util");
+    shouldAlertStub = sinon.stub(opsAlertDeduplicator, "shouldAlert");
+  });
+
+  after(() => {
+    shouldAlertStub.restore();
   });
 
   afterEach(() => {
     opsLoggerErrorStub.resetHistory();
+    shouldAlertStub.reset();
   });
 
-  it("logs TRANSACTION_COMPLETION_FAILED with message and transactionId via opsLogger", async () => {
+  it("logs TRANSACTION_COMPLETION_FAILED with environment, message and transactionId via opsLogger", async () => {
+    shouldAlertStub.resolves(true);
     const error = new Error("Payment gateway timeout");
     const eventData = { id: "txn_abc123", customer_id: "cust_xyz" };
 
@@ -798,16 +936,108 @@ describe("transactions.notifyAdminOfTransactionError", () => {
     const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
     expect(errorType).to.equal("TRANSACTION_COMPLETION_FAILED");
     expect(payload).to.deep.equal({
+      environment: constants.ENVIRONMENT,
       message: "Payment gateway timeout",
       transactionId: "txn_abc123",
     });
   });
 
+  it("logs under the given alert type when one is passed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_declined", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_declined"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+
+    sinon.assert.calledOnce(opsLoggerErrorStub);
+    const [errorType, payload] = opsLoggerErrorStub.firstCall.args;
+    expect(errorType).to.equal("TRANSACTION_PAYMENT_FAILED");
+    expect(payload.environment).to.equal(constants.ENVIRONMENT);
+  });
+
   it("uses undefined transactionId when eventData is absent", async () => {
+    shouldAlertStub.resolves(true);
+
     await localTransactions.notifyAdminOfTransactionError(new Error("Unknown failure"), undefined);
 
     sinon.assert.calledOnce(opsLoggerErrorStub);
     const [, payload] = opsLoggerErrorStub.firstCall.args;
     expect(payload.transactionId).to.be.undefined;
+  });
+
+  it("suppresses the alert when the same transaction was already alerted on recently", async () => {
+    shouldAlertStub.resolves(false);
+    const error = new Error("Payment gateway timeout");
+    const eventData = { id: "txn_repeat", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(error, eventData);
+
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_repeat",
+    );
+    sinon.assert.notCalled(opsLoggerErrorStub);
+  });
+
+  it("keys the cooldown on alert type so different alerts for one transaction are not suppressed", async () => {
+    shouldAlertStub.resolves(true);
+    const eventData = { id: "txn_both", customer_id: "cust_xyz" };
+
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Payment failed for transaction txn_both"),
+      eventData,
+      "airqo",
+      "TRANSACTION_PAYMENT_FAILED",
+    );
+    await localTransactions.notifyAdminOfTransactionError(
+      new Error("Registration failed"),
+      eventData,
+      "airqo",
+    );
+
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_PAYMENT_FAILED:txn_both",
+    );
+    sinon.assert.calledWith(
+      shouldAlertStub,
+      "transaction-error:TRANSACTION_COMPLETION_FAILED:txn_both",
+    );
+  });
+});
+
+describe("transactions.handleFailedTransaction", () => {
+  let notifyStub;
+
+  beforeEach(() => {
+    notifyStub = sinon
+      .stub(transactions, "notifyAdminOfTransactionError")
+      .resolves();
+  });
+
+  afterEach(() => {
+    notifyStub.restore();
+  });
+
+  it("raises a TRANSACTION_PAYMENT_FAILED alert for a declined payment", async () => {
+    const eventData = {
+      id: "txn_declined",
+      customer_id: "ctm_123",
+      total: 50,
+      currency: "USD",
+    };
+
+    await transactions.handleFailedTransaction(eventData, "airqo");
+
+    sinon.assert.calledOnce(notifyStub);
+    const [error, passedEventData, tenant, alertType] = notifyStub.firstCall.args;
+    expect(error.message).to.equal("Payment failed for transaction txn_declined");
+    expect(passedEventData).to.equal(eventData);
+    expect(tenant).to.equal("airqo");
+    expect(alertType).to.equal("TRANSACTION_PAYMENT_FAILED");
   });
 });

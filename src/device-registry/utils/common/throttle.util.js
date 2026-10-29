@@ -1,4 +1,5 @@
 const QueryThrottleModel = require("@models/QueryThrottle");
+const RateLimitEventModel = require("@models/RateLimitEvent");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- throttle-util`);
@@ -72,6 +73,22 @@ const throttleUtil = {
     } catch (error) {
       logger.error(`Error setting tracker: ${error.message}`);
       return false;
+    }
+  },
+
+  // Persists a rate-limit event for the daily digest job. Fire-and-forget:
+  // never throws, so a logging failure can't affect the request path.
+  logRateLimitEvent: async (eventType, clientId, extra = {}, tenant = "airqo") => {
+    try {
+      await RateLimitEventModel(tenant).recordEvent({
+        eventType,
+        clientId,
+        tenant,
+        timestamp: new Date(),
+        ...extra,
+      });
+    } catch (error) {
+      logger.error(`Error logging rate limit event: ${error.message}`);
     }
   },
 

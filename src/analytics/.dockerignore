@@ -1,9 +1,31 @@
-analytics_env/
+# Secrets — must never reach an image layer
+**/.env
+**/.env.*
+google_application_credentials.json
+*-service-account*.json
+jobs/reports/airqo-250220-*.json
+
+# Local scratch — captured BigQuery/API response dumps (~1.5MB, not runtime input)
+file*.json
+
+# Separate image (jobs/reports has its own Dockerfile/context)
+jobs/
+
+# Local state / caches — **/ so nested directories match too
+# (.dockerignore patterns are anchored; bare names only match at the root)
+**/__pycache__/
+**/.pytest_cache/
+logs/
+**/*.log
+**/*.log.*
+.DS_Store
 .vscode
-__pycache__/
-testing.env
+venv/
 env/
 
-.DS_Store
-*.db
-venv/
+# Not needed at runtime (schemas/files/*.json ARE needed — keep them)
+tests/
+*.md
+MANIFEST.in
+.dockerignore
+Dockerfile

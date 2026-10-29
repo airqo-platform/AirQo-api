@@ -1,6 +1,7 @@
 const GridModel = require("@models/Grid");
 const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
+const { resolveCohortObjectIds } = require("@utils/cohort.util");
 const ComputedCacheModel = require("@models/ComputedCache");
 const LRUCache = require("lru-cache");
 const qs = require("qs");
@@ -415,12 +416,16 @@ function filterOutPrivateIDs(privateIds, randomIds) {
 const getSiteIdsFromCohort = async (tenant, cohort_id) => {
   try {
     const cohortIdArray = Array.isArray(cohort_id)
-      ? cohort_id
-      : cohort_id.split(",").map((id) => id.trim());
+      ? cohort_id.map((id) => String(id).trim().toLowerCase())
+      : cohort_id.split(",").map((id) => id.trim().toLowerCase());
+
+    // cohortIdArray may be a mix of ObjectIds and cohort_slugs — resolve to
+    // canonical ObjectIds before matching Device.cohorts (an ObjectId array).
+    const { resolvedIds } = await resolveCohortObjectIds(tenant, cohortIdArray);
 
     const devicesInCohort = await DeviceModel(tenant)
       .find({
-        cohorts: { $in: cohortIdArray },
+        cohorts: { $in: resolvedIds },
         site_id: { $ne: null },
       })
       .distinct("site_id");

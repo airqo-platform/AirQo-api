@@ -3,27 +3,174 @@ const UserModel = require("@models/User");
 const crypto = require("crypto");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
-const NetworkModel = require("@models/Network");
 const isEmpty = require("is-empty");
+const validator = require("validator");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { mailer, generateFilter } = require("@utils/common");
+const { mailer, generateFilter, ActivityLogger } = require("@utils/common");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`,
 );
-const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
+const RoleModel = require("@models/Role");
+const RBACService = require("@services/rbac.service");
 const { logObject, HttpError, logText } = require("@utils/shared");
+const notificationUtil = require("@utils/notification.util");
+const rolePermissionsUtil = require("@utils/role-permissions.util");
+const {
+  opsAlertDeduplicator,
+} = require("@utils/common/ops-alert-dedup.util");
+// "ops-alerts" forwards WARN+ to Slack; see config/log4js.js.
+const opsLogger = require("log4js").getLogger("ops-alerts");
+
+// In-app notifications are best-effort and fire-and-forget: notifyUsers never
+// throws, and nothing here is awaited, so the access-request flow is never
+// slowed or broken by them.
+const notifyAccessRequestOutcome = (
+  tenant,
+  accessRequest,
+  outcome,
+  user_id = accessRequest.user_id,
+) => {
+  if (!user_id || accessRequest.requestType !== "group") {
+    return;
+  }
+  (async () => {
+    const group = await GroupModel(tenant)
+      .findById(accessRequest.targetId)
+      .select("grp_title")
+      .lean();
+    const groupTitle = (group && group.grp_title) || "the organization";
+    const approved = outcome === "approved";
+    await notificationUtil.notifyUsers({
+      tenant,
+      user_ids: [user_id],
+      category: "access_request",
+      event: `access_request.${outcome}`,
+      title: approved ? "Access request approved" : "Access request declined",
+      message: approved
+        ? `Your request to join ${groupTitle} has been approved. You now have access to the organization.`
+        : `Your request to join ${groupTitle} was not approved.`,
+      group_id: accessRequest.targetId,
+      metadata: { request_id: accessRequest._id },
+    });
+  })().catch((error) =>
+    logger.error(
+      `Non-critical: failed to notify user of ${outcome} access request -- ${error.message}`,
+    ),
+  );
+};
+
+// Mirrors middleware/groupNetworkAuth.js's requireGroupManagerAccess — used
+// where a group-manager-level check is needed from inside a util function
+// rather than as route middleware (e.g. gating auto-approve below).
+const isGroupManagerOrAdmin = async (tenant, userId, groupId) => {
+  const rbacService = RBACService.getInstance(
+    tenant || constants.DEFAULT_TENANT,
+  );
+  const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(userId);
+  if (isSystemSuperAdmin) {
+    return true;
+  }
+  const [isGroupManager, hasManagerPermissions, hasManagerRole] =
+    await Promise.all([
+      rbacService.isGroupManager(userId, groupId),
+      rbacService.hasPermission(
+        userId,
+        [
+          constants.GROUP_MANAGEMENT,
+          constants.USER_MANAGEMENT,
+          constants.GROUP_SETTINGS,
+        ],
+        false,
+        groupId,
+        "group",
+      ),
+      rbacService.hasRole(
+        userId,
+        ["SUPER_ADMIN", "ADMIN", "MANAGER"],
+        groupId,
+        "group",
+      ),
+    ]);
+  return isGroupManager || hasManagerPermissions || hasManagerRole;
+};
+
+/**
+ * Adds the requester to the group for an access request that is marked
+ * "approved" but whose user never became a member, and sends the approval
+ * email they never received. No-op when the user is already a member.
+ */
+const repairApprovedRequestMembership = async ({
+  tenant,
+  grp_id,
+  accessRequest,
+  actor,
+  next,
+}) => {
+  const fields = "email firstName lastName group_roles";
+  let user = null;
+  if (accessRequest.user_id) {
+    user = await UserModel(tenant)
+      .findById(accessRequest.user_id)
+      .select(fields)
+      .lean();
+  } else if (accessRequest.email) {
+    user = await UserModel(tenant)
+      .findOne({ email: accessRequest.email.toLowerCase() })
+      .select(fields)
+      .lean();
+  }
+  if (!user) {
+    return {
+      repaired: false,
+      failed: true,
+      message: "User for this request was not found",
+    };
+  }
+
+  const isMember = (user.group_roles || []).some(
+    (gr) => gr.group && gr.group.toString() === grp_id.toString(),
+  );
+  if (isMember) return { repaired: false, user_id: user._id };
+
+  const response = await createGroupUtil.assignOneUser(
+    { params: { grp_id, user_id: user._id }, query: { tenant }, user: actor },
+    next,
+  );
+  if (!response || response.success !== true) {
+    return {
+      repaired: false,
+      failed: true,
+      user_id: user._id,
+      message: response?.message || "Failed to add user to the group",
+    };
+  }
+
+  try {
+    await mailer.update({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      updatedUserDetails: { groups: 1 },
+    });
+  } catch (error) {
+    logger.error(
+      `Non-critical: failed to send approval email after membership repair -- ${error.message}`,
+    );
+  }
+  return { repaired: true, user_id: user._id };
+};
 
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {
     try {
-      const {
-        user: { _doc: user },
-        query,
-      } = request;
+      const { query } = request;
+      // enhancedJWTAuth sets req.user to a plain (lean) object; fall back to
+      // _doc only for legacy callers that still pass a Mongoose document.
+      const user = request.user?._doc || request.user || {};
       const { tenant } = query;
       const { grp_id } = request.params;
       logObject("the user", user);
@@ -108,16 +255,126 @@ const createAccessRequest = {
           );
           return;
         }
-        const responseFromSendEmail = await mailer.request(
-          {
-            firstName,
-            lastName,
-            email: user.email,
+        let recipients = [];
+        try {
+          recipients = await createGroupUtil.getGroupManagementRecipients(
             tenant,
-            entity_title: group.grp_title,
-          },
-          next,
+            grp_id,
+          );
+        } catch (recipientsError) {
+          logger.error(
+            `Failed to resolve group management recipients for group ${grp_id}: ${recipientsError.message}`,
+          );
+        }
+        if (recipients.length === 0) {
+          logger.warn(
+            `No group manager/admin found to notify for join request to group ${grp_id}`,
+          );
+          // Nobody active can approve this request (e.g. the manager left or
+          // was deactivated), so tell the AirQo team — at most once a day
+          // per group.
+          opsAlertDeduplicator
+            .shouldAlert(`group-without-active-manager:${grp_id}`, {
+              tenant,
+              ttlSeconds: 24 * 60 * 60,
+            })
+            .then((shouldAlert) => {
+              if (!shouldAlert) return;
+              opsLogger.warn("GROUP_JOIN_REQUEST_UNATTENDED", {
+                environment: constants.ENVIRONMENT,
+                group_id: grp_id,
+                group_title: group.grp_title,
+                request_id: createdAccessRequest._id,
+                hint: "No active manager or admin is left in this group to review join requests. A system admin can approve via POST /api/v2/users/requests/:request_id/approve and set a new manager via PUT /api/v2/users/groups/:grp_id/enhanced-set-manager/:user_id",
+              });
+            })
+            .catch((error) =>
+              logger.error(
+                `Non-critical: failed to raise unattended join request alert -- ${error.message}`,
+              ),
+            );
+        }
+        const requesterName = `${firstName} ${lastName}`;
+
+        notificationUtil.notifyUsers({
+          tenant,
+          user_ids: [user._id],
+          category: "access_request",
+          event: "access_request.submitted",
+          title: "Access request sent",
+          message: `Your request to join ${group.grp_title} has been sent to its administrators. We'll let you know once it has been reviewed.`,
+          group_id: group._id,
+          metadata: { request_id: createdAccessRequest._id },
+        }).catch((error) =>
+          logger.error(
+            `Non-critical: failed to send access_request.submitted notification -- ${error.message}`,
+          ),
         );
+        notificationUtil.notifyUsers({
+          tenant,
+          user_ids: recipients.map((recipient) => recipient._id),
+          category: "access_request",
+          event: "access_request.received",
+          title: "New access request",
+          message: `${requesterName} (${user.email}) has requested to join ${group.grp_title}.`,
+          priority: "high",
+          group_id: group._id,
+          metadata: {
+            request_id: createdAccessRequest._id,
+            requester_id: user._id,
+          },
+        }).catch((error) =>
+          logger.error(
+            `Non-critical: failed to send access_request.received notification -- ${error.message}`,
+          ),
+        );
+
+        // Note: no `next` passed to these mailer calls — they run inside
+        // Promise.allSettled as non-critical, best-effort notifications, and
+        // createMailerFunction's own next(error)-then-return behavior would
+        // otherwise resolve (not reject) with `undefined`, and could also
+        // attempt to write to the outer HTTP response from within what's
+        // meant to be a background operation. Omitting next makes failures
+        // throw and be captured cleanly as "rejected" instead.
+        const [requesterEmailResult, ...managerEmailResults] =
+          await Promise.allSettled([
+            mailer.request({
+              firstName,
+              lastName,
+              email: user.email,
+              tenant,
+              entity_title: group.grp_title,
+            }),
+            ...recipients.map((recipient) =>
+              mailer.notifyGroupManagerOfJoinRequest({
+                email: recipient.email,
+                contact_name:
+                  [recipient.firstName, recipient.lastName]
+                    .filter(Boolean)
+                    .join(" ") || recipient.email,
+                requester_name: requesterName,
+                requester_email: user.email,
+                entity_title: group.grp_title,
+                entity_slug: group.organization_slug,
+                request_id: createdAccessRequest._id,
+                tenant,
+              }),
+            ),
+          ]);
+
+        const managerEmailFailures = managerEmailResults.filter(
+          (r) => r.status === "rejected" || r.value?.success === false,
+        );
+        if (managerEmailFailures.length > 0) {
+          logger.error(
+            `Non-critical: ${managerEmailFailures.length}/${recipients.length} group-manager notification(s) failed for group ${grp_id}`,
+          );
+        }
+
+        const responseFromSendEmail =
+          requesterEmailResult.status === "fulfilled"
+            ? requesterEmailResult.value
+            : { success: false, message: requesterEmailResult.reason?.message };
 
         if (responseFromSendEmail.success === true) {
           return {
@@ -157,7 +414,15 @@ const createAccessRequest = {
 
   requestAccessToGroupByEmail: async (request, next) => {
     try {
-      const { tenant, emails, user, grp_id } = {
+      const {
+        tenant,
+        emails,
+        invitations,
+        auto_approve,
+        expiry_hours,
+        user,
+        grp_id,
+      } = {
         ...request,
         ...request.body,
         ...request.query,
@@ -227,35 +492,90 @@ const createAccessRequest = {
         return;
       }
 
-      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      // Accept either the plain `emails: string[]` contract (used by Nexus's
+      // "invite by email" flow) or the richer `invitations: [{email,
+      // role_id, message}]` contract (used by manager-initiated invites that
+      // want to pre-assign a role and/or auto-approve).
+      const rawInvitationEntries = [];
+      if (Array.isArray(emails)) {
+        emails.forEach((email) => rawInvitationEntries.push({ email }));
+      }
+      if (Array.isArray(invitations)) {
+        invitations.forEach((invitation) =>
+          rawInvitationEntries.push({
+            email: invitation?.email,
+            role_id: invitation?.role_id,
+            message: invitation?.message,
+          }),
+        );
+      }
+
+      if (rawInvitationEntries.length === 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Emails array is required and must not be empty",
+            message:
+              "Either 'emails' or 'invitations' is required and must not be empty",
           }),
         );
         return;
       }
 
-      const invalidEmails = emails.filter(
-        (email) => !email || typeof email !== "string" || !email.includes("@"),
+      const invalidEmails = rawInvitationEntries.filter(
+        (entry) =>
+          !entry.email ||
+          typeof entry.email !== "string" ||
+          !validator.isEmail(entry.email),
       );
       if (invalidEmails.length > 0) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Invalid email formats: ${invalidEmails.join(", ")}`,
+            message: `Invalid email formats: ${invalidEmails
+              .map((entry) => entry.email)
+              .join(", ")}`,
           }),
         );
         return;
       }
 
-      const uniqueEmails = [
-        ...new Set(emails.map((email) => email.toLowerCase())),
-      ];
-      if (uniqueEmails.length !== emails.length) {
+      // Dedup by lowercased email — first occurrence wins for role_id/message.
+      const invitationDetailsByEmail = new Map();
+      rawInvitationEntries.forEach((entry) => {
+        const normalizedEmail = entry.email.toLowerCase();
+        if (!invitationDetailsByEmail.has(normalizedEmail)) {
+          invitationDetailsByEmail.set(normalizedEmail, {
+            role_id: entry.role_id,
+            message: entry.message,
+          });
+        }
+      });
+      const uniqueEmails = [...invitationDetailsByEmail.keys()];
+      if (uniqueEmails.length !== rawInvitationEntries.length) {
         logger.warn("Duplicate emails found in invitation request", {
-          emails,
-          uniqueEmails,
+          rawCount: rawInvitationEntries.length,
+          uniqueCount: uniqueEmails.length,
         });
+      }
+
+      const shouldAutoApprove = auto_approve === true || auto_approve === "true";
+
+      if (shouldAutoApprove) {
+        const canAutoApprove = await isGroupManagerOrAdmin(
+          tenant,
+          inviterId,
+          grp_id,
+        );
+        if (!canAutoApprove) {
+          logger.warn(
+            `User ${inviterId} attempted to auto-approve invitations to group ${grp_id} without manager/admin rights`,
+          );
+          next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message:
+                "Only a group manager or admin can auto-approve invitations",
+            }),
+          );
+          return;
+        }
       }
 
       const existingUsers = await UserModel(tenant)
@@ -279,7 +599,24 @@ const createAccessRequest = {
         existingPendingRequests.map((req) => [req.email.toLowerCase(), req]),
       );
 
-      const INVITATION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+      let expiryHours = 168; // default: 7 days, matches prior fixed expiry
+      if (expiry_hours !== undefined && expiry_hours !== null) {
+        const parsedExpiryHours = Number(expiry_hours);
+        if (
+          !Number.isFinite(parsedExpiryHours) ||
+          parsedExpiryHours < 1 ||
+          parsedExpiryHours > 8760
+        ) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "expiry_hours must be between 1 and 8760 (1 year)",
+            }),
+          );
+          return;
+        }
+        expiryHours = parsedExpiryHours;
+      }
+      const INVITATION_EXPIRY_MS = expiryHours * 60 * 60 * 1000;
 
       const existingRequests = [];
       const successResponses = [];
@@ -314,6 +651,8 @@ const createAccessRequest = {
 
           const invitationToken = crypto.randomBytes(32).toString("hex");
           const expiryDate = new Date(Date.now() + INVITATION_EXPIRY_MS);
+          const { role_id, message } =
+            invitationDetailsByEmail.get(normalizedEmail) || {};
 
           const accessRequestData = {
             email: normalizedEmail,
@@ -327,6 +666,13 @@ const createAccessRequest = {
             invitationTokenExpires: expiryDate,
           };
 
+          if (role_id) {
+            accessRequestData.role_id = role_id;
+          }
+          if (message) {
+            accessRequestData.message = message;
+          }
+
           if (existingUser) {
             accessRequestData.user_id = existingUser._id;
           }
@@ -338,7 +684,61 @@ const createAccessRequest = {
           if (responseFromCreateAccessRequest.success === true) {
             const createdAccessRequest = responseFromCreateAccessRequest.data;
 
+            ActivityLogger.logActivity({
+              tenant,
+              group_id: grp_id,
+              activity_type: "INVITE_SENT",
+              actor: { user_id: inviterId, email: inviterEmail },
+              target_user: { email: normalizedEmail },
+            });
+
             const userExists = !!existingUser;
+
+            if (shouldAutoApprove && existingUser) {
+              try {
+                let autoApproveResult;
+                if (role_id) {
+                  const roleDoc = await RoleModel(tenant)
+                    .findOne({ _id: role_id, group_id: grp_id })
+                    .lean();
+                  if (!roleDoc) {
+                    logger.error(
+                      `Auto-approve skipped for user ${existingUser._id}: role_id ${role_id} does not belong to group ${grp_id}`,
+                    );
+                  } else {
+                    autoApproveResult = await UserModel(
+                      tenant,
+                    ).assignUserToGroup(existingUser._id, grp_id, role_id, "user");
+                  }
+                } else {
+                  // No `next` passed here — a caught rejection below is the
+                  // correct outcome for a per-recipient, best-effort
+                  // auto-approve step; assignOneUser's failure branches call
+                  // next(error) unconditionally, which would otherwise reach
+                  // into the outer HTTP response from inside this loop.
+                  autoApproveResult = await createGroupUtil.assignOneUser({
+                    params: { grp_id, user_id: existingUser._id },
+                    query: { tenant },
+                  });
+                }
+
+                if (autoApproveResult && autoApproveResult.success) {
+                  await AccessRequestModel(tenant).modify({
+                    filter: { _id: createdAccessRequest._id },
+                    update: { status: "approved" },
+                  });
+                  createdAccessRequest.status = "approved";
+                } else if (autoApproveResult) {
+                  logger.error(
+                    `Auto-approve failed for user ${existingUser._id} in group ${grp_id}: ${autoApproveResult.message}`,
+                  );
+                }
+              } catch (autoApproveError) {
+                logger.error(
+                  `Auto-approve error for user ${existingUser._id} in group ${grp_id}: ${autoApproveError.message}`,
+                );
+              }
+            }
 
             const responseFromSendEmail =
               await mailer.requestToJoinGroupByEmail(
@@ -414,7 +814,7 @@ const createAccessRequest = {
 
       const responseData = {
         summary: {
-          total_emails: emails.length,
+          total_emails: rawInvitationEntries.length,
           unique_emails: uniqueEmails.length,
           successful_invitations: successCount,
           failed_invitations: failureCount,
@@ -630,6 +1030,19 @@ const createAccessRequest = {
         };
       }
 
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before any user creation or membership mutation happens.
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This invitation type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group invitations can be accepted.`,
+          },
+        };
+      }
+
       // If using token auth, the user's email comes from the access request itself.
       let invitationEmail = email;
       if (token && accessRequest) {
@@ -674,21 +1087,6 @@ const createAccessRequest = {
               status: httpStatus.BAD_REQUEST,
               errors: {
                 message: "User is already a member of this organization",
-              },
-            };
-          }
-        } else if (requestType === "network") {
-          const isAlreadyAssigned = existingUser.network_roles?.some(
-            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
-          );
-
-          if (isAlreadyAssigned) {
-            return {
-              success: false,
-              message: "User is already a member of this network",
-              status: httpStatus.BAD_REQUEST,
-              errors: {
-                message: "User is already a member of this network",
               },
             };
           }
@@ -838,92 +1236,6 @@ const createAccessRequest = {
             },
           };
         }
-      } else if (requestType === "network") {
-        const network = await NetworkModel(tenant)
-          .findById(accessRequest.targetId)
-          .lean();
-        if (!network) {
-          return {
-            success: false,
-            message: "Network not found",
-            status: httpStatus.NOT_FOUND,
-            errors: {
-              message: "Network not found",
-            },
-          };
-        }
-
-        entity_title = network.net_name;
-
-        const assignUserRequest = {
-          params: {
-            net_id: accessRequest.targetId,
-            user_id: user._id,
-          },
-          query: { tenant: tenant },
-        };
-
-        try {
-          assignmentResult = await createNetworkUtil.assignOneUser(
-            assignUserRequest,
-            next,
-          );
-
-          if (!assignmentResult || !assignmentResult.success) {
-            if (isNewUser) {
-              await UserModel(tenant).findByIdAndDelete(user._id);
-            }
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: accessRequest._id },
-                update: {
-                  status: "pending",
-                  user_id: null,
-                  invitationToken: originalInvitationToken,
-                },
-              },
-              next,
-            );
-
-            return {
-              success: false,
-              message: `Failed to assign user to network: ${
-                assignmentResult?.message || "Unknown error"
-              }`,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: {
-                message: `Failed to assign user to network: ${
-                  assignmentResult?.message || "Unknown error"
-                }`,
-              },
-            };
-          }
-        } catch (assignmentError) {
-          logger.error(`Network assignment error: ${assignmentError.message}`);
-          if (isNewUser) {
-            await UserModel(tenant).findByIdAndDelete(user._id);
-          }
-          await AccessRequestModel(tenant).modify(
-            {
-              filter: { _id: accessRequest._id },
-              update: {
-                status: "pending",
-                user_id: null,
-                invitationToken: originalInvitationToken,
-              },
-            },
-            next,
-          );
-
-          return {
-            success: false,
-            message: `Network assignment failed: ${assignmentError.message}`,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: {
-              message: `Network assignment failed: ${assignmentError.message}`,
-            },
-          };
-        }
       }
 
       if (assignmentResult && assignmentResult.success === true) {
@@ -953,20 +1265,12 @@ const createAccessRequest = {
           );
 
           let rollbackErrorOccurred = null;
-          // Rollback: Remove user from the group/network
+          // Rollback: Remove user from the group
           try {
             if (requestType === "group") {
               await createGroupUtil.unAssignUser(
                 {
                   params: { grp_id: accessRequest.targetId, user_id: user._id },
-                  query: { tenant },
-                },
-                next,
-              );
-            } else if (requestType === "network") {
-              await createNetworkUtil.unAssignUser(
-                {
-                  params: { net_id: accessRequest.targetId, user_id: user._id },
                   query: { tenant },
                 },
                 next,
@@ -1093,141 +1397,6 @@ const createAccessRequest = {
     }
   },
 
-  requestAccessToNetwork: async (request, next) => {
-    try {
-      const {
-        user: { _doc: user },
-        query,
-      } = request;
-      const { tenant } = query;
-      const { net_id } = request.params;
-
-      const network = await NetworkModel(tenant).findById(net_id);
-      if (isEmpty(network) || isEmpty(user._id)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Network or User not found",
-          }),
-        );
-        return;
-      }
-
-      // Check if user is already a member
-      const userDetails = await UserModel(tenant).findById(user._id).lean();
-      if (userDetails && userDetails.network_roles) {
-        const isAlreadyMember = userDetails.network_roles.some(
-          (nr) => nr.network.toString() === net_id.toString(),
-        );
-        if (isAlreadyMember) {
-          return {
-            success: false,
-            message: "You are already a member of this network",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: "You are already a member of this network",
-            },
-          };
-        }
-      }
-
-      // Check for existing pending request
-      const existingRequest = await AccessRequestModel(tenant).findOne({
-        user_id: user._id,
-        targetId: net_id,
-        requestType: "network",
-        status: "pending",
-      });
-
-      if (!isEmpty(existingRequest)) {
-        return {
-          success: false,
-          message: "You already have a pending access request for this network",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message:
-              "You already have a pending access request for this network",
-            existing_request_id: existingRequest._id,
-            requested_at: existingRequest.createdAt,
-          },
-        };
-      }
-
-      const responseFromCreateAccessRequest = await AccessRequestModel(
-        tenant,
-      ).register(
-        {
-          user_id: user._id,
-          email: user.email,
-          targetId: net_id,
-          status: "pending",
-          requestType: "network",
-        },
-        next,
-      );
-
-      if (responseFromCreateAccessRequest.success === true) {
-        const createdAccessRequest = await responseFromCreateAccessRequest.data;
-        const firstName = user.firstName ? user.firstName : "";
-        const lastName = user.lastName ? user.lastName : "";
-        if (isEmpty(user.email)) {
-          return {
-            success: false,
-            message: "Internal Server Error",
-            errors: {
-              message:
-                "Unable to retrieve the requester's email address, please crosscheck security token details",
-            },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          };
-        }
-
-        const responseFromSendEmail = await mailer.request(
-          {
-            firstName,
-            lastName,
-            email: user.email,
-            tenant,
-            entity_title: network.net_name,
-          },
-          next,
-        );
-
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "Access Request completed successfully",
-            data: createdAccessRequest,
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : httpStatus.OK,
-          };
-        } else if (responseFromSendEmail.success === false) {
-          logger.error(`${responseFromSendEmail.message}`);
-          // Don't fail the entire operation if email fails
-          return {
-            success: true,
-            message:
-              "Access Request completed successfully (notification email failed)",
-            data: createdAccessRequest,
-            status: httpStatus.OK,
-          };
-        }
-      } else {
-        logger.error(`${responseFromCreateAccessRequest.message}`);
-        return responseFromCreateAccessRequest;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message },
-        ),
-      );
-    }
-  },
-
   approveAccessRequest: async (request, next) => {
     try {
       const { query, params } = request;
@@ -1276,6 +1445,19 @@ const createAccessRequest = {
             message: "This invitation has expired and cannot be approved",
             expired_at: accessRequest.expires_at,
             request_id: accessRequest._id,
+          },
+        };
+      }
+
+      // Legacy access requests may still carry a pre-removal "network" requestType;
+      // reject before the status is mutated to "approved".
+      if (accessRequest.requestType !== "group") {
+        return {
+          success: false,
+          message: "This request type is no longer supported.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Unsupported request type: '${accessRequest.requestType}'. Only group requests can be approved.`,
           },
         };
       }
@@ -1342,22 +1524,6 @@ const createAccessRequest = {
             },
           };
         }
-      } else if (accessRequest.requestType === "network") {
-        const isAlreadyMember =
-          user.network_roles &&
-          user.network_roles.some(
-            (nr) => nr.network.toString() === accessRequest.targetId.toString(),
-          );
-        if (isAlreadyMember) {
-          return {
-            success: false,
-            message: "User is already a member of this network",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: "User is already a member of this network",
-            },
-          };
-        }
       }
 
       const update = { status: "approved", user_id: user._id };
@@ -1392,6 +1558,19 @@ const createAccessRequest = {
           );
 
           if (responseFromAssignUserToGroup.success === true) {
+            ActivityLogger.logActivity({
+              tenant,
+              group_id: accessRequest.targetId,
+              activity_type: "JOIN_REQUEST_APPROVED",
+              actor: { user_id: request.user?._id, email: request.user?.email },
+              target_user: { user_id: user._id, email },
+            });
+            notifyAccessRequestOutcome(
+              tenant,
+              accessRequest,
+              "approved",
+              user._id,
+            );
             const updatedUserDetails = { groups: 1 };
             const responseFromSendEmail = await mailer.update(
               {
@@ -1438,55 +1617,6 @@ const createAccessRequest = {
             }
             return responseFromAssignUserToGroup;
           }
-        } else if (accessRequest.requestType === "network") {
-          const assignUserRequest = {
-            params: {
-              net_id: accessRequest.targetId,
-              user_id: user._id,
-            },
-            query: { tenant: tenant },
-          };
-          const responseFromAssignUserToNetwork =
-            await createNetworkUtil.assignOneUser(assignUserRequest, next);
-
-          if (responseFromAssignUserToNetwork.success === true) {
-            const updatedUserDetails = { networks: 1 };
-            const responseFromSendEmail = await mailer.update(
-              { email, firstName, lastName, updatedUserDetails },
-              next,
-            );
-
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: "Access request approved successfully",
-                status: httpStatus.OK,
-                data: responseFromUpdateAccessRequest.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              logger.error(
-                `Failed to send approval email: ${responseFromSendEmail.message}`,
-              );
-              // Don't fail the entire operation if email fails
-              return {
-                success: true,
-                message:
-                  "Access request approved successfully (email notification failed)",
-                status: httpStatus.OK,
-                data: responseFromUpdateAccessRequest.data,
-              };
-            }
-          } else if (responseFromAssignUserToNetwork.success === false) {
-            // Rollback the status update
-            await AccessRequestModel(tenant).modify(
-              {
-                filter: { _id: ObjectId(accessRequest._id) },
-                update: { status: "pending" },
-              },
-              next,
-            );
-            return responseFromAssignUserToNetwork;
-          }
         }
       } else if (responseFromUpdateAccessRequest.success === false) {
         return responseFromUpdateAccessRequest;
@@ -1501,6 +1631,301 @@ const createAccessRequest = {
         ),
       );
     }
+  },
+
+  /**
+   * Pending access requests for a group, with the requester's basic profile
+   * in place of user_id (shape used by GET /groups/:grp_id/access-requests).
+   */
+  listPendingGroupAccessRequests: async ({ tenant, grp_id }) => {
+    return AccessRequestModel(tenant).aggregate([
+      {
+        $match: {
+          // aggregate() does not cast, and targetId is an ObjectId.
+          targetId: ObjectId(grp_id),
+          requestType: "group",
+          status: "pending",
+        },
+      },
+      {
+        $lookup: {
+          from: "users", // Collection name for the user model
+          // let/pipeline form: localField/foreignField combined with
+          // pipeline needs MongoDB 5.0+.
+          let: { userId: "$user_id" },
+          as: "user_details",
+          pipeline: [
+            { $match: { $expr: { $eq: ["$_id", "$$userId"] } } },
+            {
+              $project: {
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                profilePicture: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          user_id: {
+            $cond: {
+              if: { $gt: [{ $size: "$user_details" }, 0] },
+              then: { $arrayElemAt: ["$user_details", 0] },
+              else: null,
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          user_details: 0, // Remove the temporary field
+          // Invitation tokens let the holder accept an invitation.
+          invitationToken: 0,
+          invitationTokenExpires: 0,
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
+  },
+
+  /**
+   * Applies one decision to several of a group's access requests by running
+   * each through the same approve/reject flow as the single-request
+   * endpoints (membership assignment, approval email, activity log,
+   * notifications, rollback).
+   *
+   * Approving a request that is already "approved" but whose user never
+   * became a member — the state the previous bulk implementation left behind
+   * when no default_role was passed — repairs the membership.
+   *
+   * @returns {Promise<Object>} { success, status, message, data }
+   */
+  processBulkAccessRequestDecision: async ({
+    tenant,
+    grp_id,
+    request_ids = [],
+    decision,
+    reason,
+    default_role,
+    user,
+  }) => {
+    const uniqueIds = [...new Set(request_ids.map((id) => id.toString()))];
+
+    let roleToApply = null;
+    if (decision === "approved" && default_role) {
+      roleToApply = await RoleModel(tenant)
+        .findOne({ _id: default_role, group_id: grp_id })
+        .lean();
+      if (!roleToApply) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "default_role does not belong to this group",
+          errors: { message: "default_role does not belong to this group" },
+        };
+      }
+    }
+
+    const accessRequests = await AccessRequestModel(tenant)
+      .find({
+        _id: { $in: uniqueIds.map((id) => ObjectId(id)) },
+        targetId: ObjectId(grp_id),
+        requestType: "group",
+      })
+      .lean();
+    const requestsById = new Map(
+      accessRequests.map((ar) => [ar._id.toString(), ar]),
+    );
+
+    const applyRole = async (userId) => {
+      if (!roleToApply || !userId) return;
+      await rolePermissionsUtil.syncGroupManagerRolePermissions(
+        tenant,
+        roleToApply,
+      );
+      await UserModel(tenant).updateOne(
+        { _id: userId, "group_roles.group": ObjectId(grp_id) },
+        {
+          $set: {
+            "group_roles.$.role": roleToApply._id,
+            "group_roles.$.updatedAt": new Date(),
+          },
+        },
+      );
+    };
+
+    // Per-request: a role failure is recorded on that request's result and
+    // never stops the remaining requests. Returns {} when no role was asked for.
+    const tryApplyRole = async (userId) => {
+      if (!roleToApply) return {};
+      if (!userId) return { role_assignment: "unresolved" };
+      try {
+        await applyRole(userId);
+        return { role_assignment: "applied" };
+      } catch (error) {
+        logger.error(
+          `Bulk decision: failed to apply role ${roleToApply._id} to user ${userId} in group ${grp_id} -- ${error.message}`,
+        );
+        return {
+          role_assignment: "failed",
+          role_message: "Membership granted but the requested role could not be applied",
+        };
+      }
+    };
+
+    const results = [];
+    for (const requestId of uniqueIds) {
+      const accessRequest = requestsById.get(requestId);
+      if (!accessRequest) {
+        results.push({
+          request_id: requestId,
+          outcome: "not_found",
+          message: "Access request not found in this group",
+        });
+        continue;
+      }
+
+      let captured = null;
+      const captureNext = (error) => {
+        captured = error;
+      };
+
+      if (decision === "approved" && accessRequest.status === "approved") {
+        const repair = await repairApprovedRequestMembership({
+          tenant,
+          grp_id,
+          accessRequest,
+          actor: user,
+          next: captureNext,
+        });
+        const repairRole = repair.repaired
+          ? await tryApplyRole(repair.user_id)
+          : {};
+        results.push({
+          request_id: requestId,
+          user_id: repair.user_id,
+          outcome: repair.repaired
+            ? "membership_repaired"
+            : repair.failed
+              ? "failed"
+              : "already_approved",
+          ...(repair.message && { message: repair.message }),
+          ...repairRole,
+        });
+        continue;
+      }
+
+      if (accessRequest.status !== "pending") {
+        results.push({
+          request_id: requestId,
+          user_id: accessRequest.user_id,
+          outcome: "skipped",
+          message: `Request has already been ${accessRequest.status}`,
+        });
+        continue;
+      }
+
+      const subRequest = {
+        query: { tenant },
+        params: { request_id: requestId },
+        // rejectAccessRequest applies the body as the update and checks the
+        // stored status; the single-reject controller sets it the same way.
+        body:
+          decision === "rejected" ? { status: "rejected", reason } : { reason },
+        user,
+      };
+      let response;
+      try {
+        response =
+          decision === "approved"
+            ? await createAccessRequest.approveAccessRequest(subRequest, captureNext)
+            : await createAccessRequest.rejectAccessRequest(
+                subRequest,
+                captureNext,
+              );
+      } catch (error) {
+        captured = error;
+      }
+
+      // Re-read the stored request: approveAccessRequest can finish the
+      // approval and membership and then fail on the email step (so trust the
+      // stored status), and it sets user_id on email invitations that had
+      // none when first loaded.
+      let fresh = null;
+      let rereadFailed = false;
+      try {
+        fresh = await AccessRequestModel(tenant)
+          .findById(requestId)
+          .select("status user_id")
+          .lean();
+      } catch (error) {
+        rereadFailed = true;
+        logger.error(
+          `Bulk decision: failed to re-read access request ${requestId} -- ${error.message}`,
+        );
+      }
+      const succeeded =
+        response?.success === true || fresh?.status === decision;
+      // Without the re-read, an email invitation's user_id is unknown, so
+      // don't guess which user to apply a role to.
+      const resolvedUserId = rereadFailed
+        ? null
+        : fresh?.user_id || accessRequest.user_id;
+
+      const roleResult =
+        succeeded && decision === "approved"
+          ? await tryApplyRole(resolvedUserId)
+          : {};
+
+      results.push({
+        request_id: requestId,
+        user_id: resolvedUserId || accessRequest.user_id,
+        ...(rereadFailed && { user_status: "unresolved" }),
+        ...roleResult,
+        outcome: succeeded ? decision : "failed",
+        ...(!succeeded && {
+          message:
+            response?.message ||
+            captured?.errors?.message ||
+            captured?.message ||
+            "Unable to process request",
+        }),
+      });
+    }
+
+    const countOf = (outcome) =>
+      results.filter((r) => r.outcome === outcome).length;
+    const decidedCount = countOf(decision);
+    const repairedCount = countOf("membership_repaired");
+    const processedCount = decidedCount + repairedCount;
+
+    logger.info(
+      `User ${user?.email} processed bulk ${decision} for group ${grp_id}: ${decidedCount} ${decision}, ${repairedCount} repaired, ${countOf("failed")} failed`,
+    );
+
+    return {
+      success: true,
+      status: httpStatus.OK,
+      message: `${processedCount} access requests ${decision}`,
+      data: {
+        processed_count: processedCount,
+        decision,
+        auto_assigned_role: decision === "approved" && processedCount > 0,
+        role_applied: roleToApply ? roleToApply._id : null,
+        summary: {
+          requested: uniqueIds.length,
+          [decision]: decidedCount,
+          membership_repaired: repairedCount,
+          already_approved: countOf("already_approved"),
+          skipped: countOf("skipped"),
+          not_found: countOf("not_found"),
+          failed: countOf("failed"),
+        },
+        results,
+      },
+    };
   },
 
   rejectAccessRequest: async (request, next) => {
@@ -1556,7 +1981,26 @@ const createAccessRequest = {
         responseFromModifyAccessRequest,
       );
 
-      if (responseFromModifyAccessRequest.success === true) {
+      if (
+        responseFromModifyAccessRequest.success === true &&
+        responseFromModifyAccessRequest.data?.status === "rejected"
+      ) {
+        // ActivityLog.group_id is group-specific — only log for group-type
+        // requests (network-type rejections aren't attributable to a group).
+        if (accessRequest.requestType === "group") {
+          ActivityLogger.logActivity({
+            tenant,
+            group_id: accessRequest.targetId,
+            activity_type: "JOIN_REQUEST_REJECTED",
+            actor: { user_id: request.user?._id, email: request.user?.email },
+            target_user: accessRequest.user_id
+              ? { user_id: accessRequest.user_id, email: accessRequest.email }
+              : { email: accessRequest.email },
+          });
+        }
+
+        notifyAccessRequestOutcome(tenant, accessRequest, "rejected");
+
         // Send rejection notification email
         let userEmail = accessRequest.email;
         let userName = "User";
@@ -1593,19 +2037,6 @@ const createAccessRequest = {
               `Failed to fetch group details: ${groupError.message}`,
             );
           }
-        } else if (accessRequest.requestType === "network") {
-          try {
-            const network = await NetworkModel(tenant)
-              .findById(accessRequest.targetId)
-              .select("net_name");
-            if (network) {
-              entityName = network.net_name;
-            }
-          } catch (networkError) {
-            logger.error(
-              `Failed to fetch network details: ${networkError.message}`,
-            );
-          }
         }
 
         // Send rejection email (don't fail if this fails)
@@ -1638,6 +2069,151 @@ const createAccessRequest = {
           { message: error.message },
         ),
       );
+    }
+  },
+
+  cancelAccessRequest: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant } = query;
+      const { request_id } = params;
+      const cancelledBy = request.user ? request.user._id : undefined;
+
+      // Check if request exists
+      const accessRequest =
+        await AccessRequestModel(tenant).findById(request_id);
+
+      if (isEmpty(accessRequest)) {
+        return {
+          success: false,
+          message: "Access request does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "Access request does not exist, please crosscheck",
+          },
+        };
+      }
+
+      // Only a still-pending invite/request can be cancelled
+      if (accessRequest.status !== "pending") {
+        return {
+          success: false,
+          message: `Cannot cancel request - it has already been ${accessRequest.status}`,
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `This access request has already been ${accessRequest.status} and cannot be cancelled`,
+            current_status: accessRequest.status,
+            request_id: accessRequest._id,
+          },
+        };
+      }
+
+      const filter = { _id: ObjectId(accessRequest._id) };
+      const update = {
+        status: "cancelled",
+        cancelled_by: cancelledBy,
+        cancelled_at: new Date(),
+      };
+
+      const responseFromModifyAccessRequest = await AccessRequestModel(
+        tenant,
+      ).modify(
+        {
+          filter,
+          update,
+        },
+        next,
+      );
+
+      // ActivityLog.group_id is group-specific — only log for group-type
+      // requests (network-type cancellations aren't attributable to a group).
+      if (
+        responseFromModifyAccessRequest.success === true &&
+        accessRequest.requestType === "group"
+      ) {
+        ActivityLogger.logActivity({
+          tenant,
+          group_id: accessRequest.targetId,
+          activity_type: "INVITE_CANCELLED",
+          actor: { user_id: cancelledBy },
+          target_user: accessRequest.user_id
+            ? { user_id: accessRequest.user_id, email: accessRequest.email }
+            : { email: accessRequest.email },
+          details: `Invite to ${accessRequest.email || accessRequest.user_id} was cancelled before being accepted`,
+        });
+      }
+
+      return responseFromModifyAccessRequest;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  /**
+   * Fire-and-forget: if a newly-registered user's email domain matches any
+   * group's grp_email_domains, auto-create a PENDING AccessRequest to each
+   * matching group so the user doesn't have to search for it — the group's
+   * own admin still approves via the normal access-request flow. This is
+   * deliberately not instant membership (see grp_email_domains in
+   * models/Group.js for why). Never throws — registration must succeed
+   * regardless of what happens here.
+   */
+  autoSuggestGroupsByDomain: async (userId, email, tenant) => {
+    try {
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return;
+      }
+      const domain = email.split("@")[1].toLowerCase().trim();
+      if (!domain) {
+        return;
+      }
+
+      const matchingGroups = await GroupModel(tenant)
+        .find({ grp_email_domains: domain, grp_status: "ACTIVE" })
+        .lean();
+
+      if (isEmpty(matchingGroups)) {
+        return;
+      }
+
+      for (const group of matchingGroups) {
+        try {
+          const alreadyRequested = await AccessRequestModel(tenant).findOne({
+            user_id: userId,
+            targetId: group._id,
+            requestType: "group",
+            status: "pending",
+          });
+          if (alreadyRequested) {
+            continue;
+          }
+
+          await AccessRequestModel(tenant).register(
+            {
+              user_id: userId,
+              email,
+              targetId: group._id,
+              status: "pending",
+              requestType: "group",
+              source: "domain_match",
+            },
+            () => {},
+          );
+        } catch (perGroupError) {
+          logger.warn(
+            `autoSuggestGroupsByDomain: failed for group ${group._id}: ${perGroupError.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      logger.warn(`autoSuggestGroupsByDomain failed: ${error.message}`);
     }
   },
 
@@ -1699,8 +2275,40 @@ const createAccessRequest = {
   update: async (request, next) => {
     try {
       const { query, body } = request;
+      // Only these fields may be changed via the generic update route — the
+      // caller is now authorized as a manager of the request's target group
+      // (see requireAccessRequestManagerAccess), but the request body itself
+      // must still not be able to rewrite targetId/email/requestType/etc.
+      const allowedFields = ["status", "message"];
+      const update = {};
+      allowedFields.forEach((field) => {
+        if (body[field] !== undefined) {
+          update[field] = body[field];
+        }
+      });
+
+      if (Object.keys(update).length === 0) {
+        return {
+          success: false,
+          message: "No updatable fields provided",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "No updatable fields provided",
+            allowed_fields: allowedFields,
+          },
+        };
+      }
+
+      // Approving via this generic route would otherwise just flip the
+      // status without ever granting membership (assignOneUser), checking
+      // expiry, or rolling back on a failed assignment — all of which
+      // approveAccessRequest already does correctly. Route through it
+      // instead of duplicating that logic here.
+      if (update.status === "approved") {
+        return createAccessRequest.approveAccessRequest(request, next);
+      }
+
       const filter = generateFilter.requests(request, next);
-      const update = body;
       const tenant = query.tenant;
 
       const responseFromModifyAccessRequest = await AccessRequestModel(
@@ -1829,7 +2437,7 @@ const createAccessRequest = {
         };
       }
 
-      // Enrich invitations with organization/network details
+      // Enrich invitations with organization details
       const enrichedInvitations = await Promise.all(
         pendingInvitations.map(async (invitation) => {
           let entityDetails = null;
@@ -1846,19 +2454,6 @@ const createAccessRequest = {
                 description: group.grp_description,
                 slug: group.organization_slug,
                 type: "organization",
-              };
-            }
-          } else if (invitation.requestType === "network") {
-            const network = await NetworkModel(tenant)
-              .findById(invitation.targetId)
-              .select("net_name net_description")
-              .lean();
-
-            if (network) {
-              entityDetails = {
-                name: network.net_name,
-                description: network.net_description,
-                type: "network",
               };
             }
           }

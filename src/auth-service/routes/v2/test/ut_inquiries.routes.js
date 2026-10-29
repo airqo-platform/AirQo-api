@@ -3,7 +3,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const express = require("express");
 const request = require("supertest");
-const proxyquire = require("proxyquire").noPreserveCache();
+const proxyquire = require("proxyquire").noCallThru().noPreserveCache();
 
 describe("Inquiry API Routes", () => {
   let app;
@@ -17,9 +17,15 @@ describe("Inquiry API Routes", () => {
       delete: sinon.stub(),
     };
 
-    // Require the route AFTER stubs are in place so the router binds our stubs
+    // Require the route AFTER stubs are in place so the router binds our stubs.
+    // enhancedJWTAuth normally verifies a real signed JWT, which we don't have
+    // in a unit test, so it's stubbed out entirely (GET/DELETE/PUT all require
+    // it; only POST /register is public).
     const inquiryRoutes = proxyquire("../inquiries.routes", {
       "@controllers/inquiry.controller": createInquiryController,
+      "@middleware/passport": {
+        enhancedJWTAuth: (req, res, next) => next(),
+      },
     });
 
     app = express();

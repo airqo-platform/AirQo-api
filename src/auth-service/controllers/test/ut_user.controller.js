@@ -356,43 +356,23 @@ describe("createUserController", () => {
   });
 
   describe("sendFeedback", () => {
-    it("should send feedback successfully", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Feedback sent successfully",
-        data: { sent: true },
-      });
+    it("should respond 410 Gone and point to the replacement endpoint", async () => {
+      const utilSpy = sinon.spy(createUserUtil, "submitFeedback");
 
       await createUser.sendFeedback(req, res, next);
 
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledWithMatch({ success: true })).to.be.true;
-    });
-
-    it("should handle bad request errors", async () => {
-      createUser.__set__("extractErrorsFromRequest", mockBadRequest);
-      await createUser.sendFeedback(req, res, next);
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    it("should handle util failure", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").resolves({
+      expect(res.status.calledWith(httpStatus.GONE)).to.be.true;
+      expect(res.json.calledOnce).to.be.true;
+      expect(res.json.firstCall.args[0]).to.deep.equal({
         success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Failed to send feedback",
-        errors: { message: "Error" },
+        message:
+          "This endpoint has been decommissioned. Use POST /api/v2/users/feedback/submit instead.",
+        errors: {
+          message: "POST /feedback is no longer available",
+          replacement: "/api/v2/users/feedback/submit",
+        },
       });
-      await createUser.sendFeedback(req, res, next);
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be.true;
-    });
-
-    it("should handle unexpected errors", async () => {
-      sinon.stub(createUserUtil, "sendFeedback").rejects(new Error("Email error"));
-      await createUser.sendFeedback(req, res, next);
-      expect(next.calledOnce).to.be.true;
-      expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(utilSpy.called).to.be.false;
     });
   });
 
@@ -796,6 +776,43 @@ describe("createUserController", () => {
 
       expect(next.calledOnce).to.be.true;
       expect(next.firstCall.args[0]).to.be.instanceOf(Error);
+    });
+  });
+
+  describe("verify", () => {
+    let origAttachIdentityHeaders;
+
+    beforeEach(() => {
+      origAttachIdentityHeaders = createUser.__get__("attachIdentityHeaders");
+      res.set = sinon.stub();
+    });
+
+    afterEach(() => {
+      createUser.__set__("attachIdentityHeaders", origAttachIdentityHeaders);
+    });
+
+    it("should attach identity headers and respond 200 with 'this token is valid'", async () => {
+      const attachStub = sinon.stub().resolves();
+      createUser.__set__("attachIdentityHeaders", attachStub);
+      req.user = { _id: "u1", group_roles: [] };
+
+      await createUser.verify(req, res, next);
+
+      expect(attachStub.calledOnce).to.be.true;
+      expect(attachStub.firstCall.args[1]).to.deep.equal(req.user);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.send).to.have.been.calledWith("this token is valid");
+    });
+
+    it("should not respond again when headers were already sent", async () => {
+      const attachStub = sinon.stub().resolves();
+      createUser.__set__("attachIdentityHeaders", attachStub);
+      res.headersSent = true;
+
+      await createUser.verify(req, res, next);
+
+      expect(attachStub.called).to.be.false;
+      expect(res.send.called).to.be.false;
     });
   });
 

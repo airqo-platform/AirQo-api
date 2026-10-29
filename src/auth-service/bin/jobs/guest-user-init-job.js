@@ -49,7 +49,6 @@ const ensureGuestUserExists = async () => {
         privilege: "guest",
         organization: tenant,
         long_organization: tenant,
-        network_roles: [],
         group_roles: [],
         permissions: [],
       };

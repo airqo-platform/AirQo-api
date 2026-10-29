@@ -33,7 +33,7 @@ describe("email.templates", () => {
       // any actual behavior change.
       expect(result).to.be.a("string");
       expect(result).to.include(`<h3>Hi ${fullName}</h3>`);
-      expect(result).to.include("welcome to AirQo");
+      expect(result).to.include("welcome you to AirQo");
       expect(result).to.include(`<a href=${constants.PLATFORM_BASE_URL}> Check out AirQo Nexus</a>`);
       expect(result).to.include(`<a href=${constants.PLATFORM_BASE_URL}> Support our expansion in Africa</a>`);
       expect(result).to.include(`<a href=${constants.PLATFORM_BASE_URL}> Support our ongoing projects</a>`);

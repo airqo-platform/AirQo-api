@@ -1,0 +1,7 @@
+# This image builds from the jobs/reports context — the parent tree's
+# .dockerignore does not apply here, so guard secrets locally too.
+airqo-250220-*.json
+**/.env
+**/__pycache__/
+*.md
+.dockerignore

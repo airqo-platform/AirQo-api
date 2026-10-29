@@ -42,7 +42,7 @@ services:
   db:
     <<: *common-data
     container_name: db
-    image: postgres
+    image: postgres:16.13
 
   db-setup:
     <<: *common-data
@@ -64,23 +64,25 @@ services:
       context: .
       target: xcom-setup
 
-  message-broker:
-    container_name: message-broker
-    image: noahnsimbe/kafka-docker
-    ports:
-      - "9093:9092"
+  # Kafka is deployed separately in staging and production. Enable these two services together
+  # with a kafka-setup stage in the Dockerfile when a local broker is needed.
+  # message-broker:
+  #   container_name: message-broker
+  #   image: noahnsimbe/kafka-docker
+  #   ports:
+  #     - "9093:9092"
 
-  message-broker-setup:
-    <<: *common-data
-    container_name: message-broker-setup
-    build:
-      context: .
-      target: kafka-setup
-    restart: on-failure
-    healthcheck:
-      test: "exit 0"
-    depends_on:
-      - message-broker
+  # message-broker-setup:
+  #   <<: *common-data
+  #   container_name: message-broker-setup
+  #   build:
+  #     context: .
+  #     target: kafka-setup
+  #   restart: on-failure
+  #   healthcheck:
+  #     test: "exit 0"
+  #   depends_on:
+  #     - message-broker
 
   scheduler:
     <<: *common-data

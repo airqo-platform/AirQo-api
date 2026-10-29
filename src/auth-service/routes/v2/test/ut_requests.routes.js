@@ -30,16 +30,15 @@ const { validationResult } = require("express-validator");
 let requestAccessToGroupImpl;
 let requestAccessToGroupByEmailImpl;
 let acceptInvitationImpl;
-let requestAccessToNetworkImpl;
 let listImpl;
 let listPendingAccessRequestsImpl;
 let approveAccessRequestImpl;
 let rejectAccessRequestImpl;
+let cancelAccessRequestImpl;
 let listAccessRequestsForGroupImpl;
 let listPendingInvitationsForUserImpl;
 let acceptPendingInvitationImpl;
 let rejectPendingInvitationImpl;
-let listAccessRequestsForNetworkImpl;
 let cleanupExpiredRequestsImpl;
 let deleteImpl;
 let updateImpl;
@@ -49,20 +48,18 @@ const createRequestControllerStub = {
   requestAccessToGroupByEmail: (req, res) =>
     requestAccessToGroupByEmailImpl(req, res),
   acceptInvitation: (req, res) => acceptInvitationImpl(req, res),
-  requestAccessToNetwork: (req, res) => requestAccessToNetworkImpl(req, res),
   list: (req, res) => listImpl(req, res),
   listPendingAccessRequests: (req, res) =>
     listPendingAccessRequestsImpl(req, res),
   approveAccessRequest: (req, res) => approveAccessRequestImpl(req, res),
   rejectAccessRequest: (req, res) => rejectAccessRequestImpl(req, res),
+  cancelAccessRequest: (req, res) => cancelAccessRequestImpl(req, res),
   listAccessRequestsForGroup: (req, res) =>
     listAccessRequestsForGroupImpl(req, res),
   listPendingInvitationsForUser: (req, res) =>
     listPendingInvitationsForUserImpl(req, res),
   acceptPendingInvitation: (req, res) => acceptPendingInvitationImpl(req, res),
   rejectPendingInvitation: (req, res) => rejectPendingInvitationImpl(req, res),
-  listAccessRequestsForNetwork: (req, res) =>
-    listAccessRequestsForNetworkImpl(req, res),
   cleanupExpiredRequests: (req, res) => cleanupExpiredRequestsImpl(req, res),
   delete: (req, res) => deleteImpl(req, res),
   update: (req, res) => updateImpl(req, res),
@@ -78,16 +75,26 @@ const permissionAuthStub = {
     next(),
 };
 
+// requireAccessRequestManagerAccess looks up the AccessRequest and delegates
+// to requireGroupManagerAccess, both of which need a real DB/RBACService —
+// stub it the same way as the other auth middleware above.
+const accessRequestAuthStub = {
+  requireAccessRequestManagerAccess: (requestIdParam) => (req, res, next) =>
+    next(),
+  scopeAccessRequestListToCaller: () => (req, res, next) => next(),
+  requireGroupAccessRequestViewAccess: () => (req, res, next) => next(),
+};
+
 const router = proxyquire("@routes/v2/requests.routes", {
   "@controllers/request.controller": createRequestControllerStub,
   "@middleware/passport": passportStub,
   "@middleware/permissionAuth": permissionAuthStub,
+  "@middleware/accessRequestAuth": accessRequestAuthStub,
 });
 
 // Realistic 24-char hex Mongo ObjectId strings, since the real validators
 // reject anything that doesn't pass isMongoId().
 const validGroupId = "60d21b4667d0d8992e610c85";
-const validNetworkId = "60d21b4667d0d8992e610c86";
 const validRequestId = "60d21b4667d0d8992e610c87";
 const validTargetId = "60d21b4667d0d8992e610c88";
 
@@ -216,44 +223,6 @@ describe("Request Router API Tests", () => {
 
       expect(response.body.errors[0].msg).to.equal(
         "the target_id is missing in request"
-      );
-    });
-  });
-
-  describe("POST /networks/:net_id", () => {
-    it("should request access to a network", async () => {
-      requestAccessToNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true });
-      };
-
-      const response = await request
-        .post(`/networks/${validNetworkId}`)
-        .send({})
-        .expect(200);
-
-      expect(response.body.success).to.equal(true);
-    });
-
-    it("should return a 400 error for a malformed net_id", async () => {
-      requestAccessToNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true });
-      };
-
-      const response = await request
-        .post("/networks/not-a-valid-id")
-        .send({})
-        .expect(400);
-
-      expect(response.body.errors[0].msg).to.equal(
-        "the net_id is not a valid Object"
       );
     });
   });
@@ -408,6 +377,42 @@ describe("Request Router API Tests", () => {
     });
   });
 
+  describe("POST /:request_id/cancel", () => {
+    it("should cancel a pending access request", async () => {
+      cancelAccessRequestImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .post(`/${validRequestId}/cancel`)
+        .expect(200);
+
+      expect(response.body.success).to.equal(true);
+    });
+
+    it("should return a 400 error for a malformed request_id", async () => {
+      cancelAccessRequestImpl = (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        return res.status(200).json({ success: true });
+      };
+
+      const response = await request
+        .post("/not-a-valid-id/cancel")
+        .expect(400);
+
+      expect(response.body.errors[0].msg).to.equal(
+        "the request_id should be an object ID"
+      );
+    });
+  });
+
   describe("GET /groups", () => {
     it("should list access requests for a group", async () => {
       listAccessRequestsForGroupImpl = (req, res) => {
@@ -527,41 +532,6 @@ describe("Request Router API Tests", () => {
 
       expect(response.body.errors[0].msg).to.equal(
         "the request_id should be an object ID"
-      );
-    });
-  });
-
-  describe("GET /networks", () => {
-    it("should list access requests for a network", async () => {
-      listAccessRequestsForNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true, requests: [] });
-      };
-
-      const response = await request.get("/networks").expect(200);
-
-      expect(response.body.success).to.equal(true);
-    });
-
-    it("should return a 400 error for an invalid tenant", async () => {
-      listAccessRequestsForNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true, requests: [] });
-      };
-
-      const response = await request
-        .get("/networks")
-        .query({ tenant: "not-a-real-tenant" })
-        .expect(400);
-
-      expect(response.body.errors[0].msg).to.equal(
-        "Invalid tenant. Must be one of: airqo"
       );
     });
   });
@@ -707,42 +677,6 @@ describe("Request Router API Tests", () => {
 
       expect(response.body.errors[0].msg).to.equal(
         "the grp_id should be an object ID"
-      );
-    });
-  });
-
-  describe("GET /networks/:net_id", () => {
-    it("should retrieve access requests for a network", async () => {
-      listAccessRequestsForNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true, data: [] });
-      };
-
-      const response = await request
-        .get(`/networks/${validNetworkId}`)
-        .expect(200);
-
-      expect(response.body.success).to.equal(true);
-    });
-
-    it("should return a 400 error for a malformed net_id", async () => {
-      listAccessRequestsForNetworkImpl = (req, res) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-        }
-        return res.status(200).json({ success: true, data: [] });
-      };
-
-      const response = await request
-        .get("/networks/not-a-valid-id")
-        .expect(400);
-
-      expect(response.body.errors[0].msg).to.equal(
-        "the net_id should be an object ID"
       );
     });
   });

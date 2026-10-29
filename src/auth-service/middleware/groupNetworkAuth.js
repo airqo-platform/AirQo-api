@@ -439,42 +439,6 @@ const isVerifiedGroupMember = async (user, groupId, tenant) => {
 };
 
 /**
- * Utility function to check if user is a verified network member
- * @param {Object} user - User object
- * @param {string} networkId - Network ID
- * @param {string} tenant - Tenant identifier
- * @returns {Promise<boolean>} Whether user is verified network member
- */
-const isVerifiedNetworkMember = async (user, networkId, tenant) => {
-  try {
-    if (!user || !user._id || !networkId) {
-      return false;
-    }
-
-    // Must be verified and active
-    const isActive = user.status === "active" || user.isActive;
-    if (!user.verified || !isActive) {
-      return false;
-    }
-
-    const rbacService = getRBACService(tenant);
-
-    // Check network membership
-    const isNetworkMember = await rbacService.isNetworkMember(
-      user._id,
-      networkId
-    );
-
-    return isNetworkMember;
-  } catch (error) {
-    logger.error(
-      `Error checking verified network member status: ${error.message}`
-    );
-    return false;
-  }
-};
-
-/**
  * Middleware to check multiple group access (user must have access to all specified groups)
  * @param {Array} groupIds - Array of group IDs to check
  * @param {Array} requiredPermissions - Required permissions in each group
@@ -557,7 +521,7 @@ const requireMultipleGroupAccess = (
 };
 
 /**
- * Debug middleware to show group/network access info (development only)
+ * Debug middleware to show group access info (development only)
  */
 const debugGroupNetworkAccess = () => {
   return async (req, res, next) => {
@@ -573,9 +537,8 @@ const debugGroupNetworkAccess = () => {
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
-        logger.info(`[DEBUG] Group/Network access for ${user.email}:`, {
+        logger.info(`[DEBUG] Group access for ${user._id}:`, {
           groupRoles: debugInfo.role_assignments?.groupRoles?.length || 0,
-          networkRoles: debugInfo.role_assignments?.networkRoles?.length || 0,
           totalPermissions: debugInfo.permissions?.allPermissions?.length || 0,
           isSuperAdmin: debugInfo.admin_status?.isSystemSuperAdmin || false,
         });
@@ -584,10 +547,6 @@ const debugGroupNetworkAccess = () => {
           res.set(
             "X-Group-Roles",
             debugInfo.groupRoles?.length.toString() || "0"
-          );
-          res.set(
-            "X-Network-Roles",
-            debugInfo.networkRoles?.length.toString() || "0"
           );
           res.set(
             "X-Is-Super-Admin",
@@ -1000,7 +959,6 @@ module.exports = {
   requireGroupMemberManagementAccess,
   requireMultipleGroupAccess,
   isVerifiedGroupMember,
-  isVerifiedNetworkMember,
   debugGroupNetworkAccess,
   requireOrganizationContext,
   requireOrganizationContextEnhanced,

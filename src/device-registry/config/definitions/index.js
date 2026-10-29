@@ -1,6 +1,10 @@
 const appConstants = require("./app-constants");
 const aqiConstants = require("./aqi");
-const { getFlagUrl, countryCodes } = require("./country-flags");
+const {
+  getFlagUrl,
+  getCountryNameByCode,
+  countryCodes,
+} = require("./country-flags");
 const dbProjections = require("./db-projections");
 const envs = require("./envs");
 const mappings = require("./mappings");
@@ -11,6 +15,7 @@ const configurations = {
   ...appConstants,
   ...aqiConstants,
   getFlagUrl,
+  getCountryNameByCode,
   countryCodes,
   ...dbProjections,
   ...envs,

@@ -1,7 +1,6 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
 const GroupModel = require("@models/Group");
-const NetworkModel = require("@models/Network");
 const SelectedSiteModel = require("@models/SelectedSite");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
@@ -179,10 +178,67 @@ const handleDefaultGroup = async (tenant, body, next) => {
   }
 };
 
+// A chart write can fail schema validation at the DB layer — e.g.
+// chartConfigSchema's pre-validate hook rejecting a locationColors entry
+// whose id isn't in device_ids/site_ids — which is a client mistake, not a
+// server fault. Classifying it here (rather than duplicating the hook's
+// check inline before every write) keeps both catch blocks a clean 400 for
+// any such schema rejection, present or future, without hand-copying the
+// hook's specific rule into the util layer.
+const chartValidationErrorResponse = (error) => ({
+  success: false,
+  message: "Bad Request Error",
+  errors: { message: error.message },
+  status: httpStatus.BAD_REQUEST,
+});
+
+// sites/devices are a display-name snapshot for a chart's site_ids/device_ids
+// — an entry referencing an id outside that scope would mean the API keeps
+// returning a name for a location the chart isn't even scoped to anymore
+// (most easily reached by a partial update that narrows site_ids/device_ids
+// without touching sites/devices). This can't live in chartConfigSchema's
+// shared pre-validate hook (like the locationColors check does) because the
+// scope lives in different places for a personal chart (the chart
+// subdocument's own site_ids/device_ids) vs. a group chart (the parent
+// document's), so it's checked explicitly wherever each one is set instead.
+const findStaleMetadataEntry = (entries, idField, allowedIds) => {
+  if (isEmpty(entries)) return undefined;
+  const allowedIdSet = new Set((allowedIds || []).map((id) => id.toString()));
+  return entries.find(
+    (entry) =>
+      !entry || !entry[idField] || !allowedIdSet.has(entry[idField].toString())
+  );
+};
+
+// Legacy preference docs created via the upsert()/replace() findOneAndUpdate
+// paths (no runValidators, no period default there) can exist without a
+// `period` even though it's required on the schema — invisible until
+// something calls preference.save(), which (unlike a findOneAndUpdate)
+// always validates every required path on the whole document, so a chart
+// change having nothing to do with `period` fails with "period: period is
+// required!". Backfilling here (the same default preference.register() and
+// createChart use) unblocks those pre-existing docs without a migration.
+const ensurePeriodDefault = (preference) => {
+  if (isEmpty(preference.period)) {
+    preference.period = {
+      value: "Last 7 days",
+      label: "Last 7 days",
+      unitValue: 7,
+      unit: "day",
+    };
+  }
+};
+
 // Define allowed properties for chart updates
 const allowedChartProperties = [
   "fieldId",
   "title",
+  "subTitle",
+  "device_ids",
+  "site_ids",
+  "sites",
+  "devices",
+  "locationColors",
   "xAxisLabel",
   "yAxisLabel",
   "color",
@@ -327,7 +383,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -403,7 +458,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -485,7 +539,6 @@ const preferences = {
         "cohort_ids",
         "grid_ids",
         "site_ids",
-        "network_ids",
         "group_ids",
       ];
 
@@ -845,7 +898,12 @@ const preferences = {
   },
   createChart: async (request, next) => {
     try {
-      const { tenant, deviceId, chartConfig } = request.body;
+      const { tenant } = request.query;
+      const {
+        chartConfig,
+        device_ids: deviceIds = [],
+        site_ids: siteIds = [],
+      } = request.body;
       const userId = request.user._id; // Assuming JWT authentication
 
       // Basic validation
@@ -857,36 +915,89 @@ const preferences = {
         };
       }
 
-      // Find preference record - look for a device in device_ids array
-      const preference = await PreferenceModel(tenant).findOne({
-        user_id: userId,
-        device_ids: { $in: [deviceId] },
-      });
-
-      if (!preference) {
-        // If preference doesn't exist, create a new one
-        const newPreference = {
-          user_id: userId,
-          device_ids: [deviceId],
-          chartConfigurations: [chartConfig],
-          period: {
-            value: "Last 7 days",
-            label: "Last 7 days",
-            unitValue: 7,
-            unit: "day",
-          },
+      // Enforced by the route validators too, but checked again here so a
+      // validator-bypassing call still fails as a clear 400 rather than
+      // hitting the schema's pre-validate hook and surfacing as a 500.
+      if (isEmpty(deviceIds) && isEmpty(siteIds)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
         };
-
-        const result = await PreferenceModel(tenant).register(
-          newPreference,
-          next
-        );
-        return result;
       }
 
-      // Add the new chart to existing preference
-      preference.chartConfigurations.push(chartConfig);
-      await preference.save();
+      // updateChart expects sites/devices at the request body's top level;
+      // accept that shape here too (falling back to it when chartConfig
+      // doesn't carry its own sites/devices) so create and update behave
+      // the same way instead of one silently dropping data the other
+      // would have accepted.
+      const chartSites = !isEmpty(chartConfig.sites)
+        ? chartConfig.sites
+        : request.body.sites;
+      const chartDevices = !isEmpty(chartConfig.devices)
+        ? chartConfig.devices
+        : request.body.devices;
+
+      const staleSite = findStaleMetadataEntry(chartSites, "site_id", siteIds);
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        chartDevices,
+        "device_id",
+        deviceIds
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const groupId = request.body.group_id || constants.DEFAULT_GROUP;
+
+      // Scope lives on the chart itself now (device_ids/site_ids), not a
+      // single device tracked at the preference-document level, so one
+      // chart can compare multiple locations at once.
+      const chartToInsert = {
+        ...chartConfig,
+        device_ids: deviceIds,
+        site_ids: siteIds,
+      };
+      // Only set sites/devices when a value was actually resolved, so a
+      // request with neither the nested nor the top-level shape doesn't add
+      // stray `sites: undefined` / `devices: undefined` keys.
+      if (!isEmpty(chartSites)) {
+        chartToInsert.sites = chartSites;
+      }
+      if (!isEmpty(chartDevices)) {
+        chartToInsert.devices = chartDevices;
+      }
+
+      // Atomically add this chart to the user's preference doc for this
+      // group, creating the doc if it doesn't exist yet.
+      const preference = await PreferenceModel(tenant).findOneAndUpdate(
+        { user_id: userId, group_id: groupId },
+        {
+          $push: { chartConfigurations: chartToInsert },
+          $setOnInsert: {
+            user_id: userId,
+            group_id: groupId,
+            period: {
+              value: "Last 7 days",
+              label: "Last 7 days",
+              unitValue: 7,
+              unit: "day",
+            },
+          },
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
 
       return {
         success: true,
@@ -897,6 +1008,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error creating chart: ${error.message}`);
       return {
         success: false,
@@ -908,21 +1022,50 @@ const preferences = {
   },
   updateChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
-      const updates = request.body;
+      // The controller always normalizes request.query.tenant; body.tenant
+      // is only ever populated if a caller duplicates it there too, which
+      // isn't the convention this API validates against.
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
+      // createChart accepts sites/devices nested inside a chartConfig
+      // wrapper; fall back to that shape here too when the top-level
+      // sites/devices aren't present, so create and update behave the same
+      // way instead of one silently dropping data the other would accept.
+      // Only fills in the field when it's genuinely absent, so a request
+      // that omits sites/devices entirely still leaves the chart's existing
+      // values untouched.
+      const updates = { ...request.body };
+      const nestedChartConfig = request.body.chartConfig || {};
+      // isEmpty() would also treat an explicit `sites: []` (a deliberate
+      // clear) as "absent" and wrongly backfill it from chartConfig — check
+      // for a genuinely missing key instead.
+      if (
+        typeof updates.sites === "undefined" &&
+        !isEmpty(nestedChartConfig.sites)
+      ) {
+        updates.sites = nestedChartConfig.sites;
+      }
+      if (
+        typeof updates.devices === "undefined" &&
+        !isEmpty(nestedChartConfig.devices)
+      ) {
+        updates.devices = nestedChartConfig.devices;
+      }
+
+      // chartId (a subdocument _id) is globally unique on its own, so the
+      // chart's parent preference doc can be found by user_id + chartId
+      // alone — no need for the caller to also know/send group_id.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -940,22 +1083,66 @@ const preferences = {
         };
       }
 
+      const chart = preference.chartConfigurations[chartIndex];
+
       // Update allowed properties
       Object.keys(updates)
         .filter((key) => allowedChartProperties.includes(key))
         .forEach((key) => {
-          preference.chartConfigurations[chartIndex][key] = updates[key];
+          chart[key] = updates[key];
         });
 
+      // Checked here (post-merge, pre-save) rather than left to the
+      // schema's pre-validate hook: a request can clear one array while
+      // leaving the other untouched, and only the merged result — not the
+      // request body alone — can tell us whether that leaves the chart
+      // with no scope at all.
+      if (isEmpty(chart.device_ids) && isEmpty(chart.site_ids)) {
+        return {
+          success: false,
+          message: "At least one of device_ids or site_ids is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const staleSite = findStaleMetadataEntry(
+        chart.sites,
+        "site_id",
+        chart.site_ids
+      );
+      if (staleSite) {
+        return {
+          success: false,
+          message: `sites[].site_id ${staleSite.site_id} is not in this chart's site_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const staleDevice = findStaleMetadataEntry(
+        chart.devices,
+        "device_id",
+        chart.device_ids
+      );
+      if (staleDevice) {
+        return {
+          success: false,
+          message: `devices[].device_id ${staleDevice.device_id} is not in this chart's device_ids`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      ensurePeriodDefault(preference);
       await preference.save();
 
       return {
         success: true,
         message: "Chart configuration updated successfully",
-        data: preference.chartConfigurations[chartIndex],
+        data: chart,
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error updating chart: ${error.message}`);
       return {
         success: false,
@@ -967,40 +1154,34 @@ const preferences = {
   },
   deleteChart: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
-      const preference = await PreferenceModel(tenant).findOne({
-        user_id: userId,
-        device_ids: { $in: [deviceId] },
-      });
-
-      if (!preference) {
-        return {
-          success: false,
-          message: "Preference not found for this device",
-          status: httpStatus.NOT_FOUND,
-        };
-      }
-
-      // Find the chart in the chartConfigurations array
-      const chartIndex = preference.chartConfigurations.findIndex(
-        (chart) => chart._id.toString() === chartId
+      // A single atomic $pull rather than findOne -> splice -> save avoids
+      // racing a concurrent delete/update on the same doc. Note this only
+      // ever removes the one chart, never the parent Preference document —
+      // unlike the group chart config's dedicated per-default documents,
+      // this doc also holds the user's other settings (pollutant, theme,
+      // frequency, etc.), so an empty chartConfigurations array doesn't
+      // mean the document itself is disposable.
+      const updateResult = await PreferenceModel(tenant).updateOne(
+        { user_id: userId, "chartConfigurations._id": chartId },
+        { $pull: { chartConfigurations: { _id: chartId } } }
       );
 
-      if (chartIndex === -1) {
+      // This driver/mongoose combination returns the legacy { n, nModified,
+      // ok } shape from updateOne, not { matchedCount }, which is
+      // undefined here — checked defensively either way rather than
+      // trusting one specific shape.
+      const matchedCount = updateResult.matchedCount ?? updateResult.n;
+      if (matchedCount === 0) {
         return {
           success: false,
           message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
-
-      // Remove the chart
-      preference.chartConfigurations.splice(chartIndex, 1);
-      await preference.save();
 
       return {
         success: true,
@@ -1019,29 +1200,51 @@ const preferences = {
   },
   getChartConfigurations: async (request, next) => {
     try {
-      const { tenant } = request.query || {};
-      const { deviceId } = request.params;
+      const { tenant, limit, skip, device_id, site_id } =
+        request.query || {};
       const userId = request.user._id;
+      const groupId = request.query.group_id || constants.DEFAULT_GROUP;
 
-      // Find preference record
+      // One preference doc per (user_id, group_id) holds every chart the
+      // user has configured for that group — no per-device doc to look up
+      // anymore, since scope now lives on each chart itself.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        group_id: groupId,
       });
 
       if (!preference) {
         return {
           success: true,
-          message: "No chart configurations found for this device",
+          message: "No chart configurations found for this group",
           data: [],
           status: httpStatus.OK,
         };
       }
 
+      let allCharts = preference.chartConfigurations || [];
+      if (device_id) {
+        allCharts = allCharts.filter((chart) =>
+          (chart.device_ids || []).some((id) => id.toString() === device_id)
+        );
+      }
+      if (site_id) {
+        allCharts = allCharts.filter((chart) =>
+          (chart.site_ids || []).some((id) => id.toString() === site_id)
+        );
+      }
+
+      // chartConfigurations is an array embedded in a single document, not
+      // its own collection — pagination (set by the route's pagination()
+      // middleware) is applied in memory rather than via a Mongo
+      // .skip()/.limit() query.
+      const skipNum = Number(skip) || 0;
+      const limitNum = Number(limit) || allCharts.length || 1;
+
       return {
         success: true,
         message: "Chart configurations retrieved successfully",
-        data: preference.chartConfigurations || [],
+        data: allCharts.slice(skipNum, skipNum + limitNum),
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1057,19 +1260,20 @@ const preferences = {
   getChartConfigurationById: async (request, next) => {
     try {
       const { tenant } = request.query || {};
-      const { deviceId, chartId } = request.params;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
+      // chartId is unique on its own, so the parent preference doc can be
+      // found by user_id + chartId alone — no group_id needed.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -1105,20 +1309,21 @@ const preferences = {
   },
   copyChartConfiguration: async (request, next) => {
     try {
-      const { tenant } = request.body;
-      const { deviceId, chartId } = request.params;
+      const tenant = (request.query || {}).tenant || request.body.tenant;
+      const { chartId } = request.params;
       const userId = request.user._id;
 
-      // Find preference record
+      // chartId is unique on its own, so the parent preference doc can be
+      // found by user_id + chartId alone — no group_id needed.
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
-        device_ids: { $in: [deviceId] },
+        "chartConfigurations._id": chartId,
       });
 
       if (!preference) {
         return {
           success: false,
-          message: "Preference not found for this device",
+          message: "Chart configuration not found",
           status: httpStatus.NOT_FOUND,
         };
       }
@@ -1143,6 +1348,7 @@ const preferences = {
 
       // Add the new chart to the preference
       preference.chartConfigurations.push(chartCopy);
+      ensurePeriodDefault(preference);
       await preference.save();
 
       return {
@@ -1154,6 +1360,9 @@ const preferences = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      if (error.name === "ValidationError") {
+        return chartValidationErrorResponse(error);
+      }
       logger.error(`Error copying chart configuration: ${error.message}`);
       return {
         success: false,
@@ -1389,144 +1598,6 @@ const preferences = {
     }
   },
 
-  // User theme within network context
-  getUserNetworkTheme: async (request, next) => {
-    try {
-      const { user_id, network_id } = request.params;
-      const { tenant } = request.query;
-
-      // Validate user exists and belongs to network
-      const user = await UserModel(tenant)
-        .findById(user_id)
-        .select("network_roles");
-      if (!user) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-      }
-
-      // Check if user belongs to the network
-      const userBelongsToNetwork =
-        user.network_roles &&
-        user.network_roles.some(
-          (role) =>
-            role.network && role.network.toString() === network_id.toString()
-        );
-
-      if (!userBelongsToNetwork) {
-        return next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "User does not belong to this network",
-          })
-        );
-      }
-
-      // Look for preference with this user_id and network in network_ids
-      const preference = await PreferenceModel(tenant)
-        .findOne({
-          user_id: user_id,
-          network_ids: { $in: [network_id] },
-        })
-        .select("theme");
-
-      return {
-        success: true,
-        data: preference?.theme || getDefaultTheme(),
-        source: preference?.theme ? "user_network_context" : "default",
-        message: preference?.theme
-          ? "Network-scoped theme retrieved successfully"
-          : "No network-scoped theme set, returning default",
-        networkId: network_id,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
-  updateUserNetworkTheme: async (request, next) => {
-    try {
-      const { body, params, query } = request;
-      const { user_id, network_id } = params;
-      const { tenant } = query;
-      const { theme } = body;
-
-      // Validate user exists and belongs to network
-      const user = await UserModel(tenant)
-        .findById(user_id)
-        .select("network_roles");
-      if (!user) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-      }
-
-      // Check if user belongs to the network
-      const userBelongsToNetwork =
-        user.network_roles &&
-        user.network_roles.some(
-          (role) =>
-            role.network && role.network.toString() === network_id.toString()
-        );
-
-      if (!userBelongsToNetwork) {
-        return next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "User does not belong to this network",
-          })
-        );
-      }
-
-      // Validate theme object
-      if (!theme || typeof theme !== "object") {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Valid theme object is required",
-          })
-        );
-      }
-
-      // Update or create preference with network-scoped theme
-      const preference = await PreferenceModel(tenant).findOneAndUpdate(
-        { user_id: user_id, network_ids: { $in: [network_id] } },
-        {
-          theme,
-          user_id,
-          $addToSet: { network_ids: network_id },
-        },
-        { new: true, upsert: true, runValidators: true }
-      );
-
-      return {
-        success: true,
-        data: preference.theme,
-        message: "Network-scoped theme updated successfully",
-        networkId: network_id,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
   // ===========================================
   // ORGANIZATION THEME UTILITIES
   // ===========================================
@@ -1648,132 +1719,15 @@ const preferences = {
     }
   },
 
-  getNetworkTheme: async (request, next) => {
-    try {
-      const { network_id } = request.params;
-      const { tenant } = request.query;
-
-      const network = await NetworkModel(tenant)
-        .findById(network_id)
-        .select("theme net_name");
-      if (!network) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Network not found",
-          })
-        );
-      }
-
-      return {
-        success: true,
-        data: network.theme || getDefaultTheme(),
-        source: network.theme ? "network_organization" : "default",
-        message: network.theme
-          ? "Network theme retrieved successfully"
-          : "No network theme set, returning default",
-        networkId: network._id,
-        networkName: network.net_name,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
-  updateNetworkTheme: async (request, next) => {
-    try {
-      const { body, params, query } = request;
-      const { network_id } = params;
-      const { tenant } = query;
-      const { theme } = body;
-      const userId = request.user ? request.user._id : null;
-
-      // Validate network exists
-      const network = await NetworkModel(tenant).findById(network_id);
-      if (!network) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Network not found",
-          })
-        );
-      }
-
-      // If user context is available, validate user belongs to the network and has appropriate permissions
-      if (userId) {
-        const user = await UserModel(tenant)
-          .findById(userId)
-          .select("network_roles");
-        if (user) {
-          const userNetworkRole =
-            user.network_roles &&
-            user.network_roles.find(
-              (role) =>
-                role.network &&
-                role.network.toString() === network_id.toString()
-            );
-
-          if (!userNetworkRole) {
-            return next(
-              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-                message:
-                  "User does not belong to this network and cannot update its theme",
-              })
-            );
-          }
-        }
-      }
-
-      // Validate theme object
-      if (!theme || typeof theme !== "object") {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Valid theme object is required",
-          })
-        );
-      }
-
-      // Update network theme
-      const updatedNetwork = await NetworkModel(tenant).findByIdAndUpdate(
-        network_id,
-        { theme },
-        { new: true, runValidators: true }
-      );
-
-      return {
-        success: true,
-        data: updatedNetwork.theme,
-        message: "Network theme updated successfully",
-        networkId: updatedNetwork._id,
-        networkName: updatedNetwork.net_name,
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
   getEffectiveTheme: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant, group_id, network_id } = request.query;
+      const { tenant, group_id } = request.query;
 
-      // Get user with their group roles and network associations
+      // Get user with their group roles
       const user = await UserModel(tenant)
         .findById(user_id)
-        .select("theme group_roles network_roles")
+        .select("theme group_roles")
         .lean();
 
       if (!user) {
@@ -1834,48 +1788,6 @@ const preferences = {
         }
       }
 
-      // 3. User network-scoped theme (if network_id provided and user belongs to network)
-      if (network_id) {
-        // Validate user belongs to the specified network
-        const userBelongsToNetwork =
-          user.network_roles &&
-          user.network_roles.some(
-            (role) =>
-              role.network && role.network.toString() === network_id.toString()
-          );
-
-        if (!userBelongsToNetwork) {
-          return next(
-            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: "User does not belong to the specified network",
-            })
-          );
-        }
-
-        // Check for user's network-scoped theme
-        const userNetworkPreference = await PreferenceModel(tenant)
-          .findOne({
-            user_id: user_id,
-            network_ids: { $in: [network_id] },
-          })
-          .select("theme")
-          .lean();
-
-        if (
-          userNetworkPreference &&
-          hasValidTheme(userNetworkPreference.theme)
-        ) {
-          return {
-            success: true,
-            data: mergeWithDefaults(userNetworkPreference.theme),
-            source: "user_network_context",
-            networkId: network_id,
-            message: "User network-scoped theme retrieved successfully",
-            status: httpStatus.OK,
-          };
-        }
-      }
-
       // 4. Group organization theme (if group_id provided and user belongs to group)
       if (group_id) {
         const groupExists = await GroupModel(tenant)
@@ -1891,26 +1803,6 @@ const preferences = {
             groupId: groupExists._id,
             groupTitle: groupExists.grp_title,
             message: `Group organization theme retrieved successfully for group: ${groupExists.grp_title}`,
-            status: httpStatus.OK,
-          };
-        }
-      }
-
-      // 5. Network organization theme (if network_id provided and user belongs to network)
-      if (network_id) {
-        const networkExists = await NetworkModel(tenant)
-          .findById(network_id)
-          .select("_id net_name theme")
-          .lean();
-
-        if (networkExists && hasValidTheme(networkExists.theme)) {
-          return {
-            success: true,
-            data: mergeWithDefaults(networkExists.theme),
-            source: "network_organization",
-            networkId: networkExists._id,
-            networkName: networkExists.net_name,
-            message: `Network organization theme retrieved successfully for network: ${networkExists.net_name}`,
             status: httpStatus.OK,
           };
         }
@@ -1970,62 +1862,6 @@ const preferences = {
         }
       }
 
-      // 7. User's primary network theme (no specific network_id provided)
-      if (!network_id && user.network_roles && user.network_roles.length > 0) {
-        // Get the primary network (first one or default network)
-        let primaryNetworkRole =
-          user.network_roles.find(
-            (role) =>
-              role.network &&
-              role.network.toString() === constants.DEFAULT_NETWORK
-          ) || user.network_roles[0];
-
-        if (primaryNetworkRole) {
-          // Check for user's primary network-scoped theme first
-          const userPrimaryNetworkPreference = await PreferenceModel(tenant)
-            .findOne({
-              user_id: user_id,
-              network_ids: { $in: [primaryNetworkRole.network] },
-            })
-            .select("theme")
-            .lean();
-
-          if (
-            userPrimaryNetworkPreference &&
-            hasValidTheme(userPrimaryNetworkPreference.theme)
-          ) {
-            return {
-              success: true,
-              data: mergeWithDefaults(userPrimaryNetworkPreference.theme),
-              source: "user_primary_network_context",
-              networkId: primaryNetworkRole.network,
-              message:
-                "User primary network-scoped theme retrieved successfully",
-              status: httpStatus.OK,
-            };
-          }
-
-          // Then check for primary network organization theme
-          const primaryNetwork = await NetworkModel(tenant)
-            .findById(primaryNetworkRole.network)
-            .select("theme net_name")
-            .lean();
-
-          if (primaryNetwork && hasValidTheme(primaryNetwork.theme)) {
-            return {
-              success: true,
-              data: mergeWithDefaults(primaryNetwork.theme),
-              source: "primary_network_organization",
-              networkId: primaryNetwork._id,
-              networkName: primaryNetwork.net_name,
-              message:
-                "Primary network organization theme retrieved successfully",
-              status: httpStatus.OK,
-            };
-          }
-        }
-      }
-
       // 8. Default theme (lowest priority)
       return {
         success: true,
@@ -2047,5 +1883,11 @@ const preferences = {
     }
   },
 };
+
+// Exposed for reuse by group-chart-config.util.js — the group-scoped
+// default chart config accepts/updates the same whitelist of chart fields
+// as the personal one, so this avoids a second list drifting out of sync.
+preferences.allowedChartProperties = allowedChartProperties;
+preferences.findStaleMetadataEntry = findStaleMetadataEntry;
 
 module.exports = preferences;

@@ -4,10 +4,10 @@ import logging
 from typing import List
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.sync import SyncGroup, SyncGroupCohort
+from app.models.sync import SyncCohortDevice, SyncGroup, SyncGroupCohort
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,6 @@ def resolve_group_device_ids(db: Session, cohort_ids):
     if cohort_ids is None:
         return None
 
-    from app.models.sync import SyncCohortDevice
-
     if not cohort_ids:
         return []
 
@@ -87,3 +85,15 @@ def resolve_group_device_ids(db: Session, cohort_ids):
     )
 
     return [j.device_id for j in junctions]
+
+
+def group_device_id_select(db: Session, group_titles_csv: str):
+    """Return a SQL select of the group's device IDs, or ``None`` for a supergroup.
+
+    Unlike :func:`resolve_group_device_ids`, the device IDs stay in the database
+    and are used as a subquery, so large groups don't become huge IN lists.
+    """
+    cohort_ids = resolve_group_cohort_ids(db, group_titles_csv)
+    if cohort_ids is None:
+        return None
+    return select(SyncCohortDevice.device_id).where(SyncCohortDevice.cohort_id.in_(cohort_ids))

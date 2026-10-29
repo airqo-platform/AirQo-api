@@ -36,7 +36,8 @@ class BaseMongoOperations:
         Args:
             new_document (dict): document to be inserted into the collection
         """
-        return self.collection.insert(new_document)
+        # Collection.insert was removed in PyMongo 4 (requirements pin ~=4.5)
+        return self.collection.insert_one(new_document)
 
     def update_one(self, filter_cond=None, update_fields=None):
         """
@@ -267,6 +268,12 @@ class ChainableMongoOperations(BaseMongoOperations):
             if projections.get("_id"):
                 mongo_db_project_operator.update({"_id": {"$toString": "$_id"}})
             stages.append({"$project": mongo_db_project_operator})
+
+        # Reset chain state so the instance can build a second, independent
+        # query — without this, a reused instance would silently AND both
+        # pipelines together (the exec() docstring always promised this).
+        self.stages = []
+        self.match_stage = {self.init_match_expr: []}
 
         return list(self.aggregate(stages))
 

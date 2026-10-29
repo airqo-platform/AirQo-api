@@ -1,38 +1,44 @@
+"""
+Celery worker for scheduled data exports.
+
+Beat schedules ``data_export_periodic_task`` every 5 seconds; the worker
+picks SCHEDULED (and retryable FAILED) requests from MongoDB, builds a
+BigQuery export query, materialises the results into a destination table,
+extracts it to GCS, and writes the download links back onto the Mongo
+document (status READY).  There is no email step — consumers poll
+``GET /data-export?userId=``.
+
+Runs entirely on config.  Redis is the broker/result backend only.
+Note: the 5s beat has no distributed lock — the SCHEDULED→PROCESSING
+status flip is the only double-processing guard.
+
+A request that BigQuery or Cloud Storage refuses, with HTTP 403 or for rate,
+is marked failed.  It keeps a retry only when the reason clears on its own (a
+quota or a rate limit).  translate_incomplete_queries logs the reason and the
+BigQuery message; the worker logs the request and the stage.
+"""
+
 import logging
-import traceback
 from datetime import timedelta
 from typing import List
 
-from celery.utils.log import get_task_logger
-from flask import Flask
-from flask_caching import Cache
-from flask_pymongo import PyMongo
-
 from celery import Celery
+from celery.utils.log import get_task_logger
 
-from config import BaseConfig as Config, CONFIGURATIONS
-from api.models import DataExportModel, DataExportStatus, DataExportRequest, EventsModel
+from api.models.data_export import DataExportModel, DataExportRequest
+from api.models.export_queries import data_export_query
+from api.utils.exceptions import QueryForbidden, QueryRateLimited
+from config import settings
+from constants import DataExportStatus
 
 celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
 
-# db initialization
-mongo = PyMongo()
-cache = Cache()
-
-
-def create_app():
-    application = Flask(__name__)
-    application.config.from_object(CONFIGURATIONS)
-    mongo.init_app(application)
-    cache.init_app(application)
-    return application
-
 
 def make_celery():
     config = {
-        "broker_url": f"{Config.CACHE_REDIS_URL}/0",
-        "result_backend": f"{Config.CACHE_REDIS_URL}/0",
+        "broker_url": f"{settings.cache_redis_url}/0",
+        "result_backend": f"{settings.cache_redis_url}/0",
         "task_default_queue": "analytics",
         "beat_schedule": {
             "data_export_periodic_task": {
@@ -56,7 +62,6 @@ def data_export_task():
     celery_logger.info("Data export periodic task running")
 
     data_export_model = DataExportModel()
-    events_model = EventsModel("airqo")
     pending_requests = data_export_model.get_scheduled_and_failed_requests()
 
     if len(pending_requests) == 0:
@@ -74,17 +79,20 @@ def data_export_task():
             requests_for_processing.append(request)
 
     for request in requests_for_processing:
+        stage = "query build"
         try:
-            query = events_model.data_export_query(
-                sites=request.sites,
-                devices=request.devices,
-                airqlouds=request.airqlouds,
+            # frequency is passed as the enum; data_export_query resolves
+            # .value itself.
+            query = data_export_query(
+                filter_type=request.filter_type,
+                filter_value=request.filter_value,
                 start_date=request.start_date,
                 end_date=request.end_date,
-                frequency=request.frequency.value,
+                frequency=request.frequency,
                 pollutants=request.pollutants,
             )
 
+            stage = "data check"
             has_data = data_export_model.has_data(query)
 
             if not has_data:
@@ -92,10 +100,13 @@ def data_export_task():
                 data_export_model.update_request_status_and_retries(request)
                 continue
 
+            stage = "table export"
             data_export_model.export_query_results_to_table(
                 query=query, export_request=request
             )
+            stage = "file extract"
             data_export_model.export_table_to_gcs(export_request=request)
+            stage = "link listing"
             data_links: List[str] = data_export_model.get_data_links(
                 export_request=request
             )
@@ -103,21 +114,36 @@ def data_export_task():
             request.data_links = data_links
             request.status = DataExportStatus.READY
 
+            stage = "status update"
             success = data_export_model.update_request_status_and_data_links(request)
 
             if not success:
                 raise Exception("Update failed")
 
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+        except (QueryForbidden, QueryRateLimited) as ex:
+            # A quota or rate refusal clears on its own, so the request keeps
+            # a retry for those reasons.  Every other refusal ends its retries.
+            request.status = DataExportStatus.FAILED
+            request.retries = request.retries - 1 if ex.transient else 0
+            _logger.warning(
+                "Export request %s refused by BigQuery at the %s stage: "
+                "reason=%s, retries left=%s",
+                request.request_id,
+                stage,
+                ex.reason,
+                request.retries,
+            )
+            data_export_model.update_request_status_and_retries(request)
+
+        except Exception:
+            _logger.exception(
+                "Export request %s failed at the %s stage", request.request_id, stage
+            )
             request.status = DataExportStatus.FAILED
             request.retries = request.retries - 1
             data_export_model.update_request_status_and_retries(request)
 
-        celery_logger.info(
-            f"Finished processing {len(requests_for_processing)} request(s)"
-        )
+    celery_logger.info(f"Finished processing {len(requests_for_processing)} request(s)")
 
 
 if __name__ == "__main__":

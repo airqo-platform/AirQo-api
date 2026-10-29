@@ -19,7 +19,7 @@ def data_warehouse_consolidated_data():
     import pandas as pd
     from datetime import timedelta
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_low_cost_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
@@ -30,7 +30,7 @@ def data_warehouse_consolidated_data():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
@@ -42,7 +42,7 @@ def data_warehouse_consolidated_data():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
@@ -108,7 +108,6 @@ def data_warehouse_cleanup_consolidated_data():
     import pandas as pd
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
@@ -171,7 +170,6 @@ def data_warehouse_historical_consolidated_data():
     import pandas as pd
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=10),
     )
@@ -184,7 +182,6 @@ def data_warehouse_historical_consolidated_data():
         )
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
@@ -197,7 +194,6 @@ def data_warehouse_historical_consolidated_data():
         )
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
@@ -267,7 +263,6 @@ def data_warehouse_historical_cleanup_consolidated_data():
     import pandas as pd
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=10),
     )
@@ -300,7 +295,6 @@ def data_warehouse_historical_cleanup_consolidated_data():
         )
 
     @task(
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=10),
     )

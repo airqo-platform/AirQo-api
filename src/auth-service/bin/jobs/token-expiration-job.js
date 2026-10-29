@@ -3,6 +3,7 @@ const cron = require("node-cron");
 const constants = require("@config/constants");
 const { logObject, logText } = require("@utils/shared");
 const { mailer, stringify } = require("@utils/common");
+const { acquireCronLock } = require("@utils/common/cron-lock.util");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job -- ops-alerts`,
@@ -104,6 +105,9 @@ async function fetchTokensExpiringWithinDays(days) {
 }
 
 const sendAlertsForExpiringTokens = async () => {
+  const gotLock = await acquireCronLock("airqo", jobName);
+  if (!gotLock) return;
+
   for (const days of REMINDER_DAY_THRESHOLDS) {
     try {
       const tokens = await fetchTokensExpiringWithinDays(days);

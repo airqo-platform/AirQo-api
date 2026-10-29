@@ -1,162 +1,161 @@
 require("module-alias/register");
+const rewire = require("rewire");
 const sinon = require("sinon");
 const chai = require("chai");
-const expect = chai.expect;
 const sinonChai = require("sinon-chai");
+chai.use(sinonChai);
+const expect = chai.expect;
+
+const rewireActiveStatus = rewire("../active-status-job");
+const checkStatus = rewireActiveStatus.__get__("checkStatus");
 
 describe("checkStatus", () => {
-  let UserModel;
+  let origUserModel;
+  let origAcquireCronLock;
+  let findStub;
+  let updateManyStub;
+
+  // Builds a UserModel("airqo") mock supporting the chain used by the job:
+  // .find({...}).limit(n).select("_id").lean() — and, separately,
+  // .updateMany({...}, {...}). `batches` is consumed in call order: the i-th
+  // call to find() resolves (via .lean()) to batches[i], and any call past
+  // the end of the array resolves to [] (ending that pass's while-loop).
+  function makeUserModelMock(batches) {
+    let call = 0;
+    findStub = sinon.stub().callsFake(() => {
+      const data = batches[call] !== undefined ? batches[call] : [];
+      call++;
+      return {
+        limit: sinon.stub().returnsThis(),
+        select: sinon.stub().returnsThis(),
+        lean: sinon.stub().resolves(data),
+      };
+    });
+    updateManyStub = sinon.stub().resolves({ modifiedCount: 0 });
+    return () => ({ find: findStub, updateMany: updateManyStub });
+  }
 
   beforeEach(() => {
-    // Set up mocks
-    UserModel = sinon.mock(UserModel);
-
-    sinon.stub(UserModel.prototype, "find").resolves(
-      [
-        {
-          _id: "user1",
-          lastLogin: new Date("2023-01-01T00:00:00Z"),
-          isActive: true,
-        },
-        {
-          _id: "user2",
-          lastLogin: new Date("2023-02-01T00:00:00Z"),
-          isActive: true,
-        },
-        { _id: "user3", lastLogin: null, isActive: true },
-        {
-          _id: "user4",
-          lastLogin: new Date("2023-03-01T00:00:00Z"),
-          isActive: false,
-        },
-        {
-          _id: "user5",
-          lastLogin: new Date("2023-04-01T00:00:00Z"),
-          isActive: true,
-        },
-      ].slice(0, 100)
+    origUserModel = rewireActiveStatus.__get__("UserModel");
+    origAcquireCronLock = rewireActiveStatus.__get__("acquireCronLock");
+    // The real acquireCronLock is a first-writer-wins, minute-granularity DB
+    // lock (see utils/common/cron-lock.util.js); without stubbing it, only
+    // one test per wall-clock minute would actually acquire it and every
+    // other test's checkStatus() call would silently no-op.
+    rewireActiveStatus.__set__(
+      "acquireCronLock",
+      sinon.stub().resolves(true)
     );
-
-    sinon
-      .stub(UserModel.prototype, "updateMany")
-      .resolves({ modifiedCount: 5 });
-
-    sinon.stub(console, "error");
-    sinon.stub(stringify, "default").returns(JSON.stringify({}));
   });
 
   afterEach(() => {
-    // Restore mocks
-    UserModel.restore();
-    console.error.restore();
-    stringify.default.restore();
+    rewireActiveStatus.__set__("UserModel", origUserModel);
+    rewireActiveStatus.__set__("acquireCronLock", origAcquireCronLock);
+    sinon.restore();
   });
 
   describe("successful execution", () => {
-    it("should mark inactive users and log results", async () => {
+    it("deactivates users found to be inactive in pass 1", async () => {
+      rewireActiveStatus.__set__(
+        "UserModel",
+        makeUserModelMock([
+          [{ _id: "user1" }, { _id: "user2" }, { _id: "user3" }], // pass 1 batch
+          [], // pass 1 ends (all eligible users updated)
+          [], // pass 2: nothing to reactivate
+        ])
+      );
+
       await checkStatus();
 
-      expect(UserModel.prototype.find).to.have.been.calledThrice;
-      expect(UserModel.prototype.updateMany).to.have.been.calledWith(
+      expect(findStub.callCount).to.equal(3);
+      expect(updateManyStub).to.have.been.calledOnce;
+      expect(updateManyStub).to.have.been.calledWithMatch(
         { _id: { $in: ["user1", "user2", "user3"] } },
-        { isActive: false }
+        { $set: { isActive: false } }
       );
-      expect(console.error).to.not.have.been.called;
     });
   });
 
   describe("no inactive users found", () => {
-    it("should not update any users when no inactive users are found", async () => {
-      sinon.stub(UserModel.prototype, "find").resolves(
-        [
-          {
-            _id: "user1",
-            lastLogin: new Date("2023-05-01T00:00:00Z"),
-            isActive: true,
-          },
-          {
-            _id: "user2",
-            lastLogin: new Date("2023-06-01T00:00:00Z"),
-            isActive: true,
-          },
-        ].slice(0, 100)
-      );
+    it("does not call updateMany when both passes find nothing", async () => {
+      rewireActiveStatus.__set__("UserModel", makeUserModelMock([[], []]));
 
       await checkStatus();
 
-      expect(UserModel.prototype.updateMany).to.not.have.been.called;
+      expect(findStub.callCount).to.equal(2);
+      expect(updateManyStub).to.not.have.been.called;
     });
   });
 
-  describe("inactive threshold exceeded", () => {
-    it("should mark users inactive based on last login time", async () => {
-      sinon.stub(Date.now, "bind").returns(1697865600000); // Current timestamp
-      sinon.stub(UserModel.prototype, "find").resolves(
-        [
-          {
-            _id: "user1",
-            lastLogin: new Date("2023-01-01T00:00:00Z"),
-            isActive: true,
-          },
-          {
-            _id: "user2",
-            lastLogin: new Date("2023-02-01T00:00:00Z"),
-            isActive: true,
-          },
-          { _id: "user3", lastLogin: null, isActive: true },
-          {
-            _id: "user4",
-            lastLogin: new Date("2023-03-01T00:00:00Z"),
-            isActive: true,
-          },
-        ].slice(0, 100)
+  describe("pagination", () => {
+    it("keeps fetching batches within a pass until an empty page ends it", async () => {
+      rewireActiveStatus.__set__(
+        "UserModel",
+        makeUserModelMock([
+          [{ _id: "u1" }], // pass 1, batch 1
+          [{ _id: "u2" }], // pass 1, batch 2 (updated users drop out, so skip stays 0)
+          [], // pass 1 ends
+          [], // pass 2: nothing to reactivate
+        ])
       );
 
       await checkStatus();
 
-      expect(UserModel.prototype.updateMany).to.have.been.calledWith(
-        { _id: { $in: ["user1", "user2", "user3"] } },
-        { isActive: false }
+      expect(findStub.callCount).to.equal(4);
+      expect(updateManyStub.callCount).to.equal(2);
+    });
+  });
+
+  describe("reactivation pass", () => {
+    it("reactivates verified users with recent activity still marked inactive", async () => {
+      rewireActiveStatus.__set__(
+        "UserModel",
+        makeUserModelMock([
+          [], // pass 1: nothing to deactivate
+          [{ _id: "user9" }], // pass 2 batch
+          [], // pass 2 ends
+        ])
+      );
+
+      await checkStatus();
+
+      expect(updateManyStub).to.have.been.calledOnce;
+      expect(updateManyStub).to.have.been.calledWithMatch(
+        { _id: { $in: ["user9"] } },
+        { $set: { isActive: true } }
       );
     });
   });
 
   describe("internal server error", () => {
-    it("should log internal server error when executing the function fails", async () => {
-      sinon.stub(UserModel.prototype, "find").throws(new Error("Test error"));
+    it("does not throw when the find query rejects", async () => {
+      updateManyStub = sinon.stub().resolves({});
+      rewireActiveStatus.__set__("UserModel", () => ({
+        find: sinon.stub().returns({
+          limit: sinon.stub().returnsThis(),
+          select: sinon.stub().returnsThis(),
+          lean: sinon.stub().rejects(new Error("Test error")),
+        }),
+        updateMany: updateManyStub,
+      }));
 
       await checkStatus();
 
-      expect(console.error).to.have.been.calledWith(
-        `Internal Server Error --- Test error`
-      );
+      expect(updateManyStub).to.not.have.been.called;
     });
   });
 
-  describe("isActive false users", () => {
-    it("should skip already inactive users", async () => {
-      sinon.stub(UserModel.prototype, "find").resolves(
-        [
-          {
-            _id: "user1",
-            lastLogin: new Date("2023-01-01T00:00:00Z"),
-            isActive: false,
-          },
-          {
-            _id: "user2",
-            lastLogin: new Date("2023-02-01T00:00:00Z"),
-            isActive: true,
-          },
-          { _id: "user3", lastLogin: null, isActive: true },
-        ].slice(0, 100)
+  describe("cron lock not acquired", () => {
+    it("skips the run entirely when another pod already holds the lock", async () => {
+      rewireActiveStatus.__set__(
+        "acquireCronLock",
+        sinon.stub().resolves(false)
       );
+      rewireActiveStatus.__set__("UserModel", makeUserModelMock([]));
 
       await checkStatus();
 
-      expect(UserModel.prototype.updateMany).to.have.been.calledWith(
-        { _id: { $in: ["user2", "user3"] } },
-        { isActive: false }
-      );
+      expect(findStub).to.not.have.been.called;
     });
   });
 });

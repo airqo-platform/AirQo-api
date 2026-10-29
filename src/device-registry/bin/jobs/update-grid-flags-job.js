@@ -8,7 +8,7 @@ const cron = require("node-cron");
 const { logObject, logText } = require("@utils/shared");
 
 const JOB_NAME = "update-grid-flags-job";
-const JOB_SCHEDULE = "0 */8 * * *"; // Every 8 hours
+const JOB_SCHEDULE = "14 */8 * * *"; // Every 8 hours, at minute 14 (staggered off :00, shared by many other jobs at those hours)
 
 const updateGridFlags = async () => {
   try {

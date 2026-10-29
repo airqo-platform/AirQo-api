@@ -48,90 +48,28 @@ const ApplicationEmailConfigurationSchema = new Schema(
 );
 
 ApplicationEmailConfigurationSchema.statics = {
-  // Each tenant already gets its own physical database (see getModelByTenant),
-  // so this collection is intended to be a per-tenant singleton. register()
-  // is a create-or-merge upsert (findOneAndUpdate with { upsert: true })
-  // rather than insert-then-catch-duplicate-key. This isn't airtight against
-  // two truly concurrent first-time writes -- see the 11000 retry below --
-  // but matches this model's real write pattern (infrequent, single-admin
-  // edits via the settings UI).
+  // Each tenant can hold multiple configurations (e.g. different application
+  // email groups routing to different admin CC lists), so register() always
+  // inserts a new document rather than merging into an existing one. Editing
+  // an existing config is handled separately by modify().
   async register(args, next) {
     try {
       const { applicationEmails, adminCCEmails } = args;
-      const update = {};
 
-      if (Array.isArray(applicationEmails) && applicationEmails.length > 0) {
-        // The schema's `set` normalizer (lowercase/trim/dedupe) only runs on
-        // document assignment, not on update operators like $addToSet --
-        // applied manually here so it isn't silently bypassed.
-        const normalizedApplicationEmails = [
-          ...new Set(
-            applicationEmails.map((e) => String(e).toLowerCase().trim())
-          ),
-        ];
-        if (normalizedApplicationEmails.length > 0) {
-          update.$addToSet = {
-            applicationEmails: { $each: normalizedApplicationEmails },
-          };
-        }
-      }
-
-      if (adminCCEmails) {
-        const existing = await this.findOne({})
-          .sort({ createdAt: 1 })
-          .lean();
-        const merged = new Set(
-          ((existing && existing.adminCCEmails) || "")
-            .split(",")
-            .map((e) => e.trim())
-            .filter(Boolean)
-        );
-        adminCCEmails
-          .split(",")
-          .map((e) => e.trim())
-          .filter(Boolean)
-          .forEach((e) => merged.add(e));
-        update.adminCCEmails = Array.from(merged).join(", ");
-      }
-
-      if (isEmpty(update)) {
-        return {
-          success: false,
-          message: "Operation successful but configuration not created",
-          status: httpStatus.OK,
-        };
-      }
-
-      const hadExisting = !!(await this.exists({}));
-      const upsertOptions = {
-        new: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-        sort: { createdAt: 1 },
+      const doc = {
+        adminCCEmails: adminCCEmails || "",
       };
-      let saved;
-      try {
-        saved = await this.findOneAndUpdate({}, update, {
-          ...upsertOptions,
-          upsert: true,
-        });
-      } catch (upsertErr) {
-        if (upsertErr.code !== 11000) {
-          throw upsertErr;
-        }
-        // Lost the upsert race to a concurrent first write (or the legacy
-        // tenant_1 index is still present on older deployments) -- the row
-        // exists now, so retry as a plain update instead of failing.
-        saved = await this.findOneAndUpdate({}, update, upsertOptions);
+      if (Array.isArray(applicationEmails) && applicationEmails.length > 0) {
+        doc.applicationEmails = applicationEmails;
       }
+
+      const saved = await this.create(doc);
 
       return {
         success: true,
-        message: hadExisting
-          ? "An application email configuration already existed -- the provided values were merged into it"
-          : "Application email configuration created successfully",
+        message: "Application email configuration created successfully",
         data: saved,
-        status: hadExisting ? httpStatus.OK : httpStatus.CREATED,
+        status: httpStatus.CREATED,
       };
     } catch (err) {
       logObject("the error", err);

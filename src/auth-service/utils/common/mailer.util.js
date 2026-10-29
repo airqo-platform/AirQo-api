@@ -55,10 +55,10 @@ const MAX_ATTEMPTS = 3;
 let isProcessingQueue = false;
 let queueIntervalId = null;
 
-const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
+const addToEmailQueue = async (mailOptions, tenant = "airqo", metadata = {}) => {
   try {
     const EmailQueue = EmailQueueModel(tenant);
-    await new EmailQueue({ mailOptions }).save();
+    await new EmailQueue({ mailOptions, metadata }).save();
     // The background processor will pick this up
     return { success: true, message: "Email queued successfully." };
   } catch (error) {
@@ -66,6 +66,34 @@ const addToEmailQueue = async (mailOptions, tenant = "airqo") => {
     // Even if queuing fails, we should probably still try to send for critical emails.
     // For now, we'll just log the error.
     return { success: false, error: error.message };
+  }
+};
+
+// When a queued email permanently fails, "queued successfully" earlier
+// deceived any caller that had already applied a side effect on the
+// assumption the notification would go out (e.g. recording a device as
+// known before the email confirming it to the user has actually sent).
+// A job can attach { rollbackKnownDevice: { userId, fingerprint } } as
+// metadata so that side effect is undone here, letting the next trigger
+// retry the notification instead of staying silently suppressed forever.
+const rollbackFailedJobSideEffect = async (emailJob, tenant) => {
+  const rollback = emailJob.metadata && emailJob.metadata.rollbackKnownDevice;
+  if (!rollback || !rollback.userId || !rollback.fingerprint) {
+    return;
+  }
+  try {
+    const UserModel = require("@models/User");
+    await UserModel(tenant).updateOne(
+      { _id: rollback.userId },
+      { $pull: { knownDevices: { fingerprint: rollback.fingerprint } } },
+    );
+    logger.info(
+      `Rolled back knownDevices fingerprint for user ${rollback.userId} after permanent email failure (job ${emailJob._id})`,
+    );
+  } catch (rollbackError) {
+    logger.error(
+      `Failed to roll back knownDevices fingerprint for user ${rollback.userId}: ${rollbackError.message}`,
+    );
   }
 };
 
@@ -142,6 +170,7 @@ const processEmailQueue = async () => {
           logger.warn(
             `Email job ${emailJob._id} failed permanently. Dedup key removed.`,
           );
+          await rollbackFailedJobSideEffect(emailJob, tenant);
         }
         await EmailQueueForTenant.findByIdAndUpdate(emailJob._id, {
           $set: { status: newStatus, errorMessage: error.message },
@@ -175,48 +204,57 @@ const stopEmailQueue = () => {
 
 // Cache for application email configs — keyed by tenant, 5-minute TTL.
 // Avoids a DB round-trip on every email send while staying reasonably fresh.
+// A tenant can hold multiple config documents (see ApplicationEmailConfiguration
+// model), so the full list is cached and searched, not a single "the" config.
 const _appEmailConfigCache = new Map();
 const _APP_EMAIL_CONFIG_TTL_MS = 5 * 60 * 1000;
 
-const _getApplicationEmailConfig = async (tenant) => {
+const _getApplicationEmailConfigs = async (tenant) => {
   const normalizedTenant = (tenant || "").toLowerCase();
   const cached = _appEmailConfigCache.get(normalizedTenant);
   if (cached && Date.now() - cached.fetchedAt < _APP_EMAIL_CONFIG_TTL_MS) {
     return cached.data;
   }
   try {
-    const config = await ApplicationEmailConfigurationModel(normalizedTenant)
-      .findOne({})
-      .sort({ createdAt: 1 })
+    // Sorted so that, if the same application email is ever listed in more
+    // than one config, the match below is deterministic (oldest wins) rather
+    // than depending on MongoDB's unspecified natural order.
+    const configs = await ApplicationEmailConfigurationModel(normalizedTenant)
+      .find({})
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
-    _appEmailConfigCache.set(normalizedTenant, { data: config, fetchedAt: Date.now() });
-    return config;
+    _appEmailConfigCache.set(normalizedTenant, { data: configs, fetchedAt: Date.now() });
+    return configs;
   } catch (error) {
     logger.warn(
-      `Failed to fetch application email config for tenant ${normalizedTenant}: ${error.message}`
+      `Failed to fetch application email configs for tenant ${normalizedTenant}: ${error.message}`
     );
-    return null;
+    return [];
   }
 };
 
+// Drops the cached config list for a tenant so the next lookup re-fetches
+// from the DB. Called after any create/update/delete of an application email
+// configuration so callers don't have to wait out the TTL to see the change.
+const invalidateApplicationEmailConfigCache = (tenant) => {
+  _appEmailConfigCache.delete((tenant || "").toLowerCase());
+};
+
 // Returns the adminCCEmails string if `email` is a registered application
-// email address, otherwise returns null.
+// email address in any of the tenant's configs, otherwise returns null.
 const _resolveAdminCCForApplicationEmail = async (email, tenant) => {
   try {
-    const config = await _getApplicationEmailConfig(tenant);
-    if (
-      !config ||
-      !config.adminCCEmails ||
-      !Array.isArray(config.applicationEmails) ||
-      config.applicationEmails.length === 0
-    ) {
-      return null;
-    }
+    const configs = await _getApplicationEmailConfigs(tenant);
     const normalized = email.toLowerCase().trim();
-    const isAppEmail = config.applicationEmails.some(
-      (e) => e.toLowerCase().trim() === normalized
+    const match = configs.find(
+      (config) =>
+        config.adminCCEmails &&
+        Array.isArray(config.applicationEmails) &&
+        config.applicationEmails.some(
+          (e) => e.toLowerCase().trim() === normalized
+        )
     );
-    return isAppEmail ? config.adminCCEmails : null;
+    return match ? match.adminCCEmails : null;
   } catch (error) {
     logger.warn(
       `Failed to resolve admin CC for ${email}: ${error.message}`
@@ -257,6 +295,32 @@ let attachments = [
     contentDisposition: "inline",
   },
 ];
+
+// Billing emails go to every billing contact on the invoice, copy the finance
+// inboxes, and attach the rendered PDF. The PDF travels as base64 because
+// queued mailOptions are persisted in MongoDB, where a Buffer would not
+// survive the round trip.
+const billingMailOptions = (baseMailOptions, params) => ({
+  ...baseMailOptions,
+  to: (params.recipients && params.recipients.length
+    ? params.recipients
+    : [baseMailOptions.to]
+  ).join(","),
+  cc: params.cc && params.cc.length ? params.cc.join(",") : undefined,
+  attachments: [
+    ...(baseMailOptions.attachments || []),
+    ...(params.pdf
+      ? [
+          {
+            filename: params.pdf.filename,
+            content: params.pdf.content,
+            encoding: "base64",
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+  ],
+});
 
 const createMailerFunction = (
   functionName,
@@ -802,7 +866,7 @@ const getEmailSubject = (functionName, params) => {
     sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
     updateForgottenPassword: "Your AirQo Account Password Reset Successful",
     updateKnownPassword: "Your AirQo Account Password Update Successful",
-    signInWithEmailLink: "Verify your email address!",
+    signInWithEmailLink: "Your secure sign-in link for AirQo",
     deleteMobileAccountEmail: "Confirm Account Deletion - AirQo",
     authenticateEmail: "Changes to your AirQo email",
     compromisedToken:
@@ -816,6 +880,7 @@ const getEmailSubject = (functionName, params) => {
         : "Action Required: Your AirQo API Token Expires Soon — Regenerate Now",
     autoSuspendedToken: "Security Alert: Your AirQo API Token Has Been Suspended",
     bypassExpiryReminder: "Action Required Soon: Your API Token's Security Exemption Is Expiring",
+    subscriptionPastDueReminder: "Action Required: Your AirQo Subscription Payment Failed",
     bypassExpired: "Security Alert: Your API Token's Security Exemption Has Expired",
     bypassReportDigest: "Weekly Security-Bypass Report",
 
@@ -867,11 +932,14 @@ const getEmailSubject = (functionName, params) => {
     requestToJoinGroupByEmail: `Your AirQo Account Request to Access ${processString(
       params.entity_title || "",
     )} Team`,
+    notifyGroupManagerOfJoinRequest: `New Join Request: ${sanitizeEmailString(
+      params.entity_title || "",
+    )}`,
     afterAcceptingInvitation: `Welcome to ${
       params.entity_title ? processString(params.entity_title) : "the team"
     }!`,
     user: "Welcome to Your AirQo Account",
-    assign: "Welcome to Your New Group/Network at Your AirQo Account",
+    assign: "Welcome to Your New Group at Your AirQo Account",
     update: "Your AirQo Account Updated",
     existingUserAccessRequest:
       "Your AirQo Account: Existing User Access Request",
@@ -923,6 +991,19 @@ const getEmailSubject = (functionName, params) => {
     sendMobileAccountDeletionCode: "Your AirQo Account Deletion Code",
     sendCompromiseSummary:
       "Daily Security Alert Summary - Compromised Token Activity",
+
+    // ===== BILLING FUNCTIONS =====
+    invoiceIssued: `AirQo ${params.document_title || "Invoice"} ${sanitizeEmailString(
+      params.invoice_number || "",
+    )} - ${sanitizeEmailString(params.customer_name || "")}`,
+    paymentReceipt: `[AirQo] Payment Receipt ${sanitizeEmailString(
+      params.receipt_number || "",
+    )} for ${sanitizeEmailString(params.customer_name || "")}`,
+    invoiceReminder: params.overdue
+      ? `Overdue: AirQo Invoice ${sanitizeEmailString(params.invoice_number || "")}`
+      : `Reminder: AirQo Invoice ${sanitizeEmailString(
+          params.invoice_number || "",
+        )} is due ${sanitizeEmailString(params.due_date || "")}`,
   };
 
   return subjects[functionName] || `AirQo Account Notification`;
@@ -959,6 +1040,7 @@ const EMAIL_CATEGORIES = {
     "bypassReportDigest",
     "onboardingAccountSetup",
     "notifyGroupStatusChanged",
+    "subscriptionPastDueReminder",
   ],
 
   SENSOR_MANUFACTURER_MANAGEMENT: [
@@ -981,6 +1063,7 @@ const EMAIL_CATEGORIES = {
     "candidate",
     "request",
     "requestToJoinGroupByEmail",
+    "notifyGroupManagerOfJoinRequest",
     "afterAcceptingInvitation",
     "user",
     "assign",
@@ -1008,7 +1091,13 @@ const EMAIL_CATEGORIES = {
     "sendPollutionAlert",
   ],
   // Triggered directly by user action — always delivered regardless of subscription status
-  TRANSACTIONAL: ["feedbackConfirmation"],
+  TRANSACTIONAL: [
+    "feedbackConfirmation",
+    // Billing documents must reach the customer regardless of subscription.
+    "invoiceIssued",
+    "paymentReceipt",
+    "invoiceReminder",
+  ],
 };
 
 /**
@@ -1028,7 +1117,18 @@ const createSecurityEmailFunction = (
     let tenant = "";
     try {
       let cooldownKey;
-      ({ email, tenant = "airqo", cooldownKey, ...otherParams } = params);
+      let rollbackKnownDevice;
+      ({
+        email,
+        tenant = "airqo",
+        cooldownKey,
+        rollbackKnownDevice,
+        ...otherParams
+      } = params);
+      const queueMetadata = {
+        functionName,
+        ...(rollbackKnownDevice ? { rollbackKnownDevice } : {}),
+      };
       // Optional per-call cooldown scoping. Without it, the cooldown/dedup
       // window is keyed only by (email, functionName) — fine for one-token
       // alerts, but for per-token notifications (e.g. bypass expiry) that
@@ -1152,7 +1252,11 @@ const createSecurityEmailFunction = (
           await emailDeduplicator.checkAndMarkEmail(baseMailOptions);
 
         if (shouldSend) {
-          const queueResult = await addToEmailQueue(baseMailOptions, tenant);
+          const queueResult = await addToEmailQueue(
+            baseMailOptions,
+            tenant,
+            queueMetadata,
+          );
           if (!queueResult.success) {
             throw new HttpError(
               "Internal Server Error",
@@ -1189,7 +1293,11 @@ const createSecurityEmailFunction = (
           `Email queue insertion failed after deduplication step: ${dbError.message}`,
           { email: baseMailOptions.to, subject: baseMailOptions.subject },
         );
-        const retryQueueResult = await addToEmailQueue(baseMailOptions, tenant);
+        const retryQueueResult = await addToEmailQueue(
+          baseMailOptions,
+          tenant,
+          queueMetadata,
+        );
         if (!retryQueueResult.success) {
           throw new HttpError(
             "Internal Server Error",
@@ -1627,6 +1735,20 @@ const mailer = {
       bcc: params.inviterEmail,
     }),
   ),
+  notifyGroupManagerOfJoinRequest: createMailerFunction(
+    "notifyGroupManagerOfJoinRequest", //
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.notifyGroupManagerOfJoinRequest({
+        email: params.email,
+        contact_name: params.contact_name,
+        requester_name: params.requester_name,
+        requester_email: params.requester_email,
+        entity_title: params.entity_title,
+        entity_slug: params.entity_slug,
+        request_id: params.request_id,
+      }),
+  ),
   inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
     msgs.inquiry(
       params.fullName,
@@ -1793,7 +1915,8 @@ const mailer = {
   signInWithEmailLink: createMailerFunction(
     "signInWithEmailLink", //
     "CORE_CRITICAL",
-    (params) => msgs.join_by_email(params.email, params.token),
+    (params) =>
+      msgs.signInLinkEmail({ email: params.email, link: params.link }),
   ),
   deleteMobileAccountEmail: createMailerFunction(
     "deleteMobileAccountEmail", //
@@ -2507,9 +2630,9 @@ const mailer = {
       enableCooldown: true,
     },
   ),
-  // One email per day maximum — additional 24-hour deduplication per token is
-  // handled in _trackBehaviouralAnomaly via a Redis key so that a user with
-  // multiple tokens does not receive duplicate alerts for unrelated tokens.
+  // One email per token per day maximum — callers pass cooldownKey (the token
+  // id/hash) so this is scoped per-token, not per-user, meaning a user with
+  // multiple tokens still gets a distinct alert for each one.
   autoSuspendedToken: createSecurityEmailFunction(
     "autoSuspendedToken",
     (params) =>
@@ -2538,6 +2661,17 @@ const mailer = {
         loginTime: params.loginTime,
       }),
     { cooldownDays: 1, enableCooldown: false },
+  ),
+  sendSubscriptionReminderEmail: createSecurityEmailFunction(
+    "subscriptionPastDueReminder", //
+    (params) =>
+      msgs.subscriptionPastDueReminder({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        subscriptionId: params.subscriptionId,
+      }),
+    { cooldownDays: 3, enableCooldown: true },
   ),
   updateProfileReminder: createMailerFunction(
     "updateProfileReminder", //
@@ -2927,6 +3061,26 @@ const mailer = {
   ),
 };
 
+mailer.invoiceIssued = createMailerFunction(
+  "invoiceIssued",
+  "TRANSACTIONAL",
+  (params) => msgs.invoiceIssued(params),
+  billingMailOptions,
+);
+mailer.paymentReceipt = createMailerFunction(
+  "paymentReceipt",
+  "TRANSACTIONAL",
+  (params) => msgs.paymentReceipt(params),
+  billingMailOptions,
+);
+mailer.invoiceReminder = createMailerFunction(
+  "invoiceReminder",
+  "TRANSACTIONAL",
+  (params) => msgs.invoiceReminder(params),
+  billingMailOptions,
+);
+
 mailer.startEmailQueue = startEmailQueue;
 mailer.stopEmailQueue = stopEmailQueue;
+mailer.invalidateApplicationEmailConfigCache = invalidateApplicationEmailConfigCache;
 module.exports = mailer;

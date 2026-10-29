@@ -138,6 +138,21 @@ const deleteNetwork = [
 
 const listNetworks = [...tenant, handleValidationErrors];
 
+const getNetworkDirectory = [
+  ...tenant,
+  query("limit")
+    .optional()
+    .isInt({ min: 1, max: 200 })
+    .withMessage("limit must be an integer between 1 and 200")
+    .toInt(),
+  query("skip")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("skip must be a non-negative integer")
+    .toInt(),
+  handleValidationErrors,
+];
+
 const getNetwork = [
   ...tenant,
   paramObjectId("net_id"),
@@ -150,4 +165,5 @@ module.exports = {
   deleteNetwork,
   listNetworks,
   getNetwork,
+  getNetworkDirectory,
 };

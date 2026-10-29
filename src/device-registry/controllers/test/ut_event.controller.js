@@ -294,6 +294,45 @@ describe("Create Event Controller", () => {
       );
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
+
+    it("should resolve cohort_id (ObjectId or cohort_slug) to device_id before listing", async () => {
+      req = {
+        params: {},
+        query: { tenant: "custom", cohort_id: "wri-nairobi-2026" },
+      };
+      const processCohortIdsStub = sinon
+        .stub(createEventUtil, "processCohortIds")
+        .callsFake(async (cohort_id, request) => {
+          request.query.device_id = "device-1,device-2";
+          return { success: true };
+        });
+
+      await list(req, res, next);
+
+      expect(processCohortIdsStub).to.have.been.calledWith(
+        "wri-nairobi-2026",
+        req
+      );
+      expect(req.query.device_id).to.equal("device-1,device-2");
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("should stop and return the error when cohort_id resolution fails", async () => {
+      req = {
+        params: {},
+        query: { tenant: "custom", cohort_id: "does-not-exist" },
+      };
+      sinon.stub(createEventUtil, "processCohortIds").resolves({
+        success: false,
+        status: httpStatus.NOT_FOUND,
+        message: "No device IDs could be resolved from the provided Cohort IDs",
+      });
+
+      await list(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.NOT_FOUND);
+      expect(createEventUtil.list.called).to.be.false;
+    });
   });
 
   describe("fetchAndStoreData", () => {
@@ -439,6 +478,122 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(
         sinon.match({ success: true, data: [] })
       );
+    });
+  });
+
+  describe("getRepresentativeAirQualityForGrid", () => {
+    const gridId = "64b7f325d7249f0029fed743";
+    let req, res, next;
+
+    beforeEach(() => {
+      req = { query: { tenant: "airqo" }, params: { grid_id: gridId } };
+      res = {
+        status: sinon.stub().callsFake(function() { return res; }),
+        json: sinon.spy(),
+        set: sinon.spy(),
+      };
+      next = sinon.spy();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("returns the unchanged { message, data, errors } body with a Cache-Control header", async () => {
+      const reading = { site_id: "site_1", pm2_5: { value: 31.2 } };
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        status: httpStatus.OK,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      const [request] =
+        createEventUtil.getRepresentativeAirQualityForGrid.firstCall.args;
+      expect(request.query.grid_id).to.equal(gridId);
+      expect(res.set).to.have.been.calledWith(
+        "Cache-Control",
+        "public, max-age=300"
+      );
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        errors: null,
+      });
+    });
+
+    it("uses a cache hit's remaining lifetime as max-age and keeps it out of the body", async () => {
+      const reading = { site_id: "site_1", pm2_5: { value: 31.2 } };
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        status: httpStatus.OK,
+        cacheMaxAgeSeconds: 42,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set).to.have.been.calledWith(
+        "Cache-Control",
+        "public, max-age=42"
+      );
+      expect(res.json).to.have.been.calledWith({
+        message: "Successfully retrieved representative air quality value.",
+        data: reading,
+        errors: null,
+      });
+    });
+
+    it("does not set Cache-Control when a cache hit has no lifetime left", async () => {
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "Successfully retrieved representative air quality value.",
+        data: { site_id: "site_1" },
+        status: httpStatus.OK,
+        cacheMaxAgeSeconds: 0,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set.called).to.equal(false);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+    });
+
+    it("does not set Cache-Control when the grid has no reading", async () => {
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: true,
+        message: "No recent readings available for the specified group.",
+        data: {},
+        status: httpStatus.OK,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set.called).to.equal(false);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        message: "No recent readings available for the specified group.",
+        data: {},
+        errors: null,
+      });
+    });
+
+    it("does not set Cache-Control on an error result", async () => {
+      sinon.stub(createEventUtil, "getRepresentativeAirQualityForGrid").resolves({
+        success: false,
+        message: "Bad Request",
+        errors: { message: "Provide either grid_id or cohort_id, but not both." },
+        status: httpStatus.BAD_REQUEST,
+      });
+
+      await createEvent.getRepresentativeAirQualityForGrid(req, res, next);
+
+      expect(res.set.called).to.equal(false);
+      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
     });
   });
 

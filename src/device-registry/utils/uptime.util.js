@@ -10,6 +10,8 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- uptime-util`);
 const { logObject, HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
+const MigrationTrackerModel = require("@models/MigrationTracker");
+const { getRawTenantDB } = require("@config/database");
 
 const createUptime = {
   bigQueryClient: new BigQuery(),
@@ -620,6 +622,118 @@ const createUptime = {
         )
       );
     }
+  },
+
+  getDeviceUptimeLeaderboard: async (params, next) => {
+    try {
+      const { tenant, startDate, endDate, limit } = params;
+
+      const result = await DeviceUptimeModel(tenant).getUptimeLeaderboard(
+        tenant,
+        { startDate, endDate, limit }
+      );
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // Rolls the same uptime data up to partner-network level, so an external
+  // manufacturer's network can be ranked/compared the same way an individual
+  // device can. Only networks that the uptime jobs actually poll will show up
+  // here — today that is "airqo" only; a network only appears once devices on
+  // it start being sampled by device-uptime-job / network-analysis-uptime-job.
+  getNetworkUptimeLeaderboard: async (params, next) => {
+    try {
+      const { tenant, startDate, endDate, limit, skip } = params;
+
+      const result = await DeviceUptimeModel(tenant).getNetworkContributionStats(
+        tenant,
+        { startDate, endDate, limit, skip }
+      );
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // Read-only diagnostics for the device_uptimes buffering-timeout
+  // investigation: reports whether the index-fix migration
+  // (migrations/device-uptime-index-fix.js) actually ran, and the *current*
+  // real index list on device_uptimes straight from the raw driver — so this
+  // can be checked over HTTP without DB shell or pod-log access. Two
+  // independent lookups, each wrapped so one failing doesn't hide the other.
+  getDeviceUptimeDiagnostics: async (params) => {
+    const tenant = params.tenant || constants.DEFAULT_TENANT || "airqo";
+
+    let migration;
+    try {
+      const tracker = await MigrationTrackerModel(tenant)
+        .findOne({ name: "device-uptime-index-fix-v1", tenant })
+        .lean();
+      migration = tracker
+        ? {
+            status: tracker.status,
+            startedAt: tracker.startedAt,
+            completedAt: tracker.completedAt,
+            error: tracker.error || null,
+          }
+        : { status: "not_found" };
+    } catch (migrationError) {
+      migration = { status: "lookup_failed", error: migrationError.message };
+    }
+
+    let device_uptimes_indexes;
+    try {
+      const tenantDB = getRawTenantDB(tenant);
+      const collections = await tenantDB.db
+        .listCollections({ name: "device_uptimes" })
+        .toArray();
+
+      if (collections.length === 0) {
+        device_uptimes_indexes = { collection_exists: false };
+      } else {
+        const rawIndexes = await tenantDB.db
+          .collection("device_uptimes")
+          .indexes();
+        device_uptimes_indexes = {
+          collection_exists: true,
+          indexes: rawIndexes.map((idx) => ({
+            name: idx.name,
+            key: idx.key,
+            expireAfterSeconds:
+              idx.expireAfterSeconds !== undefined
+                ? idx.expireAfterSeconds
+                : null,
+          })),
+        };
+      }
+    } catch (indexError) {
+      device_uptimes_indexes = { error: indexError.message };
+    }
+
+    return {
+      success: true,
+      message: "Diagnostics retrieved",
+      status: httpStatus.OK,
+      data: { tenant, migration, device_uptimes_indexes },
+    };
   },
 };
 

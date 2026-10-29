@@ -9,8 +9,17 @@ const GroupModel = require("@models/Group");
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const { generateFilter } = require("@utils/common");
+const {
+  ActivityLogger,
+} = require("@utils/common/activity-logger.util");
 
 describe("createGroup Module", () => {
+  beforeEach(() => {
+    // Membership/role/manager changes fire-and-forget an activity log write;
+    // stub it so tests never attempt a real Mongo write via ActivityLogModel.
+    sinon.stub(ActivityLogger, "logActivity").returns({ success: true });
+  });
+
   afterEach(() => {
     sinon.restore();
   });

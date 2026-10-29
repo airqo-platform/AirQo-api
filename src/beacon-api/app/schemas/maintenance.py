@@ -85,6 +85,7 @@ class RouteResponse(BaseModel):
 class MapViewDeviceEntry(BaseModel):
     device_id: str
     device_name: str
+    device_number: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     last_active: Optional[str] = None

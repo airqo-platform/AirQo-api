@@ -14,6 +14,8 @@ const log4js = require("log4js");
 const analyzeIP = require("@middleware/ip-pattern-analysis.middleware");
 const AccessTokenModel = require("@models/AccessToken");
 const FlaggedTokenModel = require("@models/FlaggedToken");
+const UserModel = require("@models/User");
+const { attachIdentityHeaders } = require("@utils/identity-headers.util");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-controller`);
 
 function handleResponse({
@@ -284,6 +286,37 @@ const createAccessToken = {
       }
       const status = result.status;
       if (!res.headersSent) {
+        // Attach the same X-Auth-User-* identity headers the JWT verify
+        // path sets, so the nginx gateway forwards identity for
+        // token-authenticated requests too (see identity-headers.util.js).
+        // user_id is internal-only: read it here, then strip it from
+        // result.data below so it never reaches the public response body.
+        const userId = result.data && result.data.user_id;
+        if (result.data && "user_id" in result.data) {
+          delete result.data.user_id;
+        }
+        if (result.success && userId) {
+          try {
+            const tenant = String(
+              request.query.tenant || constants.DEFAULT_TENANT || "airqo",
+            ).toLowerCase();
+            const user = await UserModel(tenant)
+              .findById(userId)
+              .select("group_roles")
+              .lean();
+            await attachIdentityHeaders(res, user, tenant);
+          } catch (identityError) {
+            logger.warn(
+              `Non-critical: identity header attach failed for token verify: ${identityError.message}`,
+            );
+          }
+        }
+        // nginx auth_request discards this response's body, so also expose the
+        // rejection reason as a header the gateway can forward with
+        // auth_request_set (e.g. $upstream_http_x_auth_error_code).
+        if (!result.success && result.errors && result.errors.code) {
+          res.set("X-Auth-Error-Code", result.errors.code);
+        }
         // Return full JSON so callers (e.g. device-registry resource binding
         // middleware) can parse the response body, including allowed_grids /
         // allowed_cohorts.  HTTP status code semantics are unchanged, so

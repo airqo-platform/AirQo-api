@@ -26,7 +26,7 @@ const redisClient = require("@config/redis");
 
 const TENANT = constants.DEFAULT_TENANT || "airqo";
 const JOB_NAME = "check-primary-device-job";
-const JOB_SCHEDULE = "0 2 * * *"; // daily at 02:00 UTC
+const JOB_SCHEDULE = "23 2 * * *"; // daily at 02:23 UTC (minute staggered off :00, shared by several other 02:00 jobs)
 
 const ENV_SLUG = (constants.ENVIRONMENT || "unknown")
   .replace(/\s+/g, "_")

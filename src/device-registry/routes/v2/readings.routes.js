@@ -137,6 +137,18 @@ const routes = [
     controller: "recentReadings",
   },
   {
+    method: "post",
+    path: "/recent",
+    middlewares: [checkValidation("recentBySiteIds")],
+    controller: "recentReadings",
+  },
+  {
+    method: "post",
+    path: "/comparisons",
+    middlewares: [checkValidation("comparisons")],
+    controller: "compareSiteReadings",
+  },
+  {
     method: "get",
     path: "/worst/devices",
     middlewares: [checkValidation("worstReadingForDevices")],
@@ -177,6 +189,12 @@ const routes = [
     path: "/rankings/history",
     middlewares: [checkValidation("rankingsHistory")],
     controller: "getAirQualityRankingsHistory",
+  },
+  {
+    method: "get",
+    path: "/rankings/countries",
+    middlewares: [checkValidation("rankingsCountries")],
+    controller: "getAirQualityRankingsCountries",
   },
   {
     method: "get",

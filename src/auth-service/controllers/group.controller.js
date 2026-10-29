@@ -7,6 +7,7 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const groupUtil = require("@utils/group.util");
+const requestUtil = require("@utils/request.util");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -14,8 +15,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`,
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
-const UserModel = require("@models/User");
-const AccessRequestModel = require("@models/AccessRequest");
 
 // Helper function to handle common controller logic without RBAC
 const executeGroupAction = async (req, res, next, utilFunction) => {
@@ -166,6 +165,9 @@ const groupController = {
 
   removeUniqueConstraint: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.removeUniqueConstraint),
+
+  updateEmailDomains: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateEmailDomains),
 
   list: async (req, res, next) => {
     try {
@@ -533,6 +535,65 @@ const groupController = {
     }
   },
 
+  discover: async (req, res, next) => {
+    try {
+      logText("discovering groups....");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+      // Forced, never caller-overridable: only the lean, already-safe
+      // "summary" projection (excludes grp_users/grp_manager) is exposed to
+      // this authenticated-only, membership-independent endpoint, and only
+      // ACTIVE groups are discoverable — a caller-supplied grp_status could
+      // otherwise be used to enumerate inactive/unconfigured groups.
+      request.query.category = "summary";
+      request.query.grp_status = "ACTIVE";
+
+      const result = await groupUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          groups: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+
   // Enhanced set manager with automatic role assignment
   enhancedSetManager: (req, res, next) => {
     logText("enhancedSetManager called");
@@ -563,7 +624,11 @@ const groupController = {
         );
       }
 
-      const { tenant, action = "list" } = req.query;
+      const { tenant } = req.query;
+      // POST /:grp_id/access-requests/bulk-decision without ?action= used to
+      // fall through to "list" and silently do nothing.
+      const action =
+        req.query.action || (req.method === "POST" ? "bulk_decision" : "list");
       const { request_ids, decision, reason, default_role } = req.body;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
@@ -572,50 +637,11 @@ const groupController = {
 
       switch (action) {
         case "list":
-          const requests = await AccessRequestModel(actualTenant).aggregate([
-            {
-              $match: {
-                targetId: grp_id,
-                requestType: "group",
-                status: "pending",
-              },
-            },
-            {
-              $lookup: {
-                from: "users", // Collection name for the user model
-                localField: "user_id",
-                foreignField: "_id",
-                as: "user_details",
-                pipeline: [
-                  {
-                    $project: {
-                      firstName: 1,
-                      lastName: 1,
-                      email: 1,
-                      profilePicture: 1,
-                    },
-                  },
-                ],
-              },
-            },
-            {
-              $addFields: {
-                user_id: {
-                  $cond: {
-                    if: { $gt: [{ $size: "$user_details" }, 0] },
-                    then: { $arrayElemAt: ["$user_details", 0] },
-                    else: null,
-                  },
-                },
-              },
-            },
-            {
-              $project: {
-                user_details: 0, // Remove the temporary field
-              },
-            },
-            { $sort: { createdAt: -1 } },
-          ]);
+          const requests =
+            await requestUtil.listPendingGroupAccessRequests({
+              tenant: actualTenant,
+              grp_id,
+            });
 
           result = {
             success: true,
@@ -625,71 +651,52 @@ const groupController = {
           break;
 
         case "bulk_decision":
-          if (!request_ids || !decision) {
+        case "single_decision": {
+          const ids =
+            action === "single_decision"
+              ? [req.body.request_id].filter(Boolean)
+              : request_ids;
+          if (!Array.isArray(ids) || ids.length === 0 || !decision) {
             return next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message:
-                  "request_ids and decision are required for bulk decisions",
+                  action === "single_decision"
+                    ? "request_id and decision are required for single decisions"
+                    : "request_ids and decision are required for bulk decisions",
               }),
             );
           }
 
-          const updateResult = await AccessRequestModel(
-            actualTenant,
-          ).updateMany(
-            {
-              _id: { $in: request_ids },
-              targetId: grp_id,
-              requestType: "group",
-            },
-            {
-              status: decision,
-              processedAt: new Date(),
-              processorReason: reason,
-              processedBy: user._id,
-            },
-          );
+          const decisionResult =
+            await requestUtil.processBulkAccessRequestDecision({
+              tenant: actualTenant,
+              grp_id,
+              request_ids: ids,
+              decision,
+              reason,
+              default_role,
+              user,
+            });
 
-          // If approved, add users to group
-          if (decision === "approved" && default_role) {
-            const approvedRequests = await AccessRequestModel(actualTenant)
-              .find({
-                _id: { $in: request_ids },
-                status: "approved",
-              })
-              .lean();
-
-            for (const request of approvedRequests) {
-              await UserModel(actualTenant).findByIdAndUpdate(request.user_id, {
-                $addToSet: {
-                  group_roles: {
-                    group: grp_id,
-                    role: default_role,
-                    userType: "user",
-                    createdAt: new Date(),
-                  },
+          if (decisionResult.success === false) {
+            return res
+              .status(decisionResult.status || httpStatus.BAD_REQUEST)
+              .json({
+                success: false,
+                message: decisionResult.message,
+                errors: decisionResult.errors || {
+                  message: decisionResult.message,
                 },
               });
-            }
           }
-
-          // Log the action
-          logger.info(
-            `User ${user.email} processed ${updateResult.nModified} access requests with decision: ${decision}`,
-            { grp_id, decision, reason },
-          );
 
           result = {
             success: true,
-            message: `${updateResult.nModified} access requests ${decision}`,
-            data: {
-              processed_count: updateResult.nModified,
-              decision,
-              auto_assigned_role:
-                decision === "approved" ? !!default_role : false,
-            },
+            message: decisionResult.message,
+            data: decisionResult.data,
           };
           break;
+        }
 
         default:
           return next(
@@ -735,8 +742,66 @@ const groupController = {
     }
   },
 
-  sendGroupInvitations: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.sendGroupInvitations),
+  // Delegates to the same canonical implementation as
+  // POST /requests/emails/groups/:grp_id — see requestUtil.requestAccessToGroupByEmail.
+  // Not routed through executeGroupAction: mirrors
+  // request.controller.js's requestAccessToGroupByEmail response shape
+  // (the `request` key, not `data`) so both routes return identical
+  // payloads for the same underlying operation.
+  sendGroupInvitations: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await requestUtil.requestAccessToGroupByEmail(
+        request,
+        next,
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          request: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
 
   listGroupInvitations: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.listGroupInvitations),

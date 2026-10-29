@@ -118,7 +118,6 @@ describe("Permission Router API Tests", () => {
         .post("/")
         .send({
           permission: "new_permission",
-          network_id: "60d21b4667d0d8992e610c85",
           description: "Description of the permission",
         })
         .expect(201);
@@ -148,7 +147,7 @@ describe("Permission Router API Tests", () => {
         "the permission must not be empty"
       );
       expect(response.body.errors[1].msg).to.equal(
-        "network_id must be an object ID"
+        "network_id is no longer supported — permissions are always group-scoped, use group_id"
       );
       expect(response.body.errors[2].msg).to.equal(
         "the description must not be empty"
@@ -175,7 +174,6 @@ describe("Permission Router API Tests", () => {
       const response = await request
         .put("/fake-id")
         .send({
-          network_id: "60d21b4667d0d8992e610c85",
           description: "Updated description",
         })
         .expect(200);
@@ -192,13 +190,8 @@ describe("Permission Router API Tests", () => {
         return res.status(200).json({ permission: {} });
       };
 
-      // network_id uses an empty string rather than a non-empty invalid one:
-      // the update validator's network_id chain runs its customSanitizer
-      // (ObjectId(value)) without a preceding .bail() after isMongoId(), so a
-      // non-empty, non-ObjectId value throws inside the sanitizer instead of
-      // producing a clean validation error. An empty string fails the
-      // earlier notEmpty() check instead, which does bail, so it stays on
-      // the normal validation-error path this test is meant to exercise.
+      // network_id is rejected outright if present at all (regardless of
+      // value) — permissions are always group-scoped now.
       const response = await request
         .put("/fake-id")
         .send({
@@ -208,7 +201,7 @@ describe("Permission Router API Tests", () => {
         .expect(400);
 
       expect(response.body.errors[0].msg).to.equal(
-        "network_id should not be empty if provided"
+        "network_id is no longer supported — permissions are always group-scoped, use group_id"
       );
       expect(response.body.errors[1].msg).to.equal(
         "description should not be empty if provided"

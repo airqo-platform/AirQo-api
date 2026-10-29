@@ -47,7 +47,6 @@ from airqo_etl_utils.date import DateUtils
 def airqo_historical_hourly_measurements():
     @task(
         doc_md=extract_historical_device_measurements_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
@@ -79,7 +78,7 @@ def airqo_historical_hourly_measurements():
             exclude_cols=exclude_cols,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_weather_data(**kwargs):
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
@@ -165,7 +164,7 @@ def airqo_historical_hourly_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_historical_raw_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs):
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=2, **kwargs
@@ -224,7 +223,7 @@ def airqo_historical_raw_measurements():
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_cleanup_measurements():
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             hours=2, **kwargs
@@ -238,7 +237,7 @@ def airqo_cleanup_measurements():
             device_category=DeviceCategory.GENERAL,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=5, **kwargs
@@ -285,7 +284,7 @@ def airqo_cleanup_measurements():
             exclude_cols=exclude_cols,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
 
         big_query_api = BigQueryApi()
@@ -293,7 +292,7 @@ def airqo_cleanup_measurements():
             dataframe=data, table=big_query_api.raw_measurements_table
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_hourly_data(data: pd.DataFrame):
 
         big_query_api = BigQueryApi()
@@ -320,13 +319,12 @@ def airqo_cleanup_measurements():
 def airqo_realtime_measurements():
     @task(
         doc_md=extract_raw_airqo_data_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
-        execution_date = kwargs["dag_run"].execution_date
-        hour_of_day: datetime = execution_date - timedelta(hours=1)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day: datetime = logical_date - timedelta(hours=1)
 
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
@@ -366,10 +364,10 @@ def airqo_realtime_measurements():
     def aggregate(data: pd.DataFrame):
         return DataUtils.aggregate_low_cost_sensors_data(data=data)
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
-        execution_date = kwargs["dag_run"].execution_date
-        hour_of_day = execution_date - timedelta(hours=1)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day = logical_date - timedelta(hours=1)
 
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
@@ -497,14 +495,13 @@ def airqo_realtime_measurements():
 def airqo_raw_data_measurements():
     @task(
         doc_md=extract_raw_airqo_data_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs):
 
-        execution_time = kwargs["dag_run"].execution_date
-        hour_of_day = execution_time - timedelta(minutes=30)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day = logical_date - timedelta(minutes=30)
 
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
@@ -556,14 +553,13 @@ def airqo_raw_data_measurements():
 def airqo_gaseous_realtime_measurements():
     @task(
         doc_md=extract_raw_airqo_gaseous_data_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
 
-        execution_date = kwargs["dag_run"].execution_date
-        hour_of_day = execution_date - timedelta(hours=1)
+        logical_date = DateUtils.get_dag_run_time(**kwargs)
+        hour_of_day = logical_date - timedelta(hours=1)
 
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"
@@ -617,7 +613,6 @@ def airqo_bigquery_data_measurements_to_api():
 
     @task(
         doc_md=extract_hourly_old_historical_data_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
@@ -679,13 +674,12 @@ def airqo_bigquery_data_measurements_to_api():
 def calibrate_missing_measurements():
     @task(
         doc_md=extract_devices_missing_calibrated_data_doc,
-        provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_devices_missing_calibrated_data(**context) -> pd.DataFrame:
         """Identify device-hour pairs with missing calibrated data in the 24 h preceding the current hour."""
-        runtime = context["logical_date"]
+        runtime = DateUtils.get_dag_run_time(**context)
         # Floor to the start of the current (possibly incomplete) hour, then go back 24 h.
         current_hour = runtime.replace(minute=0, second=0, microsecond=0)
         window_start = current_hour - timedelta(hours=24)
@@ -713,7 +707,7 @@ def calibrate_missing_measurements():
     def aggregate(data: pd.DataFrame):
         return DataUtils.aggregate_low_cost_sensors_data(data=data)
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(start_date: str, end_date: str, **kwargs):
         start_date_time = DateUtils.format_datetime_by_unit_str(
             start_date, "hours_start"
@@ -822,7 +816,7 @@ def extract_push_devices_missing_measurements_api():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_data(devices: pd.DataFrame, **kwargs) -> pd.DataFrame:
-        dag_time = kwargs["dag_run"].execution_date
+        dag_time = DateUtils.get_dag_run_time(**kwargs)
         hour_of_day = dag_time - timedelta(hours=6)
         start_date_time = DateUtils.date_to_str(
             hour_of_day, str_format="%Y-%m-%dT%H:00:00Z"

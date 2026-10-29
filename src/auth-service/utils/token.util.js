@@ -1,4 +1,5 @@
 const ApiUsageCounterModel = require("@models/ApiUsageCounter");
+const apiKeyUsageRecorder = require("@utils/api-key-usage-recorder.util");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const BlacklistedIPPrefixModel = require("@models/BlacklistedIPPrefix");
 const IPPrefixModel = require("@models/IPPrefix");
@@ -15,6 +16,8 @@ const EmailLogModel = require("@models/EmailLog");
 const BlockedDomainModel = require("@models/BlockedDomain");
 const BlockedASNModel = require("@models/BlockedASN");
 const FlaggedTokenModel = require("@models/FlaggedToken");
+const { AbstractTokenFactory } = require("@services/atf.service");
+const RBACService = require("@services/rbac.service");
 const {
   redisGetAsync,
   redisSetAsync,
@@ -153,13 +156,70 @@ const getDay = () => {
 
 const API_TOKEN_TTL_MS = 5110 * 3600 * 1000; // 7 months (matches AccessToken model)
 
-const createUnauthorizedResponse = () => {
+// Machine-readable reasons for rejecting an otherwise well-formed API token.
+// Only used once the token itself has been found, so they never help anyone
+// guess tokens; unknown tokens keep the generic "Unauthorized" body.
+const AUTH_FAILURE_REASONS = {
+  TOKEN_EXPIRED: () =>
+    "This API token has expired. Generate a new token for this API client.",
+  TOKEN_SUSPENDED: () =>
+    "This API token has been suspended after unusual activity. Review it, then reinstate or replace it from your API client settings.",
+  CLIENT_INACTIVE: () =>
+    "The API client for this token is not active. It may still be awaiting approval or may have been deactivated.",
+  IP_BLOCKED: ({ ip } = {}) =>
+    `Requests from IP address ${ip || "unknown"} are blocked for this token. Add your server's public IP address to this API client's IP addresses, then retry.`,
+};
+
+// Status code is always 401 so gateways and existing callers that gate on it
+// are unaffected; `errors.code` and `errors.docs` are additive.
+const createUnauthorizedResponse = (reason, details = {}) => {
+  const describe =
+    typeof reason === "string" &&
+    Object.prototype.hasOwnProperty.call(AUTH_FAILURE_REASONS, reason)
+      ? AUTH_FAILURE_REASONS[reason]
+      : null;
+  if (!describe) {
+    return {
+      success: false,
+      message: "Unauthorized",
+      status: httpStatus.UNAUTHORIZED,
+      errors: { message: "Unauthorized" },
+    };
+  }
   return {
     success: false,
     message: "Unauthorized",
     status: httpStatus.UNAUTHORIZED,
-    errors: { message: "Unauthorized" },
+    errors: {
+      message: describe(details),
+      code: reason,
+      docs: constants.API_ACCESS_TROUBLESHOOTING_URL,
+    },
   };
+};
+
+// Normalises an IP for exact comparison: trims, lowercases (IPv6) and strips
+// the IPv4-mapped IPv6 prefix so "::ffff:1.2.3.4" matches "1.2.3.4".
+const _normalizeIp = (ip) => {
+  if (typeof ip !== "string") return "";
+  const trimmed = ip.trim().toLowerCase();
+  return trimmed.startsWith("::ffff:") && trimmed.includes(".")
+    ? trimmed.slice(7)
+    : trimmed;
+};
+
+// True when `ip` is on the given (active) client's own IP allowlist. Scoped to
+// that client, so it only exempts that client's tokens — unlike the global,
+// admin-managed WhitelistedIP collection.
+const _clientAllowsIp = (client, ip) => {
+  if (!client || !client.isActive) return false;
+  const target = _normalizeIp(ip);
+  if (!target) return false;
+  const allowed = [
+    client.ip_address,
+    ...(Array.isArray(client.ip_addresses) ? client.ip_addresses : []),
+  ];
+  return allowed.some((entry) => _normalizeIp(entry) === target);
 };
 const createValidTokenResponse = (data = {}) => {
   return {
@@ -170,11 +230,15 @@ const createValidTokenResponse = (data = {}) => {
   };
 };
 
-const createForbiddenResponse = (message) => ({
+// `code` (optional) is a machine-readable reason, also surfaced to API
+// callers by the gateway via the X-Auth-Error-Code header.
+const createForbiddenResponse = (message, code) => ({
   success: false,
   message,
   status: httpStatus.FORBIDDEN,
-  errors: { message },
+  errors: code
+    ? { message, code, docs: constants.API_ACCESS_TROUBLESHOOTING_URL }
+    : { message },
 });
 const createRateLimitResponse = (tier, period = "Hourly") => {
   return {
@@ -628,14 +692,21 @@ const postProcessing = async ({
   ipPrefixQueue.push({ prefix, day });
 };
 
+// Resolves to false when the request may proceed, or to a truthy reason code
+// ("TOKEN_EXPIRED" | "IP_BLOCKED" | "VERIFICATION_ERROR") when it must be
+// rejected. Callers that only test truthiness keep working unchanged.
+// `client` (optional) is the token's client record; an IP on that client's own
+// allowlist is exempt from IP-based blocking for this token only.
 const isIPBlacklistedHelper = async (
-  { request, next } = {},
+  { request, next, client } = {},
   retries = 1,
   delay = 1000,
 ) => {
+  // Declared outside the try so the catch block's log lines can reference it.
+  let ip;
   try {
     const day = getDay();
-    const ip =
+    ip =
       request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
     const endpoint = request.headers["x-original-uri"];
     let accessTokenFilter = generateFilter.tokens(request, next);
@@ -799,17 +870,19 @@ const isIPBlacklistedHelper = async (
       } catch (error) {
         logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       }
-      return true;
-    } else if (whitelistedIP) {
+      return "TOKEN_EXPIRED";
+    } else if (whitelistedIP || _clientAllowsIp(client, ip)) {
+      // Global admin whitelist, or this token's own client allowlist. Either
+      // overrides every IP-based block below (CIDR/ASN, prefix, single IP).
       return false;
     } else if (isBlockedByCidr) {
       // Matched an admin-managed ASN/CIDR block (data-center, VPN, Tor range).
       logger.info(
         `🚫 Request blocked by ASN/CIDR rule — IP: ${ip} TOKEN: ${token}`
       );
-      return true;
+      return "IP_BLOCKED";
     } else if (blacklistedIpPrefixes.includes(ipPrefix)) {
-      return true;
+      return "IP_BLOCKED";
     } else if (blacklistedIP && _isBypassActive(bypass_ip_blacklist, bypass_ip_blacklist_expires_at)) {
       // Token is admin-exempted from the IP-blacklist block itself (not just
       // suspension) — e.g. serverless/dynamic-egress integrations that
@@ -969,6 +1042,7 @@ const isIPBlacklistedHelper = async (
                   tokenName: listTokenResponse.data[0].name || "",
                   suspensionReason,
                   suspendedAt,
+                  cooldownKey: listTokenResponse.data[0]._id || tokenHash,
                 })
                 .catch((e) =>
                   logger.error(
@@ -992,7 +1066,7 @@ const isIPBlacklistedHelper = async (
         );
       }
 
-      return true;
+      return "IP_BLOCKED";
     } else {
       Promise.resolve().then(() =>
         postProcessing({ ip, token, name, client_id, endpoint, day }),
@@ -1017,7 +1091,7 @@ const isIPBlacklistedHelper = async (
         `🐛🐛 Transient errors or network issues when handling the DB operations during verification of this IP address: ${ip}.`,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return isIPBlacklisted({ request, next }, retries - 1, delay);
+      return isIPBlacklisted({ request, next, client }, retries - 1, delay);
     } else if (error.name === "MongoError") {
       const jsonErrorString = stringify(error);
       switch (error.code) {
@@ -1032,7 +1106,7 @@ const isIPBlacklistedHelper = async (
     } else {
       const jsonErrorString = stringify(error);
       logger.error(`🐛🐛 Internal Server Error --- ${jsonErrorString}`);
-      return true;
+      return "VERIFICATION_ERROR";
     }
   }
 };
@@ -1194,11 +1268,26 @@ const _trackBehaviouralAnomaly = async ({ accessToken, token: rawToken, ip, user
             tokenName:         accessToken.name || "",
             suspensionReason:  suspensionReasonForEmail || "",
             suspendedAt:       suspendedAtForEmail,
+            cooldownKey:       tokenId,
           });
 
-          if (emailResponse && emailResponse.success !== false) {
+          if (
+            emailResponse &&
+            emailResponse.success !== false &&
+            !emailResponse.data?.blocked &&
+            !emailResponse.data?.blockedByCooldown &&
+            !emailResponse.data?.duplicate
+          ) {
             logger.info(
-              `Auto-suspension email sent — user=${user.email} client=${accessToken.client_id}`
+              `Auto-suspension email queued — user=${user.email} client=${accessToken.client_id}`
+            );
+          } else if (
+            emailResponse?.data?.blockedByCooldown ||
+            emailResponse?.data?.blocked ||
+            emailResponse?.data?.duplicate
+          ) {
+            logger.info(
+              `Auto-suspension email suppressed by cooldown — user=${user.email} client=${accessToken.client_id}`
             );
           }
         } catch (mailErr) {
@@ -1236,6 +1325,27 @@ const _isBypassActive = (flag, expiresAt) => {
   return new Date(expiresAt).getTime() > Date.now();
 };
 
+// Issues a session JWT (same mechanism as login/OAuth) so the frontend can
+// auto-log the user in right after email verification, instead of forcing a
+// separate manual login. Failure to mint a token must never fail the
+// verification response itself (the account is already verified and the
+// confirmation email already sent by this point) -- callers fall back to the
+// pre-existing {success, message} shape, which every existing frontend
+// caller already understands.
+const _mintAutoLoginToken = async (tenant, user) => {
+  try {
+    const authToken = await new AbstractTokenFactory(tenant).createToken(
+      user,
+    );
+    return { token: `JWT ${authToken}` };
+  } catch (error) {
+    logger.error(
+      `Unable to issue auto-login token after email verification: ${error.message}`,
+    );
+    return null;
+  }
+};
+
 const token = {
   verifyEmail: async (request, next) => {
     try {
@@ -1244,12 +1354,6 @@ const token = {
         ...request.params,
       };
       const timeZone = moment.tz.guess();
-      let filter = {
-        token,
-        expires: {
-          $gt: moment().tz(timeZone).toDate(),
-        },
-      };
 
       const userDetails = await UserModel(tenant)
         .find({
@@ -1263,7 +1367,38 @@ const token = {
             message: "User does not exist",
           }),
         );
+        return;
       }
+
+      // Re-clicking an already-consumed verification link should not error out.
+      // The verify-token document is deleted on first use (see below), so
+      // without this short-circuit a second click on the same link 400s with
+      // "Invalid link" even though the account is already verified.
+      //
+      // No token is minted here: this branch is reached on `user_id` alone,
+      // before the `token` param has been checked against anything, so
+      // minting a session here would let anyone who knows/guesses a verified
+      // user's id log in as them. Only the branch below -- which requires a
+      // real, unexpired, user-bound verify token -- may issue a session.
+      if (userDetails[0].verified === true) {
+        return {
+          success: true,
+          message: "email already verified",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Scoped to this user_id so a token issued for one account can't be
+      // replayed against a different account's user_id to hijack it. Legacy
+      // tokens created before this field existed (no user_id stored) are
+      // still honoured until they expire on their own.
+      let filter = {
+        token,
+        $or: [{ user_id: ObjectId(user_id) }, { user_id: { $exists: false } }],
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1324,10 +1459,15 @@ const token = {
               );
 
               if (responseFromSendEmail.success === true) {
+                const data = await _mintAutoLoginToken(tenant, {
+                  ...userDetails[0],
+                  verified: true,
+                });
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "email verified successfully",
                   status: httpStatus.OK,
+                  ...(data ? { data } : {}),
                 };
               } else if (responseFromSendEmail.success === false) {
                 return responseFromSendEmail;
@@ -1594,13 +1734,21 @@ const token = {
       } else {
         const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
-          .select("isActive user_id enforce_origin allowed_origins");
+          .select(
+            "isActive user_id enforce_origin allowed_origins ip_address ip_addresses",
+          );
 
-        if (isEmpty(client) || (client && !client.isActive)) {
+        if (isEmpty(client)) {
           logger.error(
-            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`,
+            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} does not exist`,
           );
           return createUnauthorizedResponse();
+        }
+        if (!client.isActive) {
+          logger.error(
+            `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE`,
+          );
+          return createUnauthorizedResponse("CLIENT_INACTIVE");
         }
 
         // Guard: auto-suspended tokens are immediately rejected.
@@ -1608,16 +1756,19 @@ const token = {
           logger.warn(
             `🚫 Auto-suspended token attempted access — client=${accessToken.client_id} ip=${ip}`
           );
-          return createUnauthorizedResponse();
+          return createUnauthorizedResponse("TOKEN_SUSPENDED");
         }
 
         const isBlacklisted = await isIPBlacklisted({
           request,
           next,
+          client,
         });
         logText("I have now returned back to the verifyToken() function");
         if (isBlacklisted) {
-          return createUnauthorizedResponse();
+          // isBlacklisted is a reason code; unrecognised values (e.g.
+          // VERIFICATION_ERROR or a legacy `true`) fall back to the generic body.
+          return createUnauthorizedResponse(isBlacklisted, { ip });
         } else {
           const tier = accessToken.tier || "Free";
 
@@ -1783,7 +1934,8 @@ const token = {
                   `🚫 Origin mismatch — client=${accessToken.client_id} origin=${requestOrigin} allowed=${allowedOrigins.join(",")}`
                 );
                 return createForbiddenResponse(
-                  "Request origin is not permitted for this token"
+                  "Request origin is not permitted for this token",
+                  "ORIGIN_NOT_ALLOWED",
                 );
               }
             } catch (originErr) {
@@ -1835,7 +1987,8 @@ const token = {
                   `🚫 Temporal window violation — client=${accessToken.client_id} utcDay=${utcDay} utcHour=${utcHour} ip=${ip}`
                 );
                 return createForbiddenResponse(
-                  "Request is outside the permitted access schedule for this token"
+                  "Request is outside the permitted access schedule for this token",
+                  "OUTSIDE_ACCESS_SCHEDULE",
                 );
               }
             } catch (schedErr) {
@@ -1847,6 +2000,16 @@ const token = {
           if (client.user_id) {
             _incrementUsageCounters(client.user_id);
           }
+
+          // Per-key usage (route, service, hour, IP) for the admin API-key
+          // usage views. In-memory counter bump only; flushed in batches.
+          apiKeyUsageRecorder.recordKeyCall({
+            clientId: accessToken.client_id,
+            userId: client.user_id,
+            uri: endpoint,
+            method: request.headers["x-original-method"],
+            ip,
+          });
 
           // Fire-and-forget: record API token usage as user activity so that
           // API-only users are not incorrectly flagged as inactive. Throttled
@@ -1894,12 +2057,37 @@ const token = {
             endpoint: endpoint ? endpoint : "unknown",
           });
 
+          // Resolve the token owner's permissions so downstream services
+          // (e.g. device-registry) can enforce RBAC without direct DB access
+          // to auth-service. { strict: true } is required here: by default
+          // getUserPermissions() swallows lookup errors and falls back to
+          // default "user" permissions, which would defeat the fail-closed
+          // guarantee callers rely on — strict mode makes it rethrow instead,
+          // so the catch below can force permissions back to [].
+          let permissions = [];
+          if (client.user_id) {
+            try {
+              permissions = await RBACService.getInstance(
+                "airqo"
+              ).getUserPermissions(client.user_id, { strict: true });
+            } catch (permErr) {
+              logger.error(
+                `Non-critical: permission resolution failed for verify response: ${permErr.message}`
+              );
+            }
+          }
+
           // Return resource-binding data so downstream services (e.g.
           // device-registry) can enforce grid/cohort restrictions without a
-          // second DB call.
+          // second DB call. user_id (additive) lets the controller attach
+          // the same X-Auth-User-* identity headers the JWT verify path
+          // sets, so the gateway forwards identity for token-authenticated
+          // requests too.
           return createValidTokenResponse({
             allowed_grids:   accessToken.allowed_grids   || [],
             allowed_cohorts: accessToken.allowed_cohorts || [],
+            permissions,
+            user_id: client.user_id || null,
           });
         }
       }
@@ -3181,12 +3369,27 @@ const token = {
       );
     }
   },
-  analyzeIPRequestPatterns: async ({ ip, tenant = "airqo", endpoint } = {}) => {
+  analyzeIPRequestPatterns: async ({
+    ip,
+    tenant = "airqo",
+    endpoint,
+    token,
+  } = {}) => {
     try {
       // Immediately exit if the IP is whitelisted
       const isWhitelisted = await WhitelistedIPModel(tenant).exists({ ip });
       if (isWhitelisted) {
         logger.info(`IP ${ip} is whitelisted. Skipping bot pattern analysis.`);
+        return;
+      }
+
+      // An already-blacklisted IP was flagged (and alerted on) earlier. Its request
+      // history still shows the same pattern, so without this exit every later
+      // request would re-blacklist it and re-send the admin alert email.
+      const isAlreadyBlacklisted = await BlacklistedIPModel(tenant).exists({
+        ip,
+      });
+      if (isAlreadyBlacklisted) {
         return;
       }
 
@@ -3245,6 +3448,30 @@ const token = {
         return; // No significant pattern found
       }
 
+      // Checked only once a pattern is found (rare), so the two lookups stay
+      // off the hot path that runs on every token verify.
+      // Scheduled jobs (e.g. a nightly download) from an IP the token's own
+      // client has allowlisted are expected to look periodic — don't let the
+      // bot detector blacklist the IP (or its /16 prefix) out from under them.
+      if (token) {
+        const accessToken = await AccessTokenModel("airqo")
+          .findOne({ token })
+          .select("client_id")
+          .lean();
+        if (accessToken && accessToken.client_id) {
+          const client = await ClientModel("airqo")
+            .findById(accessToken.client_id)
+            .select("isActive ip_address ip_addresses")
+            .lean();
+          if (_clientAllowsIp(client, ip)) {
+            logger.info(
+              `IP ${ip} is on the token's client allowlist. Not blacklisting despite bot-like pattern.`,
+            );
+            return;
+          }
+        }
+      }
+
       // Pattern detected!
       logger.warn(
         `🤖 Bot-like pattern detected for IP: ${ip}. Interval: ~${mostFrequentInterval} minutes. Occurrences: ${maxCount}.`,
@@ -3259,6 +3486,11 @@ const token = {
           `Failed to blacklist IP ${ip}: ${blacklistResponse.message}`,
         );
       }
+      // The existence check above is not atomic, so overlapping analyses of the
+      // same IP can all reach this point. Only the one that actually inserted
+      // the blacklist entry sends the alert.
+      const claimedBlacklist =
+        blacklistResponse.success && blacklistResponse.inserted === true;
       await IPRequestLogModel(tenant).markAsBot(ip, mostFrequentInterval);
 
       // 2. Handle serverless/cloud provider IPs by blacklisting the prefix
@@ -3291,7 +3523,7 @@ const token = {
 
       // 3. Notify admins
       const adminEmails = constants.SUPER_ADMIN_EMAIL_ALLOWLIST;
-      if (adminEmails.length > 0) {
+      if (claimedBlacklist && adminEmails.length > 0) {
         mailer
           .sendBotAlert({
             recipients: adminEmails,

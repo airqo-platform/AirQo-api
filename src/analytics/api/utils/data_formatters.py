@@ -12,7 +12,9 @@ from api.utils.pollutants.pm_25 import (
     BQ_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
+from api.schemas.requests import _FILTER_KEYS
 from api.utils.http import AirQoRequests
+from api.utils.messages import FILTER_MSG
 from constants import Frequency
 
 import logging
@@ -70,9 +72,7 @@ def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
     return devices_summary
 
 
-def compute_airqloud_summary(
-    data: pd.DataFrame, start_date_time, end_date_time
-) -> dict:
+def compute_entity_summary(data: pd.DataFrame, start_date_time, end_date_time) -> dict:
     if len(data.index) == 0:
         return {}
 
@@ -178,24 +178,6 @@ def compute_airqloud_summary(
                 "devices": devices,
             }
 
-        elif "airqloud" in data.columns:
-            airqloud = data.iloc[0]["airqloud"]
-            airqloud_id = data.iloc[0]["airqloud_id"]
-            return {
-                "airqloud": airqloud,
-                "airqloud_id": airqloud_id,
-                "hourly_records": hourly_records,
-                "calibrated_records": calibrated_records,
-                "uncalibrated_records": un_calibrated_records,
-                "calibrated_percentage": (calibrated_records / hourly_records) * 100,
-                "uncalibrated_percentage": (un_calibrated_records / hourly_records)
-                * 100,
-                "start_date_time": start_date_time,
-                "end_date_time": end_date_time,
-                "sites": sites,
-                "devices": devices,
-            }
-
 
 def format_to_aqcsv(
     data: List, pollutants: List, frequency: Frequency
@@ -203,7 +185,13 @@ def format_to_aqcsv(
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
-    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.value)
+    # Normalise to the plain string value once: FREQUENCY_MAPPER/BQ_FREQUENCY_MAPPER
+    # are keyed by string, and `Frequency` (a plain Enum, not str-Enum) never
+    # compares equal to a string, so both dict lookups and the qc branch below
+    # must operate on this normalised value rather than the enum member itself.
+    frequency_value = frequency.value if isinstance(frequency, Frequency) else frequency
+
+    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency_value)
 
     dataframe = pd.DataFrame(data)
     if dataframe.empty:
@@ -217,11 +205,11 @@ def format_to_aqcsv(
         inplace=True,
     )
 
-    dataframe["duration"] = FREQUENCY_MAPPER[frequency]
+    dataframe["duration"] = FREQUENCY_MAPPER[frequency_value]
     dataframe["poc"] = 1
     dataframe["qc"] = (
         AQCSV_QC_CODE_MAPPER["averaged"]
-        if frequency != "raw"
+        if frequency_value != "raw"
         else AQCSV_QC_CODE_MAPPER["estimated"]
     )
     dataframe["datetime"] = dataframe["datetime"].apply(str_to_aqcsv_date_format)
@@ -240,9 +228,16 @@ def format_to_aqcsv(
             },
             inplace=True,
         )
-        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[
-            f"{pollutant}_calibrated_value"
-        ]
+        status_key = f"{pollutant}_calibrated_value"
+        if (
+            f"value_{pollutant}" not in dataframe.columns
+            and pollutant in dataframe.columns
+        ):
+            # Uncalibrated and raw data carry the measured value under the
+            # name of the pollutant itself, with the data status of a raw value.
+            dataframe.rename(columns={pollutant: f"value_{pollutant}"}, inplace=True)
+            status_key = pollutant
+        dataframe[f"data_status_{pollutant}"] = AQCSV_DATA_STATUS_MAPPER[status_key]
 
     dataframe.drop(
         columns=[
@@ -251,6 +246,7 @@ def format_to_aqcsv(
                 "pm2_5_raw_value",
                 "pm10_raw_value",
                 "device_name",
+                "device_id",
                 "network",
                 "device_latitude",
                 "device_longitude",
@@ -262,31 +258,6 @@ def format_to_aqcsv(
     )
 
     return dataframe.to_dict("records")
-
-
-def validate_network(network_name: str) -> bool:
-    """
-    Validate if a given network name exists in the list of networks.
-
-    Args:
-        network_name (str): The name of the network to validate.
-
-    Returns:
-        bool: True if the network name exists, False otherwise.
-    """
-    if not network_name:
-        return False
-
-    endpoint: str = "/users/networks"
-    airqo_requests = AirQoRequests()
-    response = airqo_requests.request(endpoint=endpoint, method="get")
-
-    if response and "networks" in response:
-        networks = response["networks"]
-        # TODO Could add an active network filter
-        return any(network.get("net_name") == network_name for network in networks)
-
-    return False
 
 
 def filter_non_private_sites_devices(
@@ -334,122 +305,29 @@ def filter_non_private_sites_devices(
         logger.exception(f"Error while filtering non private {filter_type}: {e}")
 
 
-def get_validated_filter(json_data):
+def get_validated_filter(json_data: Dict[str, Any]) -> tuple[Any, List[Any]]:
     """
-    Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
-    and applies filtering if necessary.
+    Validates that exactly one of 'sites', 'device_ids', 'device_names' or
+    'grid_ids' is provided in the request.
 
     Args:
         json_data (dict): JSON payload from the request.
 
     Returns:
-        tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+        tuple: The name of the filter ("sites", "device_ids", "device_names"
+        or "grid_ids") and its validated value if valid.
 
-    Raises:
-        ValueError: If more than one or none of the filters are provided.
+    Note: Assurance of exactly one filter is provided is enforced by the request schema, so
+    this function only needs to validate that the provided filter is recognized and return it.
     """
     filter_type: str = None
-    validated_value: Dict[str, Any] = None
     validated_data: List[str] = None
-    error_message: str = ""
 
-    # TODO Lias with device registry to cleanup this makeshift implementation
-    devices = ["device_ids", "device_names"]
-    sites = [
-        "sites",
-    ]
-    valid_filters = [
-        "sites",
-        "device_ids",
-        "device_names",
-    ]
+    provided_filters = [key for key in _FILTER_KEYS if json_data.get(key)]
+    if not provided_filters:
+        return None, []
 
-    provided_filters = [key for key in valid_filters if json_data.get(key)]
-    try:
-        filter_type = provided_filters[0]
-    except IndexError:
-        error_message = (
-            "Invalid filter: please provide a valid device, site or airqloud"
-        )
+    filter_type = provided_filters[0]
+    validated_data = json_data.get(filter_type, [])
 
-    filter_value = json_data.get(filter_type, None)
-    # TODO Uncomment when proper access control is implemented in device registry.
-    # TODO Filter/validate device names/ids existence.
-    # if filter_type in sites:
-    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
-    # elif filter_type in devices:
-    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
-
-    # if validated_value and validated_value.get("status") == "success":
-    #     validated_data = validated_value.get("data", [])
-    # else:
-    #     error_message = validated_value.get("message", "Data filter validation failed")
-    #     logger.warning(f"The supplied {filter_type} might be private")
-
-    # TODO Delete
-    validated_data = filter_value
-
-    return filter_type, validated_data, error_message
-
-
-def get_validated_forecast_filter(json_data):
-    """
-    Validate that exactly one of the following is provided:
-      - country
-      - city
-    #   - latitude and longitude (both required)
-
-    Returns: (filter_type, filter_value, error_message)
-    """
-    filter_type = None
-    filter_value = None
-    error_message = ""
-
-    has_country = bool(json_data.get("country"))
-    has_city = bool(json_data.get("city"))
-    # has_lat = json_data.get("latitude") is not None
-    # has_lon = json_data.get("longitude") is not None
-
-    # Count provided top-level filter groups
-    provided = 0
-    if has_country:
-        provided += 1
-    if has_city:
-        provided += 1
-    # if has_lat or has_lon:
-    #     provided += 1
-
-    if provided == 0:
-        error_message = (
-            "Provide one of: 'country', 'city', or both 'latitude' and 'longitude'."
-        )
-        return None, None, error_message
-
-    if provided > 1:
-        error_message = "Provide only one of: 'country', 'city', or a pair of 'latitude' and 'longitude'."
-        return None, None, error_message
-
-    # # Validate lat & lon pair
-    # if has_lat or has_lon:
-    #     if not (has_lat and has_lon):
-    #         error_message = "Both 'latitude' and 'longitude' must be provided together."
-    #         return None, None, error_message
-    #     try:
-    #         lat = float(json_data.get("latitude"))
-    #         lon = float(json_data.get("longitude"))
-    #     except Exception:
-    #         error_message = "Invalid latitude or longitude. Must be numeric."
-    #         return None, None, error_message
-    #     filter_type = "latlon"
-    #     filter_value = {"latitude": lat, "longitude": lon}
-    #     return filter_type, filter_value, error_message
-
-    if has_country:
-        filter_type = "country"
-        filter_value = str(json_data.get("country")).strip()
-        return filter_type, filter_value, error_message
-
-    if has_city:
-        filter_type = "city"
-        filter_value = str(json_data.get("city")).strip()
-        return filter_type, filter_value, error_message
+    return filter_type, validated_data

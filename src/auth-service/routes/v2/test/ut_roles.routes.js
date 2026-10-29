@@ -64,7 +64,6 @@ const roleControllerStub = {
   bulkPermissionsCheck: notImplemented,
   bulkRoleOperations: notImplemented,
   checkUserPermissionsForActions: notImplemented,
-  cleanupUserNetworkRoles: notImplemented,
   enhancedAssignUserToRole: notImplemented,
   enhancedUnAssignUserFromRole: notImplemented,
   getCurrentUserPermissionsForGroup: notImplemented,
@@ -84,8 +83,6 @@ const roleControllerStub = {
   listAvailableUsersForRole: notImplemented,
   listPermissionsForRole: notImplemented,
   listUsersWithRole: notImplemented,
-  migrateNetworkRolesToGroup: notImplemented,
-  repairUserRoleAssignment: notImplemented,
   unAssignManyPermissionsFromRole: notImplemented,
   unAssignManyUsersFromRole: notImplemented,
   updateRolePermissions: notImplemented,
@@ -105,10 +102,18 @@ const adminAccessStub = {
   requireSystemAdmin: () => (req, res, next) => next(),
 };
 
+// requireRoleManagementAccess resolves the role's group and checks the
+// caller's RBAC context, both of which need a real DB/RBACService; it has
+// its own unit tests in middleware/test/ut_roleAccessAuth.js.
+const roleAccessAuthStub = {
+  requireRoleManagementAccess: () => (req, res, next) => next(),
+};
+
 const router = proxyquire("@routes/v2/roles.routes", {
   "@controllers/role.controller": roleControllerStub,
   "@middleware/passport": passportStub,
   "@middleware/adminAccess": adminAccessStub,
+  "@middleware/roleAccessAuth": roleAccessAuthStub,
 });
 
 // Most routes in roles.routes.js run the shared `validate` middleware
@@ -207,21 +212,16 @@ describe("Roles Router API Tests", () => {
       );
     });
 
-    it("should return a 400 error for a malformed network_id", async () => {
+    it("ignores network_id entirely — roles are always group-scoped now", async () => {
       listImpl = (req, res) =>
         res.status(200).json({ success: true, roles: [] });
 
-      const response = await request
+      // network_id is no longer a recognized query filter, so a malformed
+      // value is simply not validated — the request succeeds.
+      await request
         .get("/")
         .query({ network_id: "not-a-mongo-id" })
-        .expect(400);
-
-      const networkIdError = response.body.errors.find(
-        (e) => e.param === "network_id"
-      );
-      expect(networkIdError.message).to.equal(
-        "network_id must be an object ID"
-      );
+        .expect(200);
     });
   });
 
@@ -282,7 +282,7 @@ describe("Roles Router API Tests", () => {
       );
     });
 
-    it("should return a 400 error when both network_id and group_id are provided", async () => {
+    it("should return a 400 error when network_id is provided — roles are always group-scoped now", async () => {
       createImpl = (req, res) =>
         res.status(201).json({ success: true, created_role: {} });
 
@@ -297,7 +297,9 @@ describe("Roles Router API Tests", () => {
 
       expect(
         response.body.errors.some(
-          (e) => e.message === "Cannot provide both network_id and group_id"
+          (e) =>
+            e.message ===
+            "network_id is no longer supported — roles are always group-scoped, use group_id"
         )
       ).to.equal(true);
     });
@@ -360,6 +362,31 @@ describe("Roles Router API Tests", () => {
         (e) => e.param === "role_id"
       );
       expect(roleIdError.message).to.equal("the role ID must be an object ID");
+    });
+
+    it("should return a 400 error when network_id is provided on update — roles are always group-scoped now", async () => {
+      // Regression: update() previously had no network_id handling at all,
+      // so a client could still set a stale network_id on an existing role
+      // via PUT — the exact bug this change was meant to close off.
+      updateImpl = (req, res) =>
+        res.status(200).json({ success: true, updated_role: {} });
+
+      const response = await request
+        .put(`/${roleId}`)
+        .send({
+          ...baseUpdateBody,
+          role_status: "ACTIVE",
+          network_id: "60d21b4667d0d8992e610c99",
+        })
+        .expect(400);
+
+      expect(
+        response.body.errors.some(
+          (e) =>
+            e.message ===
+            "network_id is no longer supported — roles are always group-scoped, use group_id"
+        )
+      ).to.equal(true);
     });
   });
 

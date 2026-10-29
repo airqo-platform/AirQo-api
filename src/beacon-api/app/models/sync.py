@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, UUID, Text, CheckConstraint, Index
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import sqlalchemy as sa
 from app.db.session import Base
@@ -6,63 +7,16 @@ import uuid
 
 # SyncFirmware is now managed in app/models/firmware.py
 
-class Category(Base):
-    __tablename__ = "category"
-
-    name = Column(String(100), primary_key=True, nullable=False)
-    level = Column(String(100))
-    description = Column(String(100))
-    field1 = Column(String(100))
-    field2 = Column(String(100))
-    field3 = Column(String(100))
-    field4 = Column(String(100))
-    field5 = Column(String(100))
-    field6 = Column(String(100))
-    field7 = Column(String(100))
-    field8 = Column(String(100))
-    field9 = Column(String(100))
-    field10 = Column(String(100))
-    field11 = Column(String(100))
-    field12 = Column(String(100))
-    field13 = Column(String(100))
-    field14 = Column(String(100))
-    field15 = Column(String(100))
-    metadata1 = Column(String(100))
-    metadata2 = Column(String(100))
-    metadata3 = Column(String(100))
-    metadata4 = Column(String(100))
-    metadata5 = Column(String(100))
-    metadata6 = Column(String(100))
-    metadata7 = Column(String(100))
-    metadata8 = Column(String(100))
-    metadata9 = Column(String(100))
-    metadata10 = Column(String(100))
-    metadata11 = Column(String(100))
-    metadata12 = Column(String(100))
-    metadata13 = Column(String(100))
-    metadata14 = Column(String(100))
-    metadata15 = Column(String(100))
-    config1 = Column(String(100))
-    config2 = Column(String(100))
-    config3 = Column(String(100))
-    config4 = Column(String(100))
-    config5 = Column(String(100))
-    config6 = Column(String(100))
-    config7 = Column(String(100))
-    config8 = Column(String(100))
-    config9 = Column(String(100))
-    config10 = Column(String(100))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
 class SyncDevice(Base):
     __tablename__ = "sync_device"
 
     device_id = Column(String(100), primary_key=True, nullable=False)
     device_name = Column(String(100), index=True)
-    network_id = Column(String(100))
+    # Platform "network" = sensor manufacturer / data provider (airqo, airgradient, iqair, metone ...)
+    network_id = Column(String(100), index=True)
     site_id = Column(String(100), index=True)
     category = Column(String(100))
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("device_profiles.id", ondelete="SET NULL"), nullable=True, index=True)
     status = Column(String(100))
     current_firmware = Column(String(100))
     previous_firmware = Column(String(100))
@@ -72,6 +26,15 @@ class SyncDevice(Base):
     device_number = Column(Integer)
     writeKey = Column(String(100))
     readKey = Column(String(100))
+    # Identity of devices from other manufacturers (no ThingSpeak channel).
+    # The registry requires serial_number for every non-airqo device and stores
+    # the manufacturer API URL it fetches readings from in api_code.
+    serial_number = Column(String(100), index=True)
+    api_code = Column(Text)
+    auth_required = Column(Boolean)
+
+    # Relationships
+    profile = relationship("DeviceProfile", backref="devices")
 
 class SyncConfigValues(Base):
     __tablename__ = "sync_config_values"
@@ -157,6 +120,29 @@ class SyncItemsStockHistory(Base):
             name="chk_items_stock_history_unit_not_empty"
         ),
     )
+
+
+class SyncNetwork(Base):
+    """
+    Mirror of the platform's networks collection: the sensor manufacturers /
+    data providers whose devices the registry holds. ``name`` is the value
+    found in ``sync_device.network_id``.
+    """
+    __tablename__ = "sync_network"
+
+    network_id = Column(String(100), primary_key=True, nullable=False)  # platform _id
+    name = Column(String(100), unique=True, index=True, nullable=False)
+    acronym = Column(String(100))
+    status = Column(String(50))           # active | inactive
+    category = Column(String(100))        # platform net_category (business, others ...)
+    data_source = Column(String(100))     # platform net_data_source
+    website = Column(String(255))
+    email = Column(String(255))
+    description = Column(Text)
+    profile_picture = Column(String(500))
+    platform_updated_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class SyncCohort(Base):

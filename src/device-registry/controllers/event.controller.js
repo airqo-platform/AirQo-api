@@ -107,6 +107,9 @@ function sendRankingResponse(res, result) {
       success: true,
       message: result.message,
       data: result.data,
+      // Additive — only live rankings computes it today (see R7 in the
+      // Nexus country-filter requirements doc).
+      ...(result.meta ? { meta: result.meta } : {}),
     });
   } else {
     res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -311,11 +314,22 @@ const processGridIds = async (grid_ids, request) => {
       logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
 
       if (responseFromGetSitesOfGrid.success === false) {
-        logger.error(
-          `🐛🐛 Internal Server Error --- ${JSON.stringify(
-            responseFromGetSitesOfGrid,
-          )}`,
-        );
+        if (
+          responseFromGetSitesOfGrid.status >=
+          httpStatus.INTERNAL_SERVER_ERROR
+        ) {
+          logger.error(
+            `🐛🐛 Internal Server Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        } else {
+          logger.warn(
+            `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(
+              responseFromGetSitesOfGrid,
+            )}`,
+          );
+        }
         return responseFromGetSitesOfGrid;
       } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
         logger.warn(
@@ -491,10 +505,26 @@ const createEvent = {
         ...req,
         query: { ...req.query, grid_id: req.params.grid_id },
       };
-      const result = await createEventUtil.getRepresentativeAirQuality(
+      const response = await createEventUtil.getRepresentativeAirQualityForGrid(
         request,
         next,
       );
+      // A server-side cache hit reports its remaining lifetime, so a
+      // downstream cache never stretches staleness past the TTL.
+      let result = response;
+      let maxAge = constants.REPRESENTATIVE_AQ_CACHE_TTL_SECONDS;
+      if (response && response.cacheMaxAgeSeconds !== undefined) {
+        ({ cacheMaxAgeSeconds: maxAge, ...result } = response);
+      }
+      // Only a real reading is cacheable; an empty result should be re-asked.
+      if (
+        result &&
+        result.success === true &&
+        !isEmpty(result.data) &&
+        maxAge > 0
+      ) {
+        res.set("Cache-Control", `public, max-age=${maxAge}`);
+      }
       handleResponse({ res, result, key: "data" });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -569,6 +599,32 @@ const createEvent = {
         return;
       }
       const result = await createEventUtil.getAirQualityRankingsHistory(
+        req,
+        next,
+      );
+      sendRankingResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+    }
+  },
+
+  getAirQualityRankingsCountries: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+      const result = await createEventUtil.getAirQualityRankingsCountries(
         req,
         next,
       );
@@ -911,10 +967,28 @@ const createEvent = {
         : req.query.tenant;
 
       logText("we are listing events...");
-      const { site_id, device_id, site, device } = {
-        ...req.params,
-        ...req.query,
-      };
+      const { site_id, site, cohort_id } = { ...req.params, ...req.query };
+
+      if (cohort_id) {
+        // Resolves cohort_id (ObjectId or cohort_slug) to its member
+        // devices and sets request.query.device_id — cohort_id was
+        // previously accepted by the validator but silently never
+        // consumed here.
+        const cohortProcessingResponse = await createEventUtil.processCohortIds(
+          cohort_id,
+          request,
+        );
+        if (
+          cohortProcessingResponse &&
+          cohortProcessingResponse.success === false
+        ) {
+          const status =
+            cohortProcessingResponse.status || httpStatus.BAD_REQUEST;
+          return res.status(status).json(cohortProcessingResponse);
+        }
+      }
+
+      const { device_id, device } = { ...req.params, ...req.query };
 
       if (!isEmpty(site_id) || !isEmpty(site)) {
         request.query.recent = "no";
@@ -1183,6 +1257,57 @@ const createEvent = {
           success: true,
           message: result.message,
           measurements: result.data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message },
+        ),
+      );
+      return;
+    }
+  },
+  compareSiteReadings: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors),
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+        },
+      };
+
+      const result = await createEventUtil.compareSiteReadings(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          readings: result.data,
         });
       } else {
         const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;

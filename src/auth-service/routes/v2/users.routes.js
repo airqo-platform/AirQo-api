@@ -22,14 +22,13 @@ const {
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
 const analyticsMiddleware = require("@middleware/analytics");
+const { trackApiUsage } = require("@middleware/usage-tracker.middleware");
 
 const {
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
-  requireNetworkPermissions,
   requireGroupMembership,
-  requireNetworkMembership,
   debugPermissions,
 } = require("@middleware/permissionAuth");
 
@@ -122,6 +121,23 @@ router.get(
   "/profile/enhanced",
   enhancedJWTAuth,
   userController.getEnhancedProfile,
+);
+
+router.get(
+  "/known-devices",
+  enhancedJWTAuth,
+  userValidations.tenant,
+  validate,
+  userController.listKnownDevices,
+);
+
+router.get(
+  "/email-queue",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.listEmailQueue,
+  validate,
+  userController.listEmailQueue,
 );
 
 // ================================
@@ -341,13 +357,21 @@ router.post(
   userController.emailAuth,
 );
 
-router.post("/feedback", userValidations.feedback, userController.sendFeedback);
+router.post(
+  "/completeEmailLogin",
+  userValidations.completeEmailLogin,
+  userController.completeEmailLogin,
+);
+
+// Decommissioned — responds 410 Gone. Use POST /feedback/submit.
+router.post("/feedback", userController.sendFeedback);
 
 // ================================
 // PERSISTENT FEEDBACK / RATING ROUTES
 // GET    /feedback/upload-url                               – public
 // POST   /feedback/submit                                   – public
 // GET    /feedback/staff                                    – admin; list assignable staff members
+// GET    /feedback/stats                                    – admin; dashboard card counts + page-satisfaction rollups
 // GET    /feedback/submissions                              – admin; list with filtering
 // PATCH  /feedback/submissions/bulk-status                 – admin; bulk status update
 // GET    /feedback/submissions/:feedback_id                – admin; single submission
@@ -383,6 +407,15 @@ router.get(
   enhancedJWTAuth,
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listFeedbackStaff,
+);
+
+router.get(
+  "/feedback/stats",
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userValidations.getFeedbackStats,
+  validate,
+  userController.getFeedbackStats,
 );
 
 router.get(
@@ -549,7 +582,7 @@ router.post(
   userController.verifyFirebaseCustomToken,
 );
 
-router.post("/verify", enhancedJWTAuth, userController.verify);
+router.post("/verify", enhancedJWTAuth, trackApiUsage, userController.verify);
 
 router.get(
   "/combined",
@@ -561,6 +594,7 @@ router.get(
 
 router.get(
   "/verify/:user_id/:token",
+  rateLimiter.emailVerification,
   userValidations.verifyEmail,
   userController.verifyEmail,
 );
@@ -598,6 +632,13 @@ router.post(
   "/reset-password-request",
   userValidations.resetPasswordRequest,
   userController.resetPasswordRequest,
+);
+
+router.post(
+  "/check-email",
+  rateLimiter.login,
+  userValidations.checkEmail,
+  userController.checkEmail,
 );
 
 router.post(
@@ -711,6 +752,24 @@ router.get(
   pagination(),
   requirePermissions([constants.SYSTEM_ADMIN]),
   userController.listStatistics,
+);
+
+router.get(
+  "/stats/breakdown",
+  userValidations.statsBreakdown,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.getStatsBreakdown,
+);
+
+router.get(
+  "/stats/export",
+  userValidations.statsExport,
+  validate,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
+  userController.exportStatsSegment,
 );
 
 router.get(

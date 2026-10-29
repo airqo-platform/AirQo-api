@@ -112,3 +112,26 @@ Get protocol by service name.
   {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+XCom init container of the workflows pods and of the migration Job.
+*/}}
+{{- define "airqo-workflows.xcomInitContainer" -}}
+- name: '{{ .Values.app.name }}-xcom'
+  image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
+  imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+  resources:
+    limits:
+      cpu: {{ .Values.resources.initContainer.limits.cpu }}
+      memory: {{ .Values.resources.initContainer.limits.memory }}
+    requests:
+      cpu: {{ .Values.resources.initContainer.requests.cpu }}
+      memory: {{ .Values.resources.initContainer.requests.memory }}
+  envFrom:
+    - secretRef:
+        name: {{ .Values.app.secret }}
+  {{- with .Values.volumeMounts }}
+  volumeMounts:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

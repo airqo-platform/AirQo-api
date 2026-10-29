@@ -747,6 +747,16 @@ describe("createSite Util Functions", () => {
   });
 
   describe("findNearestSitesByCoordinates", () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it("should find nearest sites", async () => {
       const radius = 10;
       const latitude = 0.1;
@@ -780,6 +790,117 @@ describe("createSite Util Functions", () => {
 
       // On DB error, the catch block calls next(HttpError) without returning
       expect(result !== undefined || next.called).to.be.true;
+    });
+
+    // Mock @models/Site via proxyquire (same approach as listForComparisonPicker
+    // below) rather than stubbing SiteModel(tenant) directly — the latter requires
+    // a live mongoose connection lookup and throws "Query database connection not
+    // established" in this test environment.
+    //
+    // Radius filtering, distance sort and the result-count cap now happen
+    // inside the $geoNear-backed SiteModel.findNearestSites static (see
+    // models/Site.js), not in this util — so these tests assert that the
+    // util builds the right query args and passes the model's response
+    // through unchanged, rather than re-testing geo math here.
+    describe("with a mocked site model", () => {
+      const proxyquire = require("proxyquire");
+      let proxiedSiteUtil;
+      let findNearestSitesStub;
+      let next;
+
+      beforeEach(() => {
+        findNearestSitesStub = sinon.stub();
+        proxiedSiteUtil = proxyquire("../site.util", {
+          "@models/Site": () => ({
+            findNearestSites: findNearestSitesStub,
+          }),
+        });
+        next = sinon.stub();
+      });
+
+      afterEach(() => {
+        sinon.restore();
+      });
+
+      it("delegates to SiteModel.findNearestSites with the request's coordinates, radius and limit", async () => {
+        const sites = [{ _id: "near", distance_km: 0.5 }];
+        findNearestSitesStub.resolves({
+          success: true,
+          data: sites,
+          status: httpStatus.OK,
+        });
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10,
+              latitude: 0.1,
+              longitude: 32.1,
+              tenant: "airqo",
+              limit: 5,
+            },
+            params: {},
+          },
+          next
+        );
+
+        expect(findNearestSitesStub.calledOnce).to.be.true;
+        const args = findNearestSitesStub.firstCall.args[0];
+        expect(args.latitude).to.equal(0.1);
+        expect(args.longitude).to.equal(32.1);
+        expect(args.radius).to.equal(10);
+        expect(args.limit).to.equal(5);
+
+        expect(result.success).to.equal(true);
+        expect(result.data).to.deep.equal(sites);
+      });
+
+      it("passes online_status through as an isOnline filter", async () => {
+        findNearestSitesStub.resolves({
+          success: true,
+          data: [],
+          status: httpStatus.OK,
+        });
+
+        await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: {
+              radius: 10,
+              latitude: 0,
+              longitude: 0,
+              tenant: "airqo",
+              online_status: "online",
+            },
+            params: {},
+          },
+          next
+        );
+
+        const args = findNearestSitesStub.firstCall.args[0];
+        expect(args.filter.isOnline).to.equal(true);
+      });
+
+      it("returns the model's failure response unchanged", async () => {
+        const failureResponse = {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+        findNearestSitesStub.resolves(failureResponse);
+
+        const result = await proxiedSiteUtil.findNearestSitesByCoordinates(
+          {
+            body: {},
+            query: { radius: 10, latitude: 0, longitude: 0, tenant: "airqo" },
+            params: {},
+          },
+          next
+        );
+
+        expect(result).to.deep.equal(failureResponse);
+      });
     });
   });
 
@@ -837,6 +958,239 @@ describe("createSite Util Functions", () => {
 
       // The catch block calls next(HttpError) without returning, so result is undefined
       expect(next.calledOnce).to.be.true;
+    });
+  });
+
+  // GET /sites/picker — the Nexus "Compare locations" site picker.
+  describe("listForComparisonPicker", () => {
+    const proxyquire = require("proxyquire");
+    let proxiedSiteUtil;
+    let cohortLeanStub;
+    let snapshotLeanStub;
+    let siteCountStub;
+    let siteSortStub;
+    let siteSkipStub;
+    let siteLimitStub;
+    let siteLeanStub;
+    let siteFindStub;
+    let next;
+
+    const groupId = "624d2f9a994194001ddccbb6";
+    const cohortId1 = "60d5f77bcf86cd799439011";
+    const cohortId2 = "60d5f77bcf86cd799439012";
+    const siteId1 = "623d84340e8054001eaaaa13";
+    const siteId2 = "6a1b2c3d4e5f60718293a4b5";
+
+    const buildRequest = (query = {}) => ({
+      query: { tenant: "airqo", group_id: groupId, ...query },
+    });
+
+    beforeEach(() => {
+      cohortLeanStub = sinon.stub().resolves([]);
+      snapshotLeanStub = sinon.stub().resolves([]);
+      siteLeanStub = sinon.stub().resolves([]);
+      siteLimitStub = sinon.stub().returns({ lean: siteLeanStub });
+      siteSkipStub = sinon.stub().returns({ limit: siteLimitStub });
+      siteSortStub = sinon.stub().returns({ skip: siteSkipStub });
+      siteFindStub = sinon.stub().returns({ sort: siteSortStub });
+      // .select(...) is called right after .find(...) for both site queries
+      // below — chain it onto whatever .find() returned so both the
+      // sort/skip/limit/lean path (the paginated list) and a direct .lean()
+      // (not used here, but keeps the stub shape honest) stay reachable.
+      const siteSelectStub = sinon.stub().callsFake(() => ({
+        sort: siteSortStub,
+      }));
+      siteCountStub = sinon.stub().resolves(0);
+
+      proxiedSiteUtil = proxyquire("../site.util", {
+        "@models/Cohort": () => ({
+          find: sinon.stub().returns({
+            select: sinon.stub().returns({ lean: cohortLeanStub }),
+          }),
+        }),
+        "@models/CohortSiteSnapshot": () => ({
+          find: sinon.stub().returns({
+            select: sinon.stub().returns({ lean: snapshotLeanStub }),
+          }),
+        }),
+        "@models/Site": () => ({
+          countDocuments: siteCountStub,
+          find: sinon.stub().returns({ select: siteSelectStub }),
+        }),
+      });
+      next = sinon.stub();
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("returns an empty, zero-page result when group_id resolves to no cohorts", async () => {
+      cohortLeanStub.resolves([]);
+
+      const result = await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest(),
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([]);
+      expect(result.meta).to.deep.equal({
+        total: 0,
+        total_pages: 0,
+        page: 1,
+        skip: 0,
+        limit: 6,
+      });
+      expect(siteCountStub.called).to.be.false;
+    });
+
+    it("returns an empty, zero-page result when the resolved cohorts have no site snapshots", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }]);
+      snapshotLeanStub.resolves([]);
+
+      const result = await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest(),
+        next
+      );
+
+      expect(result.data).to.deep.equal([]);
+      expect(result.meta.total_pages).to.equal(0);
+    });
+
+    it("reports the actually-requested page (not always 1) on an empty result", async () => {
+      cohortLeanStub.resolves([]);
+
+      const result = await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ skip: 12, limit: 6 }),
+        next
+      );
+
+      expect(result.meta.page).to.equal(3);
+    });
+
+    it("dedupes site_ids across snapshots and returns paginated, mapped site rows", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }, { _id: cohortId2 }]);
+      // Same site_id linked via two different cohorts — must be deduped
+      // before hitting SiteModel.
+      snapshotLeanStub.resolves([
+        { site_id: siteId1 },
+        { site_id: siteId1 },
+        { site_id: siteId2 },
+      ]);
+      siteCountStub.resolves(2);
+      siteLeanStub.resolves([
+        {
+          _id: siteId1,
+          name: "Mukono Health Centre III",
+          location_name: "Mukono",
+          city: "Mukono",
+          country: "Uganda",
+          latitude: 0.3533,
+          longitude: 32.7553,
+        },
+      ]);
+
+      const result = await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ limit: 10, skip: 0 }),
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      expect(result.data).to.deep.equal([
+        {
+          id: siteId1,
+          name: "Mukono Health Centre III",
+          location: "Mukono",
+          city: "Mukono",
+          country: "Uganda",
+          latitude: 0.3533,
+          longitude: 32.7553,
+        },
+      ]);
+      expect(result.meta).to.deep.equal({
+        total: 2,
+        total_pages: 1,
+        page: 1,
+        skip: 0,
+        limit: 10,
+      });
+
+      const siteFilterArg = siteCountStub.args[0][0];
+      expect(siteFilterArg._id.$in).to.have.lengthOf(2);
+    });
+
+    it("caps limit at 80 and defaults it to 6 when not provided", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }]);
+      snapshotLeanStub.resolves([{ site_id: siteId1 }]);
+
+      await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ limit: 500 }),
+        next
+      );
+      expect(siteLimitStub.args[0][0]).to.equal(80);
+
+      await proxiedSiteUtil.listForComparisonPicker(buildRequest(), next);
+      expect(siteLimitStub.args[1][0]).to.equal(6);
+    });
+
+    it("only applies the $or search filter for a non-blank, trimmed search term", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }]);
+      snapshotLeanStub.resolves([{ site_id: siteId1 }]);
+      const siteFindSpy = sinon.stub().returns({
+        select: sinon.stub().callsFake(() => ({ sort: siteSortStub })),
+      });
+      proxiedSiteUtil = proxyquire("../site.util", {
+        "@models/Cohort": () => ({
+          find: sinon.stub().returns({
+            select: sinon.stub().returns({ lean: cohortLeanStub }),
+          }),
+        }),
+        "@models/CohortSiteSnapshot": () => ({
+          find: sinon.stub().returns({
+            select: sinon.stub().returns({ lean: snapshotLeanStub }),
+          }),
+        }),
+        "@models/Site": () => ({
+          countDocuments: siteCountStub,
+          find: siteFindSpy,
+        }),
+      });
+
+      // Whitespace-only search must NOT add an $or filter.
+      await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ search: "   " }),
+        next
+      );
+      expect(siteFindSpy.args[0][0].$or).to.be.undefined;
+
+      // A real search term must add the $or filter.
+      await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ search: "kampala" }),
+        next
+      );
+      expect(siteFindSpy.args[1][0].$or).to.be.an("array");
+    });
+
+    it("maps sort_by to the underlying field and sort_order to a mongo direction", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }]);
+      snapshotLeanStub.resolves([{ site_id: siteId1 }]);
+
+      await proxiedSiteUtil.listForComparisonPicker(
+        buildRequest({ sort_by: "city", sort_order: "desc" }),
+        next
+      );
+
+      expect(siteSortStub.args[0][0]).to.deep.equal({ city: -1 });
+    });
+
+    it("defaults sorting to location_name ascending when sort_by/sort_order are omitted", async () => {
+      cohortLeanStub.resolves([{ _id: cohortId1 }]);
+      snapshotLeanStub.resolves([{ site_id: siteId1 }]);
+
+      await proxiedSiteUtil.listForComparisonPicker(buildRequest(), next);
+
+      expect(siteSortStub.args[0][0]).to.deep.equal({ location_name: 1 });
     });
   });
 });

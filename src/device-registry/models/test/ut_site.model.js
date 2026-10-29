@@ -223,4 +223,136 @@ describe("the Site Model", function() {
         : done();
     });
   });
+
+  // listAirQoActive is a plain async function living on siteSchema.statics
+  // that only ever touches `this.aggregate()`. Rather than going through
+  // mongoose at all, call it with .call() against a bare mocked `this` —
+  // ordinary function mocking, no schema compilation, no DB connection.
+  describe("listAirQoActive", function() {
+    function buildAggregateChain(response) {
+      const captured = { matchCalls: [] };
+      const chain = {};
+      chain.match = sinon.stub().callsFake((query) => {
+        captured.matchCalls.push(query);
+        return chain;
+      });
+      ["lookup", "unwind", "addFields", "sort", "project", "skip", "limit", "allowDiskUse"].forEach(
+        (method) => {
+          chain[method] = sinon.stub().callsFake(() => chain);
+        }
+      );
+      chain.then = (resolve) => resolve(response);
+      return { chain, captured };
+    }
+
+    function fakeModel(response) {
+      const { chain, captured } = buildAggregateChain(response);
+      return { model: { aggregate: sinon.stub().returns(chain) }, captured };
+    }
+
+    it("does not restrict results to the airqo network", async function() {
+      const { model, captured } = fakeModel([]);
+      const next = sinon.stub();
+
+      const result = await SiteSchema.statics.listAirQoActive.call(
+        model,
+        { filter: {} },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      const [siteMatchStage] = captured.matchCalls;
+      expect(siteMatchStage).to.not.have.property("network");
+    });
+
+    it("preserves an explicit partner-network filter instead of overriding it to airqo", async function() {
+      const { model, captured } = fakeModel([]);
+      const next = sinon.stub();
+
+      await SiteSchema.statics.listAirQoActive.call(
+        model,
+        { filter: { network: "partner_network" } },
+        next
+      );
+
+      const [siteMatchStage] = captured.matchCalls;
+      expect(siteMatchStage).to.deep.equal({ network: "partner_network" });
+    });
+  });
+
+  // findNearestSites backs GET /sites/nearest via a $geoNear-first aggregate
+  // pipeline (see models/Site.js) instead of the old fetch-1000-then-Haversine
+  // approach. Same call-with-mocked-`this` approach as listAirQoActive above.
+  describe("findNearestSites", function() {
+    function buildGeoAggregateChain(response) {
+      const captured = { nearCalls: [] };
+      const chain = {};
+      chain.near = sinon.stub().callsFake((options) => {
+        captured.nearCalls.push(options);
+        return chain;
+      });
+      [
+        "match",
+        "lookup",
+        "unwind",
+        "addFields",
+        "project",
+        "limit",
+        "allowDiskUse",
+      ].forEach((method) => {
+        chain[method] = sinon.stub().callsFake(() => chain);
+      });
+      chain.then = (resolve) => resolve(response);
+      return { chain, captured };
+    }
+
+    function fakeGeoModel(response) {
+      const { chain, captured } = buildGeoAggregateChain(response);
+      return { model: { aggregate: sinon.stub().returns(chain) }, captured };
+    }
+
+    it("issues a $geoNear stage as the first pipeline stage with the given coordinates and radius", async function() {
+      const { model, captured } = fakeGeoModel([]);
+      const next = sinon.stub();
+
+      const result = await SiteSchema.statics.findNearestSites.call(
+        model,
+        { longitude: 32.1, latitude: 0.1, radius: 10, filter: {} },
+        next
+      );
+
+      expect(result.success).to.equal(true);
+      const [geoNearStage] = captured.nearCalls;
+      expect(geoNearStage.near).to.deep.equal({
+        type: "Point",
+        coordinates: [32.1, 0.1],
+      });
+      expect(geoNearStage.maxDistance).to.equal(10000);
+      expect(geoNearStage.spherical).to.equal(true);
+      expect(geoNearStage.distanceField).to.equal("distance_km");
+    });
+
+    it("folds the caller-supplied filter (e.g. network, isOnline) into the $geoNear query", async function() {
+      const { model, captured } = fakeGeoModel([]);
+      const next = sinon.stub();
+
+      await SiteSchema.statics.findNearestSites.call(
+        model,
+        {
+          longitude: 0,
+          latitude: 0,
+          radius: 5,
+          filter: { network: "partner_network", isOnline: true },
+        },
+        next
+      );
+
+      const [geoNearStage] = captured.nearCalls;
+      expect(geoNearStage.query).to.deep.equal({
+        network: "partner_network",
+        isOnline: true,
+        lat_long: { $ne: "4_4" },
+      });
+    });
+  });
 });

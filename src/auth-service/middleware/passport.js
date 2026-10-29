@@ -1763,6 +1763,10 @@ const enhancedJWTAuth = (req, res, next) => {
             );
           }
 
+          // Server-owned: the tenant whose database this user was loaded from.
+          // Downstream code that must stay scoped to it (e.g. usage recording)
+          // reads this instead of re-deriving it from client-supplied input.
+          req.authTenant = tenant;
           req.user = { ...decoded, ...user };
           next();
         } catch (callbackError) {

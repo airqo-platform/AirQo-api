@@ -107,34 +107,12 @@ const create = [
       .withMessage("jobTitle cannot be empty")
       .bail()
       .trim(),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the network_id cannot be empty if provided")
-      .bail()
-      .isMongoId()
-      .withMessage("the network_id must be a MongoID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
   ],
 ];
 
 const list = [
   validateTenant,
   [
-    query("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the network_id cannot be empty IF provided")
-      .bail()
-      .isMongoId()
-      .withMessage("the network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
     query("id")
       .optional()
       .notEmpty()
@@ -209,17 +187,6 @@ const confirm = [
       .exists()
       .withMessage("the jobTitle should be provided")
       .trim(),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("the network_id cannot be empty if provided")
-      .bail()
-      .isMongoId()
-      .withMessage("the network_id must be a MongoID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
   ],
 ];
 

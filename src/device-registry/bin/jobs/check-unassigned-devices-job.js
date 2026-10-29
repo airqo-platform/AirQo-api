@@ -9,7 +9,7 @@ const UNASSIGNED_THRESHOLD = 0;
 const { logObject, logText } = require("@utils/shared");
 
 const JOB_NAME = "check-unassigned-devices-job";
-const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+const JOB_SCHEDULE = "27 */2 * * *"; // At minute 27 of every 2nd hour (staggered off :30, shared by several other every-2h jobs and the every-hour precompute-activities-job)
 
 const checkUnassignedDevices = async () => {
   try {

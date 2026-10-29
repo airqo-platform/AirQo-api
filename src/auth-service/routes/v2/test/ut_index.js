@@ -94,11 +94,11 @@ function makeGenericStubRouter(name) {
 // routes/v2/index.js explicitly sorts "/" to load *last* specifically so a
 // route like that can't shadow everything else mounted before it. A bare
 // `GET "/"` stub wouldn't be able to detect a mounting-order regression --
-// a wrongly-early "/" mount would have no route matching e.g. "/networks"
-// and Express would simply fall through to the real networks router
+// a wrongly-early "/" mount would have no route matching e.g. "/permissions"
+// and Express would simply fall through to the real permissions router
 // regardless of order. Giving the stub a param route makes a
-// mounting-order bug observable: if "/" were mounted before "/networks",
-// requests to "/networks" would incorrectly get swallowed by this handler.
+// mounting-order bug observable: if "/" were mounted before "/permissions",
+// requests to "/permissions" would incorrectly get swallowed by this handler.
 function makeUsersStubRouter() {
   const r = express.Router();
   r.get("/", (req, res) => res.status(200).json({ stub: "users" }));
@@ -192,7 +192,7 @@ describe("routes/v2/index.js -- auth route aggregator", () => {
       const byName = Object.fromEntries(res.body.routes.map((r) => [r.name, r]));
 
       expect(byName.users.fullEndpoint).to.equal("/api/v2");
-      expect(byName.networks.fullEndpoint).to.equal("/api/v2/networks");
+      expect(byName.permissions.fullEndpoint).to.equal("/api/v2/permissions");
     });
 
     it("categorizes known route names per getCategoryForRoute's category map", async () => {
@@ -212,17 +212,17 @@ describe("routes/v2/index.js -- auth route aggregator", () => {
       expect(categoryByName["scope-rules"]).to.equal("uncategorized");
     });
 
-    it("actually dispatches a real request through a mounted sub-router (/networks)", async () => {
-      const res = await request.get("/networks").expect(200);
-      expect(res.body).to.deep.equal({ stub: "networks" });
+    it("actually dispatches a real request through a mounted sub-router (/permissions)", async () => {
+      const res = await request.get("/permissions").expect(200);
+      expect(res.body).to.deep.equal({ stub: "permissions" });
     });
 
     it("mounts the users ('/') catch-all last, so it doesn't shadow other routes", async () => {
-      // If "/" had been mounted before "/networks", this request would be
-      // swallowed by the users stub's GET "/:id" handler (id="networks")
-      // instead of ever reaching the networks router.
-      const res = await request.get("/networks").expect(200);
-      expect(res.body).to.deep.equal({ stub: "networks" });
+      // If "/" had been mounted before "/permissions", this request would be
+      // swallowed by the users stub's GET "/:id" handler (id="permissions")
+      // instead of ever reaching the permissions router.
+      const res = await request.get("/permissions").expect(200);
+      expect(res.body).to.deep.equal({ stub: "permissions" });
     });
 
     it("still serves the users route itself, both root and catch-all", async () => {
@@ -361,9 +361,9 @@ describe("routes/v2/index.js -- auth route aggregator", () => {
       }
     });
 
-    it("does not affect other routes (e.g. /networks still works)", async () => {
-      const res = await request.get("/networks").expect(200);
-      expect(res.body).to.deep.equal({ stub: "networks" });
+    it("does not affect other routes (e.g. /permissions still works)", async () => {
+      const res = await request.get("/permissions").expect(200);
+      expect(res.body).to.deep.equal({ stub: "permissions" });
     });
   });
 
@@ -476,9 +476,9 @@ describe("routes/v2/index.js -- auth route aggregator", () => {
       });
     });
 
-    it("does not affect other routes (e.g. /networks still works)", async () => {
-      const res = await request.get("/networks").expect(200);
-      expect(res.body).to.deep.equal({ stub: "networks" });
+    it("does not affect other routes (e.g. /permissions still works)", async () => {
+      const res = await request.get("/permissions").expect(200);
+      expect(res.body).to.deep.equal({ stub: "permissions" });
     });
   });
 });
