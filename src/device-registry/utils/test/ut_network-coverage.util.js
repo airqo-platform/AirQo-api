@@ -50,16 +50,16 @@ const SITES = [
   },
 ];
 
-function loadUtil({ siteById = null, registerResult } = {}) {
+function loadUtil({ siteById = null, registerResult, hasActiveDevice = true, sites = SITES } = {}) {
   const DeviceModel = () => ({
     aggregate: async () =>
-      SITES.map((s) => ({ _id: s._id, category: "lowcost" })),
-    exists: async () => true,
+      sites.map((s) => ({ _id: s._id, category: "lowcost" })),
+    exists: async () => (hasActiveDevice ? { _id: "device-1" } : null),
   });
   DeviceModel["@noCallThru"] = true;
 
   const SiteModel = () => ({
-    find: () => lean(SITES),
+    find: () => lean(sites),
     findById: () => lean(siteById),
   });
   SiteModel["@noCallThru"] = true;
@@ -120,6 +120,18 @@ describe("networkCoverageUtil", () => {
       expect(result.data.cityMatches).to.deep.equal([]);
     });
 
+    it("groups a city across differently cased country names", async () => {
+      const util = loadUtil({
+        sites: [...SITES, { ...SITES[0], _id: "site-nbo-3", country: "KENYA" }],
+      });
+      const result = await util.list({
+        query: { tenant: "airqo", search: "nairobi" },
+      });
+
+      expect(result.data.cityMatches).to.have.lengthOf(1);
+      expect(result.data.cityMatches[0].total).to.equal(3);
+    });
+
     it("omits cityMatches when no search is supplied", async () => {
       const util = loadUtil();
       const result = await util.list({ query: { tenant: "airqo" } });
@@ -160,6 +172,7 @@ describe("networkCoverageUtil", () => {
         monitorId: "reg-1",
         countryId: "uganda",
         iso2: "UG",
+        availability: "available",
       });
     });
 
@@ -181,6 +194,28 @@ describe("networkCoverageUtil", () => {
         monitorId: "site-nbo-1",
         countryId: "kenya",
         iso2: "KE",
+        availability: "available",
+      });
+    });
+
+    it("reports pending availability when the site has no active device", async () => {
+      const util = loadUtil({
+        hasActiveDevice: false,
+        siteById: { _id: "site-nbo-1", country: "Kenya" },
+        registerResult: {
+          success: true,
+          status: httpStatus.OK,
+          data: { _id: "reg-3", site_id: "site-nbo-1", country: "", iso2: "" },
+        },
+      });
+      const result = await util.upsertRegistry({
+        query: { tenant: "airqo" },
+        body: { site_id: "site-nbo-1" },
+      });
+
+      expect(result.data).to.include({
+        monitorId: "site-nbo-1",
+        availability: "pending",
       });
     });
 

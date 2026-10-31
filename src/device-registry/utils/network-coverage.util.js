@@ -574,7 +574,7 @@ function buildCityMatches(monitors, search) {
     const city = (monitor.city || "").trim();
     if (!city || !city.toLowerCase().includes(q)) continue;
 
-    const key = `${city.toLowerCase()}|${monitor.country || ""}`;
+    const key = `${city.toLowerCase()}|${(monitor.country || "").toLowerCase()}`;
     if (!cityMap.has(key)) {
       cityMap.set(key, {
         city,
@@ -1261,6 +1261,9 @@ const networkCoverageUtil = {
       // then check for active devices. Enrichment is allowed even when no
       // device is currently active (useful for temporarily offline sites).
       let siteCountry = "";
+      // Standalone entries are readable as soon as they are saved; site
+      // entries only once the site has an active device.
+      let hasActive = true;
       if (data.site_id) {
         const siteDoc = await SiteModel(tenant)
           .findById(data.site_id, { country: 1 })
@@ -1276,7 +1279,7 @@ const networkCoverageUtil = {
         }
         siteCountry = siteDoc.country || "";
 
-        const hasActive = await DeviceModel(tenant).exists({
+        hasActive = await DeviceModel(tenant).exists({
           site_id: data.site_id,
           isActive: true,
         });
@@ -1308,6 +1311,11 @@ const networkCoverageUtil = {
           monitorId: String(record.site_id || record._id),
           countryId: slugify(country || "Unknown"),
           iso2: record.iso2 || getIso2(country),
+          // Response-only (not stored): "available" when monitorId can be read
+          // from the list, country and monitor detail endpoints now; "pending"
+          // when the linked site has no active device yet, so those endpoints
+          // will not return it until a device is deployed there.
+          availability: hasActive ? "available" : "pending",
         },
       };
     } catch (error) {
