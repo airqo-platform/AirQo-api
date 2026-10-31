@@ -81,6 +81,7 @@ const COUNTRY_ISO2 = {
   France: "FR",
   Gabon: "GA",
   Gambia: "GM",
+  "The Gambia": "GM",
   Germany: "DE",
   Ghana: "GH",
   Greece: "GR",
@@ -541,16 +542,88 @@ function applyFilters(monitors, { search, activeOnly, types, network } = {}) {
 
   if (search) {
     const q = search.toLowerCase();
+    // ISO2 is matched exactly — substring matching on two-letter codes would
+    // pull in unrelated countries (e.g. "u" matching both UG and US).
     result = result.filter(
       (m) =>
         m.country.toLowerCase().includes(q) ||
         m.city.toLowerCase().includes(q) ||
         m.name.toLowerCase().includes(q) ||
-        m.network.toLowerCase().includes(q)
+        m.network.toLowerCase().includes(q) ||
+        (m.iso2 || "").toLowerCase() === q
     );
   }
 
   return result;
+}
+
+/**
+ * Builds the city-level search matches for the summary endpoint so a search
+ * such as "Nairobi" can resolve to the city itself rather than only to its
+ * parent country group. Only cities whose name contains the search term are
+ * returned — cities included merely because their country matched are not.
+ *
+ * Sorted exact match first, then prefix match, then by monitor count desc.
+ */
+function buildCityMatches(monitors, search) {
+  const q = (search || "").trim().toLowerCase();
+  if (!q) return [];
+
+  const cityMap = new Map();
+  for (const monitor of monitors) {
+    const city = (monitor.city || "").trim();
+    if (!city || !city.toLowerCase().includes(q)) continue;
+
+    const key = `${city.toLowerCase()}|${monitor.country || ""}`;
+    if (!cityMap.has(key)) {
+      cityMap.set(key, {
+        city,
+        country: monitor.country || "",
+        countryId: slugify(monitor.country || "Unknown"),
+        iso2: monitor.iso2 || "",
+        total: 0,
+        active: 0,
+        inactive: 0,
+        _latSum: 0,
+        _lngSum: 0,
+        _coordCount: 0,
+      });
+    }
+    const entry = cityMap.get(key);
+    entry.total++;
+    if (entry[monitor.status] !== undefined) entry[monitor.status]++;
+    if (monitor.latitude != null && monitor.longitude != null) {
+      entry._latSum += monitor.latitude;
+      entry._lngSum += monitor.longitude;
+      entry._coordCount++;
+    }
+  }
+
+  const rank = (city) => {
+    const c = city.toLowerCase();
+    if (c === q) return 0;
+    if (c.startsWith(q)) return 1;
+    return 2;
+  };
+
+  return Array.from(cityMap.values())
+    .map(({ _latSum, _lngSum, _coordCount, ...rest }) => ({
+      ...rest,
+      // Mean of member coordinates — a map centre for zooming to the city.
+      center:
+        _coordCount > 0
+          ? {
+              latitude: _latSum / _coordCount,
+              longitude: _lngSum / _coordCount,
+            }
+          : null,
+    }))
+    .sort(
+      (a, b) =>
+        rank(a.city) - rank(b.city) ||
+        b.total - a.total ||
+        a.city.localeCompare(b.city)
+    );
 }
 
 // Only fetch Site fields we actually need
@@ -842,6 +915,7 @@ const networkCoverageUtil = {
       });
 
       const countries = groupByCountry(filtered);
+      const cityMatches = search ? buildCityMatches(filtered, search) : undefined;
 
       // ── Impact stats (computed from the filtered set) ──────────────────────
       const byType = { Reference: 0, LCS: 0, Inactive: 0 };
@@ -893,6 +967,7 @@ const networkCoverageUtil = {
         message: "Network coverage data retrieved successfully",
         data: {
           countries,
+          cityMatches,
           meta: {
             totalMonitors: filtered.length,
             byType,
@@ -1185,12 +1260,13 @@ const networkCoverageUtil = {
       // When linking to an AirQo site, verify the Site document exists first,
       // then check for active devices. Enrichment is allowed even when no
       // device is currently active (useful for temporarily offline sites).
+      let siteCountry = "";
       if (data.site_id) {
-        const siteExists = await SiteModel(tenant).exists({
-          _id: data.site_id,
-        });
+        const siteDoc = await SiteModel(tenant)
+          .findById(data.site_id, { country: 1 })
+          .lean();
 
-        if (!siteExists) {
+        if (!siteDoc) {
           return {
             success: false,
             message: "Site not found",
@@ -1198,6 +1274,7 @@ const networkCoverageUtil = {
             status: httpStatus.NOT_FOUND,
           };
         }
+        siteCountry = siteDoc.country || "";
 
         const hasActive = await DeviceModel(tenant).exists({
           site_id: data.site_id,
@@ -1212,7 +1289,27 @@ const networkCoverageUtil = {
       }
 
       const result = await NetworkCoverageRegistryModel(tenant).register(data);
-      return result;
+      if (!result.success || !result.data) return result;
+
+      // Expose the identifiers the read endpoints accept so callers can fetch
+      // the monitor straight after registering it. For site enrichment entries
+      // the monitor is addressed by its Site _id, not the registry _id.
+      const record =
+        typeof result.data.toObject === "function"
+          ? result.data.toObject()
+          : result.data;
+      // Site entries are listed under the Site's country, so prefer it here
+      // to keep countryId consistent with the read endpoints.
+      const country = siteCountry || record.country || "";
+      return {
+        ...result,
+        data: {
+          ...record,
+          monitorId: String(record.site_id || record._id),
+          countryId: slugify(country || "Unknown"),
+          iso2: record.iso2 || getIso2(country),
+        },
+      };
     } catch (error) {
       logger.error(
         `🐛🐛 networkCoverageUtil.upsertRegistry: ${error.message}`
