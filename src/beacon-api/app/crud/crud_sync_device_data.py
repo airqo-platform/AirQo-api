@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from itertools import groupby
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -208,6 +209,51 @@ def get_device_data_for_devices(
     return records_by_device, info_by_name
 
 
+def iter_hourly_records_by_channel(
+    db: Session,
+    channel_ids: Iterable[str],
+    start: Optional[str],
+    end: Optional[str],
+    fields: Iterable[str] = (),
+) -> Iterator[Tuple[str, List[Dict[str, Any]]]]:
+    """
+    Yield ``(channel_id, records)`` for each channel with hourly rows from ``start`` up to
+    ``end``, one channel at a time, so a caller rolling readings up holds only one
+    channel's rows rather than every row of every channel.
+
+    The end is exclusive: the hour that starts at ``end`` lies outside the window, and
+    counting it would lift uptime by one hour's share when ``end`` falls on the hour.
+
+    Each record carries ``datetime`` (ISO 8601) and the requested ``fields`` (``field1``
+    … ``field20``, read from their ``_avg`` columns), as ``get_device_data_for_devices``
+    shapes them. Channels without rows are not yielded.
+    """
+    ids = sorted({str(c) for c in channel_ids if c is not None and str(c) != ""})
+    if not ids:
+        return
+    field_names = sorted(set(fields))
+    columns = [getattr(SyncHourlyDeviceData, f"{name}_avg") for name in field_names]
+    end_dt = _parse_datetime(end)
+
+    BATCH_SIZE = 200
+    for i in range(0, len(ids), BATCH_SIZE):
+        batch = ids[i : i + BATCH_SIZE]
+        query = db.query(
+            SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start, *columns,
+        ).filter(SyncHourlyDeviceData.channel_id.in_(batch))
+        query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, None)
+        if end_dt is not None:
+            query = query.filter(SyncHourlyDeviceData.hour_start < end_dt)
+        rows = query.order_by(
+            SyncHourlyDeviceData.channel_id, SyncHourlyDeviceData.hour_start,
+        ).yield_per(1000)
+        for channel_id, channel_rows in groupby(rows, key=lambda row: str(row[0])):
+            yield channel_id, [
+                {"datetime": row[1].isoformat(), **dict(zip(field_names, row[2:]))}
+                for row in channel_rows
+            ]
+
+
 def get_latest_raw_timestamps(
     db: Session,
     channel_ids: Iterable[str],
@@ -257,7 +303,11 @@ def get_device_metrics_for_map_view(
     this function executes a single GROUP BY query returning only 1 summary row per channel.
 
     Returns:
-        {channel_id_str: {"uptime": float, "data_completeness": float, "error_margin": float}}
+        {channel_id_str: {"uptime": float, "data_completeness": float, "error_margin": float,
+                          "has_error_margin": bool}}
+
+    ``error_margin`` is 0.0 both when the sensors agree and when one of them has no readings;
+    ``has_error_margin`` tells the two apart.
     """
     frequency = (frequency or "hourly").lower()
     if frequency not in _FREQ_CONFIG:
@@ -326,14 +376,13 @@ def get_device_metrics_for_map_view(
             uptime = round(min(bucket_count / total_buckets, 1.0) * 100.0, 2)
             avg_s1 = row.avg_s1
             avg_s2 = row.avg_s2
-            if avg_s1 is not None and avg_s2 is not None:
-                err = round(abs(avg_s1 - avg_s2), 4)
-            else:
-                err = 0.0
+            has_error_margin = avg_s1 is not None and avg_s2 is not None
+            err = round(abs(avg_s1 - avg_s2), 4) if has_error_margin else 0.0
             metrics_by_channel[cid] = {
                 "uptime": uptime,
                 "data_completeness": uptime,
                 "error_margin": err,
+                "has_error_margin": has_error_margin,
             }
 
     return metrics_by_channel

@@ -12,6 +12,7 @@ from app.schemas.maintenance import (
     PaginatedStatsResponse,
     RouteResponse,
     MapViewResponse,
+    SiteMapViewResponse,
 )
 from app.services import maintenance_service
 from app.db.session import get_db
@@ -132,17 +133,7 @@ def get_maintenance_map_view_synced(
     Reads entirely from local sync tables. When ``group`` is provided,
     results are scoped to devices belonging to the group's cohorts.
     """
-    freq = (frequency or "hourly").lower()
-    if freq not in {"raw", "hourly", "daily"}:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.",
-        )
-
-    group_cohort_ids = None
-    if group:
-        from app.services.group_filter import resolve_group_cohort_ids
-        group_cohort_ids = resolve_group_cohort_ids(db, group)
+    freq, group_cohort_ids = _synced_map_view_scope(db, group, frequency)
 
     try:
         result = maintenance_service.get_synced_map_view(
@@ -157,6 +148,58 @@ def get_maintenance_map_view_synced(
     except Exception as e:
         logger.exception(f"Error fetching synced maintenance map view: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get(
+    "/map-view/sites/synced",
+    response_model=SiteMapViewResponse,
+    responses={
+        400: {"description": "Invalid frequency or empty group"},
+        404: {"description": "Group not found"},
+        500: {"description": "Internal Server Error"},
+    },
+)
+def get_maintenance_site_map_view_synced(
+    group: Annotated[Optional[str], Query(description="Comma-separated group title(s) to filter by")] = None,
+    days: Annotated[int, Query(ge=1, le=90, description="Lookback period in days")] = 14,
+    frequency: Annotated[str, Query(description="raw | hourly | daily")] = "hourly",
+    db: Annotated[Session, Depends(get_db)] = None,
+):
+    """Sites with performance metrics for map display, in the device view's metric fields.
+
+    Covers the devices ``/map-view/synced`` returns, grouped by the site each is deployed at;
+    each site lists those devices under ``devices``.
+    """
+    freq, group_cohort_ids = _synced_map_view_scope(db, group, frequency)
+
+    try:
+        return maintenance_service.get_synced_site_map_view(
+            db,
+            cohort_ids=group_cohort_ids,
+            days=days,
+            frequency=freq,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error fetching synced maintenance site map view: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+def _synced_map_view_scope(db: Session, group: Optional[str], frequency: str):
+    """Validated frequency and the group's cohort ids (None for every cohort)."""
+    freq = (frequency or "hourly").lower()
+    if freq not in {"raw", "hourly", "daily"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid 'frequency'. Must be one of: raw, hourly, daily.",
+        )
+
+    group_cohort_ids = None
+    if group:
+        from app.services.group_filter import resolve_group_cohort_ids
+        group_cohort_ids = resolve_group_cohort_ids(db, group)
+    return freq, group_cohort_ids
 
 
 @router.post("/routes", response_model=RouteResponse)

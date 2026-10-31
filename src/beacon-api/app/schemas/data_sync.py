@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, Field
 
 
@@ -134,3 +134,26 @@ class HourlyDataResponse(BaseModel):
 class DailyDataResponse(BaseModel):
     data: List[DailyDeviceDataRecord]
     count: int
+
+
+class DeviceReadingsResponse(BaseModel):
+    success: bool = True
+    device_id: str
+    device_name: Optional[str] = None
+    network: Optional[str] = None
+    channel_id: Optional[str] = None
+    data_date: date
+    frequency: str
+    last_reading_at: Optional[datetime] = Field(
+        default=None, description="Newest stored raw reading of the device, on any day",
+    )
+    refresh: str = Field(
+        ...,
+        description=(
+            "Background refresh of today's readings: started | running | cooldown | "
+            "not_needed | not_applicable | unavailable. Ask again in a few seconds "
+            "while it is started or running."
+        ),
+    )
+    count: int
+    data: List[Union[RawDeviceDataRecord, HourlyDeviceDataRecord]]

@@ -78,6 +78,10 @@ const networkCoverageController = {
           success: true,
           message: message || "Operation Successful",
           countries: data.countries,
+          // Only present when a search term was supplied
+          ...(data.cityMatches !== undefined && {
+            cityMatches: data.cityMatches,
+          }),
           meta: data.meta,
         });
       }
