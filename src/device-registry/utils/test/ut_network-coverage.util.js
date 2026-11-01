@@ -86,7 +86,7 @@ function loadUtil({
 } = {}) {
   const DeviceModel = () => ({
     aggregate: async () => {
-      onCompute();
+      await onCompute();
       return sites.map((s) => ({ _id: s._id, category: "lowcost" }));
     },
     exists: async () => (hasActiveDevice ? { _id: "device-1" } : null),
@@ -259,6 +259,36 @@ describe("networkCoverageUtil", () => {
       await util.list(query);
 
       expect(cache.docs.has("network_coverage_monitors")).to.be.false;
+    });
+
+    it("keeps a newer computation when an invalidated one settles", async () => {
+      const flush = async () => {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+      };
+      const gates = [];
+      const util = loadUtil({
+        onCompute: () => new Promise((resolve) => gates.push(resolve)),
+      });
+
+      const first = util.list(query);
+      await flush();
+      await util.deleteRegistry({ ...query, params: { registryId: "reg-1" } });
+      const second = util.list(query);
+      await flush();
+      expect(gates).to.have.lengthOf(2);
+
+      gates[0]();
+      await first;
+
+      // Must join the second computation rather than start a third.
+      const third = util.list(query);
+      await flush();
+      expect(gates).to.have.lengthOf(2);
+
+      gates[1]();
+      await Promise.all([second, third]);
     });
 
     it("still answers when the cache is unavailable", async () => {

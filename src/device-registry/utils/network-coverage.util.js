@@ -951,13 +951,19 @@ async function loadAllMonitors(tenant) {
   let inflight = _monitorsInflight.get(tenant);
   if (!inflight) {
     const startedAt = new Date();
-    inflight = computeAllMonitors(tenant)
+    const computation = computeAllMonitors(tenant)
       .then(async (data) => {
         await writeMonitorsCache(tenant, data, startedAt);
         return data;
       })
-      .finally(() => _monitorsInflight.delete(tenant));
-    _monitorsInflight.set(tenant, inflight);
+      .finally(() => {
+        // An invalidation may have replaced this entry with a newer computation.
+        if (_monitorsInflight.get(tenant) === computation) {
+          _monitorsInflight.delete(tenant);
+        }
+      });
+    _monitorsInflight.set(tenant, computation);
+    inflight = computation;
   }
 
   const { monitors, populationEntries } = await inflight;
