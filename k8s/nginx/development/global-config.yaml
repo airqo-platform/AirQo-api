@@ -168,6 +168,7 @@ data:
     }
     
     location = /auth {      
+      if ($request_uri ~ '^[^?]*(/|%2[fF])([.]|%2[eE])([.]|%2[eE])?(/|%2[fF]|[?]|$)') { return 403; }
       if ($request_method = 'OPTIONS') { return 204; }
       if ($request_uri ~ '^/api/(v1|v2)/users($|[/?])') { return 200; }
       if ($request_uri ~ '^/api/(v1|v2)/devices/grids/summary($|[/?])') { return 200; }
