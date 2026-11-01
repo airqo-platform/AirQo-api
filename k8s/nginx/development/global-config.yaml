@@ -169,9 +169,9 @@ data:
     
     location = /auth {      
       if ($request_method = 'OPTIONS') { return 204; }
-      if ($request_uri ~ '/api/(v1|v2)/users') { return 200; }
-      if ($request_uri ~ '/api/(v1|v2)/devices/grids/summary') { return 200; }
-      if ($request_uri ~ '/api/(v1|v2)/devices/events/running') { return 200; }
+      if ($request_uri ~ '^/api/(v1|v2)/users($|[/?])') { return 200; }
+      if ($request_uri ~ '^/api/(v1|v2)/devices/grids/summary($|[/?])') { return 200; }
+      if ($request_uri ~ '^/api/(v1|v2)/devices/events/running($|[/?])') { return 200; }
       if ($request ~ '^POST /api/(v1|v2)/devices/network-creation-requests($|[?]| )') { return 200; }
       if ($uri ~ '^/api/(v1|v2)/devices/learn/catalog$') { return 200; }
       if ($uri ~ '^/api/(v1|v2)/devices/learn/lessons/[^/]+$') { return 200; }
@@ -182,9 +182,9 @@ data:
       if ($uri ~ '^/api/(v1|v2)/devices/learn/progress/courses$') { return 200; }
       if ($uri ~ '^/api/(v1|v2)/devices/learn/leaderboard$') { return 200; }
       if ($uri ~ '^/api/(v1|v2)/devices/learn/certificates/verify/[^/]+$') { return 200; }
-      if ($request_uri ~ '/airflow/api/v') { return 200; }    
-      if ($request_uri ~ '/grafana/api') { return 200; }    
-      if ($request_uri !~ '/api/v') { return 200; } # None API requests
+      if ($request_uri ~ '^/airflow/api/v') { return 200; }    
+      if ($request_uri ~ '^/grafana/api') { return 200; }    
+      if ($request_uri !~* '/+api/+v|^[^?]*%(61|70|69|2f|76)') { return 200; } # None API requests
 
       set $client_ip $remote_addr;
       set $host_name $host;
