@@ -127,25 +127,24 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// Registry management – intentionally unauthenticated (public submission form)
+// Registry management – POST is intentionally unauthenticated (public submission form)
 // POST   /network-coverage/registry               – upsert registry entry
 // DELETE /network-coverage/registry/:registryId   – remove registry entry
 //
 // THREAT MODEL / ACCEPTED RISKS:
-// These routes are deliberately public (no token required) to support a
+// POST is deliberately public (no token required) to support a
 // Google-Form-style public submission flow on the Network Coverage map page,
 // where external contributors can add or update monitor metadata without an
 // AirQo account.
 //
 // Accepted risks:
 //   - Any anonymous caller can create or overwrite a registry entry.
-//   - Any anonymous caller can delete a registry entry by its _id.
 //
 // Mitigations in place:
 //   - Registry writes never touch the Sites or Devices collections; the worst
 //     outcome is junk data in the network_coverage_registry collection.
 //   - Input is validated by networkCoverageValidations before the controller.
-//   - The nginx bypass is method-scoped to POST and DELETE only, so GET/PUT
+//   - The nginx bypass is method-scoped to POST only, so GET/PUT/DELETE
 //     on /registry still require a valid token.
 //   - IP-based rate limiting: 20 requests per hour per IP (registryLimiter).
 //   - CAPTCHA: verifyCaptcha middleware is wired in; enforced once
