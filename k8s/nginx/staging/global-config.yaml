@@ -199,7 +199,7 @@ data:
       if ($uri ~ '^/api/(v1|v2)/devices/learn/certificates/verify/[^/]+$') { return 200; }
       if ($request_uri ~ '^/airflow/api/v') { return 200; }
       if ($request_uri ~ '^/grafana/api') { return 200; }    
-      if ($request_uri !~* '/+api/+v|^[^?]*%(61|70|69|2f|76)') { return 200; } # None API requests 
+      if ($request_uri !~ '/+api/+v|^[^?]*(/|%2[fF])+(a|%61)(p|%70)(i|%69)(/|%2[fF])+(v|%76)') { return 200; } # None API requests 
 
       set $client_ip $remote_addr;
       set $host_name $host;
