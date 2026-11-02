@@ -50,10 +50,45 @@ const SITES = [
   },
 ];
 
-function loadUtil({ siteById = null, registerResult, hasActiveDevice = true, sites = SITES } = {}) {
+// In-memory stand-in for the ComputedCache collection, keyed by cache key.
+function fakeCache({ failing = false } = {}) {
+  const docs = new Map();
+  const guard = () => {
+    if (failing) throw new Error("cache down");
+  };
+  const Model = () => ({
+    findOne: ({ key }) => ({
+      lean: async () => {
+        guard();
+        return docs.get(key) || null;
+      },
+    }),
+    findOneAndUpdate: async ({ key }, { $set }) => {
+      guard();
+      docs.set(key, { key, ...$set });
+    },
+    deleteOne: async ({ key }) => {
+      guard();
+      docs.delete(key);
+    },
+  });
+  Model["@noCallThru"] = true;
+  return { Model, docs };
+}
+
+function loadUtil({
+  siteById = null,
+  registerResult,
+  hasActiveDevice = true,
+  sites = SITES,
+  cache = fakeCache(),
+  onCompute = () => {},
+} = {}) {
   const DeviceModel = () => ({
-    aggregate: async () =>
-      sites.map((s) => ({ _id: s._id, category: "lowcost" })),
+    aggregate: async () => {
+      await onCompute();
+      return sites.map((s) => ({ _id: s._id, category: "lowcost" }));
+    },
     exists: async () => (hasActiveDevice ? { _id: "device-1" } : null),
   });
   DeviceModel["@noCallThru"] = true;
@@ -67,6 +102,7 @@ function loadUtil({ siteById = null, registerResult, hasActiveDevice = true, sit
   const RegistryModel = () => ({
     find: () => lean([]),
     register: async () => registerResult,
+    removeById: async () => ({ success: true, status: httpStatus.OK }),
   });
   RegistryModel.MONITOR_TYPES = ["Reference", "LCS", "Inactive"];
   RegistryModel.MONITOR_STATUSES = ["active", "inactive"];
@@ -82,6 +118,7 @@ function loadUtil({ siteById = null, registerResult, hasActiveDevice = true, sit
     "@models/Grid": emptyModel,
     "@models/SdgCity": emptyModel,
     "@models/CityPopulationRegistry": emptyModel,
+    "@models/ComputedCache": cache.Model,
   });
 }
 
@@ -148,6 +185,118 @@ describe("networkCoverageUtil", () => {
         country: "The Gambia",
         iso2: "GM",
       });
+    });
+  });
+
+  describe("monitor cache", () => {
+    const query = { query: { tenant: "airqo" } };
+
+    it("serves repeat reads from the cache without recomputing", async () => {
+      let computes = 0;
+      const util = loadUtil({ onCompute: () => computes++ });
+
+      const first = await util.list(query);
+      const second = await util.list(query);
+
+      expect(computes).to.equal(1);
+      expect(second.data.meta.totalMonitors).to.equal(
+        first.data.meta.totalMonitors
+      );
+    });
+
+    it("recomputes once the cached entry has expired", async () => {
+      let computes = 0;
+      const cache = fakeCache();
+      const util = loadUtil({ cache, onCompute: () => computes++ });
+
+      await util.list(query);
+      cache.docs.get("network_coverage_monitors").expiresAt = new Date(0);
+      await util.list(query);
+
+      expect(computes).to.equal(2);
+    });
+
+    it("recomputes after a registry write", async () => {
+      let computes = 0;
+      const util = loadUtil({
+        onCompute: () => computes++,
+        registerResult: {
+          success: true,
+          status: httpStatus.CREATED,
+          data: { _id: "reg-1", country: "Uganda", iso2: "" },
+        },
+      });
+
+      await util.list(query);
+      await util.upsertRegistry({ ...query, body: { name: "x" } });
+      await util.list(query);
+
+      expect(computes).to.equal(2);
+    });
+
+    it("recomputes after a registry delete", async () => {
+      let computes = 0;
+      const util = loadUtil({ onCompute: () => computes++ });
+
+      await util.list(query);
+      await util.deleteRegistry({ ...query, params: { registryId: "reg-1" } });
+      await util.list(query);
+
+      expect(computes).to.equal(2);
+    });
+
+    it("does not store a result computed before a later invalidation", async () => {
+      const cache = fakeCache();
+      const util = loadUtil({
+        cache,
+        // The write lands while this computation is still running.
+        onCompute: () =>
+          cache.docs.set("network_coverage_monitors_invalidated", {
+            computedAt: new Date(Date.now() + 1000),
+          }),
+      });
+
+      await util.list(query);
+
+      expect(cache.docs.has("network_coverage_monitors")).to.be.false;
+    });
+
+    it("keeps a newer computation when an invalidated one settles", async () => {
+      const flush = async () => {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+      };
+      const gates = [];
+      const util = loadUtil({
+        onCompute: () => new Promise((resolve) => gates.push(resolve)),
+      });
+
+      const first = util.list(query);
+      await flush();
+      await util.deleteRegistry({ ...query, params: { registryId: "reg-1" } });
+      const second = util.list(query);
+      await flush();
+      expect(gates).to.have.lengthOf(2);
+
+      gates[0]();
+      await first;
+
+      // Must join the second computation rather than start a third.
+      const third = util.list(query);
+      await flush();
+      expect(gates).to.have.lengthOf(2);
+
+      gates[1]();
+      await Promise.all([second, third]);
+    });
+
+    it("still answers when the cache is unavailable", async () => {
+      const util = loadUtil({ cache: fakeCache({ failing: true }) });
+      const result = await util.list(query);
+
+      expect(result.success).to.be.true;
+      expect(result.data.meta.totalMonitors).to.equal(4);
     });
   });
 
