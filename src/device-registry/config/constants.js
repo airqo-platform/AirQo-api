@@ -44,6 +44,9 @@ function envConfig(env) {
       ...parseCSV(process.env.PROTECTED_COHORT_NAMES),
     ],
 
+    // Boolean: defaults to false (standalone Redis) unless explicitly enabled.
+    REDIS_USE_SENTINEL: parseBool(process.env.REDIS_USE_SENTINEL, false),
+
     // URL: always built from REDIS_SERVER + REDIS_PORT.
     REDIS_URL: process.env.REDIS_SERVER
       ? `redis://${process.env.REDIS_SERVER}:${process.env.REDIS_PORT || 6379}`
