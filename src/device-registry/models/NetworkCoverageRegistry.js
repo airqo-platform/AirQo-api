@@ -122,6 +122,15 @@ const networkCoverageRegistrySchema = new Schema(
 
     // Deep-link to a data portal for this specific monitor
     viewDataUrl: { type: String, trim: true, default: "" },
+
+    // -----------------------------------------------------------------------
+    // Soft delete. A deleted entry is hidden from every read but kept so a
+    // mistake can be undone by clearing deletedAt. Server-managed only:
+    // register() ignores these fields if a caller sends them.
+    // -----------------------------------------------------------------------
+    deletedAt: { type: Date, default: null },
+    // Gateway-forwarded user id of whoever deleted the entry, when available
+    deletedBy: { type: String, default: null },
   },
   {
     timestamps: true,
@@ -137,7 +146,10 @@ networkCoverageRegistrySchema.statics.list = async function (
   projection = {}
 ) {
   try {
-    const records = await this.find(filter, projection).lean();
+    const records = await this.find(
+      { ...filter, deletedAt: null },
+      projection
+    ).lean();
     return {
       success: true,
       data: records,
@@ -159,23 +171,25 @@ networkCoverageRegistrySchema.statics.list = async function (
  * Upsert — create or update a registry record.
  * When site_id is present it is used as the upsert key (one entry per site).
  * When site_id is absent the record is always created fresh (standalone entry).
+ * Re-submitting a soft-deleted site entry restores it, because site_id is unique.
  */
 networkCoverageRegistrySchema.statics.register = async function (data) {
   try {
     let record;
     let isNew;
+    const { deletedAt, deletedBy, ...fields } = data;
 
-    if (data.site_id) {
+    if (fields.site_id) {
       // Use rawResult so we can detect create vs update via lastErrorObject
       const raw = await this.findOneAndUpdate(
-        { site_id: data.site_id },
-        { $set: data },
+        { site_id: fields.site_id },
+        { $set: { ...fields, deletedAt: null, deletedBy: null } },
         { new: true, upsert: true, runValidators: true, rawResult: true }
       );
       record = raw.value;
       isNew = !raw.lastErrorObject.updatedExisting;
     } else {
-      record = await this.create(data);
+      record = await this.create(fields);
       isNew = true;
     }
 
@@ -240,6 +254,43 @@ networkCoverageRegistrySchema.statics.removeById = async function (registryId) {
     };
   } catch (error) {
     logger.error(`Error deleting registry record: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+/**
+ * Soft delete by the registry document's own _id. Soft deleting an entry that
+ * is already soft deleted reports not found.
+ */
+networkCoverageRegistrySchema.statics.softDeleteById = async function (
+  registryId,
+  { deletedBy = null } = {}
+) {
+  try {
+    const deleted = await this.findOneAndUpdate(
+      { _id: registryId, deletedAt: null },
+      { $set: { deletedAt: new Date(), deletedBy } }
+    );
+    if (!deleted) {
+      return {
+        success: false,
+        message: "Registry record not found",
+        errors: { message: `No registry record with id ${registryId}` },
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+    return {
+      success: true,
+      message: "Registry record soft deleted",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error soft deleting registry record: ${error.message}`);
     return {
       success: false,
       message: "Internal Server Error",
