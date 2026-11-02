@@ -226,6 +226,22 @@ const networkCoverageController = {
   },
 
   /**
+   * PATCH /network-coverage/registry/:registryId/soft-delete
+   * Soft delete a registry entry, keeping it recoverable.
+   */
+  softDeleteRegistry: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.softDeleteRegistry(request);
+      sendResponse(res, result, "registry");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  /**
    * GET /network-coverage/cities
    * List crowd-sourced city population records.
    */

@@ -734,11 +734,14 @@ async function fetchAllSources(tenant) {
     [enrichmentDocs, standaloneEntries] = await Promise.all([
       activeSiteIds.length > 0
         ? NetworkCoverageRegistryModel(tenant)
-            .find({ site_id: { $in: activeSiteIds } })
+            .find({ site_id: { $in: activeSiteIds }, deletedAt: null })
             .lean()
         : Promise.resolve([]),
       NetworkCoverageRegistryModel(tenant)
-        .find({ $or: [{ site_id: { $exists: false } }, { site_id: null }] })
+        .find({
+          $or: [{ site_id: { $exists: false } }, { site_id: null }],
+          deletedAt: null,
+        })
         .lean(),
     ]);
   } catch (err) {
@@ -1158,7 +1161,7 @@ const networkCoverageUtil = {
         let registryDoc = null;
         try {
           registryDoc = await NetworkCoverageRegistryModel(tenant)
-            .findOne({ site_id: site._id })
+            .findOne({ site_id: site._id, deletedAt: null })
             .lean();
         } catch (err) {
           logger.warn(
@@ -1184,7 +1187,7 @@ const networkCoverageUtil = {
         // fall through
       }
 
-      if (registryDoc && !registryDoc.site_id) {
+      if (registryDoc && !registryDoc.site_id && !registryDoc.deletedAt) {
         return {
           success: true,
           message: "Monitor retrieved successfully",
@@ -1392,7 +1395,7 @@ const networkCoverageUtil = {
       // Expose the identifiers the read endpoints accept so callers can fetch
       // the monitor straight after registering it. For site enrichment entries
       // the monitor is addressed by its Site _id, not the registry _id.
-      const record =
+      const { deletedAt, deletedBy, ...record } =
         typeof result.data.toObject === "function"
           ? result.data.toObject()
           : result.data;
@@ -1521,6 +1524,35 @@ const networkCoverageUtil = {
     } catch (error) {
       logger.error(
         `🐛🐛 networkCoverageUtil.deleteRegistry: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * PATCH /network-coverage/registry/:registryId/soft-delete
+   * Soft delete a registry entry by its own _id, hiding it from every read
+   * while keeping it recoverable by clearing deletedAt.
+   */
+  softDeleteRegistry: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { registryId } = request.params;
+
+      const result = await NetworkCoverageRegistryModel(tenant).softDeleteById(
+        registryId,
+        { deletedBy: request.identity?.userId || null }
+      );
+      if (result.success) await invalidateMonitorsCache(tenant);
+      return result;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 networkCoverageUtil.softDeleteRegistry: ${error.message}`
       );
       return {
         success: false,
