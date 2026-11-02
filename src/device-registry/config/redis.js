@@ -1,19 +1,25 @@
 // config/redis.js - Redis v4 Compatible with Simple Resilience
 const redis = require("redis");
 const constants = require("./constants");
+const { createSentinelClient } = require("./redis-sentinel");
 const { logText, logElement, logTextWithTimestamp } = require("@utils/shared");
+
+const USE_SENTINEL = constants.REDIS_USE_SENTINEL === true;
+const SENTINEL_HOST = constants.REDIS_HOST || constants.REDIS_SERVER;
+const SENTINEL_PORT = parseInt(constants.REDIS_PORT, 10) || 26379;
 
 const REDIS_URL = constants.REDIS_SERVER
   ? `redis://${constants.REDIS_SERVER}:${constants.REDIS_PORT || 6379}`
   : undefined;
+const REDIS_CONFIGURED = USE_SENTINEL ? Boolean(SENTINEL_HOST) : Boolean(REDIS_URL);
 
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- redis-config`,
 );
 
-if (!REDIS_URL) {
+if (!REDIS_CONFIGURED) {
   logger.error(
-    "REDIS_SERVER is not set. Redis will be unavailable.",
+    `${USE_SENTINEL ? "REDIS_HOST" : "REDIS_SERVER"} is not set. Redis will be unavailable.`,
   );
 }
 
@@ -124,9 +130,38 @@ const redisConfig = {
   disableOfflineQueue: true,
 };
 
-// Create Redis client. If REDIS_SERVER is not configured, create a disconnected
-// client that will rely on the fallback cache.
-const client = redis.createClient(REDIS_URL ? redisConfig : {});
+// Sentinel discovers the current master at runtime. Reconnects to Redis nodes are
+// left to node-redis, which re-resolves the master after a failover.
+const buildSentinelConfig = () => {
+  const redisDb = parseInt(constants.REDIS_DB, 10);
+  const socket = { connectTimeout: 10000, keepAlive: 5000 };
+  return {
+    name: constants.REDIS_SENTINEL_MASTER || "mymaster",
+    sentinelRootNodes: [{ host: SENTINEL_HOST, port: SENTINEL_PORT }],
+    RESP: 2,
+    nodeClientOptions: {
+      password: constants.REDIS_PASSWORD || undefined,
+      database: Number.isNaN(redisDb) ? undefined : redisDb,
+      disableOfflineQueue: true,
+      socket,
+    },
+    sentinelClientOptions: {
+      password: constants.REDIS_SENTINEL_PASSWORD || undefined,
+      socket,
+    },
+  };
+};
+
+// Create Redis client. If Redis is not configured, create a disconnected client
+// that will rely on the fallback cache.
+const client =
+  USE_SENTINEL && REDIS_CONFIGURED
+    ? createSentinelClient(buildSentinelConfig())
+    : redis.createClient(REDIS_URL && !USE_SENTINEL ? redisConfig : {});
+
+logTextWithTimestamp(
+  `Redis initialized in ${USE_SENTINEL ? "SENTINEL" : "STANDALONE"} mode`,
+);
 
 // Event handlers
 client.on("connect", () => {
@@ -157,8 +192,14 @@ client.on("reconnecting", () => {
   logTextWithTimestamp(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Initialize connection only if REDIS_SERVER is configured
-if (REDIS_URL) {
+client.on("topology-change", (event) => {
+  if (event.type === "MASTER_CHANGE") {
+    logTextWithTimestamp("Redis Sentinel master changed");
+  }
+});
+
+// Initialize connection only if Redis is configured
+if (REDIS_CONFIGURED) {
   (async () => {
     try {
       await client.connect();
@@ -323,12 +364,18 @@ const redisUtils = {
   isAvailable: () => client.isOpen && client.isReady,
 
   getStatus: () => ({
-    connected: isConnected,
-    ready: isReady,
+    // Sentinel error events can come from any node, so its flags are read live.
+    connected: USE_SENTINEL ? client.isOpen : isConnected,
+    ready: USE_SENTINEL ? client.isReady : isReady,
     isOpen: client.isOpen,
     attempts: connectionAttempts,
     lastError: lastError ? lastError.message : null,
-    server: REDIS_URL ? new URL(REDIS_URL).host : "Not configured",
+    mode: USE_SENTINEL ? "sentinel" : "standalone",
+    server: !REDIS_CONFIGURED
+      ? "Not configured"
+      : USE_SENTINEL
+        ? `${SENTINEL_HOST}:${SENTINEL_PORT}`
+        : new URL(REDIS_URL).host,
     fallbackCacheSize: fallbackCache.size,
   }),
 
