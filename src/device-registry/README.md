@@ -80,7 +80,7 @@ For detailed naming conventions see [CODEBASE_STRUCTURE.md](CODEBASE_STRUCTURE.m
 - Node.js ≥ 18
 - npm
 - MongoDB (local or remote — set `MONGO_URI` / `COMMAND_MONGO_URI` / `QUERY_MONGO_URI`)
-- Redis (set `REDIS_SERVER` and `REDIS_PORT`; for Sentinel, set `REDIS_USE_SENTINEL=true`, `REDIS_HOST`, `REDIS_PORT=26379`, and optionally `REDIS_SENTINEL_MASTER`, `REDIS_PASSWORD`, `REDIS_DB`)
+- Redis (set `REDIS_SERVER` and `REDIS_PORT`; for Sentinel, set `REDIS_USE_SENTINEL=true`, `REDIS_HOST`, `REDIS_PORT=26379`, and optionally `REDIS_SENTINEL_MASTER`, `REDIS_PASSWORD`, `REDIS_SENTINEL_PASSWORD`, `REDIS_DB`)
 - Kafka broker (optional — required for measurement ingestion)
 - Cloudinary account (optional — required for photo upload)
 

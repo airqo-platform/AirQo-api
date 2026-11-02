@@ -146,7 +146,7 @@ const buildSentinelConfig = () => {
       socket,
     },
     sentinelClientOptions: {
-      password: constants.REDIS_PASSWORD || undefined,
+      password: constants.REDIS_SENTINEL_PASSWORD || undefined,
       socket,
     },
   };
