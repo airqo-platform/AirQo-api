@@ -68,7 +68,7 @@ env:
 jobs:
   image-tag:
     name: create image tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.prep.outputs.build_id }}
       datetime: ${{ steps.prep.outputs.datetime }}
@@ -88,7 +88,7 @@ jobs:
     name: build-push-deploy-auth
     needs: [image-tag]
     if: inputs.auth_service == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -126,7 +126,7 @@ jobs:
     name: build-push-deploy-workflows
     needs: [image-tag]
     if: inputs.workflows == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -192,7 +192,7 @@ jobs:
     name: build-push-deploy-device-registry
     needs: [image-tag]
     if: inputs.device_registry == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -230,7 +230,7 @@ jobs:
     name: build-push-deploy-beacon-api
     needs: [image-tag]
     if: inputs.beacon_api == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -268,7 +268,7 @@ jobs:
     name: build-push-deploy-analytics
     needs: [image-tag]
     if: inputs.analytics == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -351,7 +351,7 @@ jobs:
     name: build-push-deploy-meta-data
     needs: [image-tag]
     if: inputs.meta_data == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -407,7 +407,7 @@ jobs:
     name: build-push-deploy-view
     needs: [image-tag]
     if: inputs.view == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -453,7 +453,7 @@ jobs:
     name: build-push-deploy-calibrate
     needs: [image-tag]
     if: inputs.calibrate == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -512,7 +512,7 @@ jobs:
     name: build-push-deploy-predict-service
     needs: [image-tag]
     if: inputs.predict_service == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -567,7 +567,7 @@ jobs:
     name: build-push-deploy-superset
     needs: [image-tag]
     if: inputs.superset == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -633,7 +633,7 @@ jobs:
   nginx:
     name: apply-nginx
     if: inputs.nginx == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -658,7 +658,7 @@ jobs:
     name: build-push-deploy-spatial
     needs: [image-tag]
     if: inputs.spatial == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -696,7 +696,7 @@ jobs:
     name: build-push-deploy-website
     needs: [image-tag]
     if: inputs.website == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -733,7 +733,7 @@ jobs:
   redis:
     name: build-push-deploy-redis
     if: inputs.redis == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
