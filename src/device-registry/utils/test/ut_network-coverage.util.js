@@ -83,6 +83,10 @@ function loadUtil({
   sites = SITES,
   cache = fakeCache(),
   onCompute = () => {},
+  registryFinds = [],
+  registryRemovals = [],
+  registryHardDeletes = [],
+  registryById = null,
 } = {}) {
   const DeviceModel = () => ({
     aggregate: async () => {
@@ -100,9 +104,20 @@ function loadUtil({
   SiteModel["@noCallThru"] = true;
 
   const RegistryModel = () => ({
-    find: () => lean([]),
+    find: (filter) => {
+      registryFinds.push(filter);
+      return lean([]);
+    },
+    findById: () => lean(registryById),
     register: async () => registerResult,
-    removeById: async () => ({ success: true, status: httpStatus.OK }),
+    removeById: async (...args) => {
+      registryHardDeletes.push(args);
+      return { success: true, status: httpStatus.OK };
+    },
+    softDeleteById: async (registryId, options) => {
+      registryRemovals.push({ registryId, options });
+      return { success: true, status: httpStatus.OK };
+    },
   });
   RegistryModel.MONITOR_TYPES = ["Reference", "LCS", "Inactive"];
   RegistryModel.MONITOR_STATUSES = ["active", "inactive"];
@@ -297,6 +312,116 @@ describe("networkCoverageUtil", () => {
 
       expect(result.success).to.be.true;
       expect(result.data.meta.totalMonitors).to.equal(4);
+    });
+  });
+
+  describe("soft delete", () => {
+    const query = { query: { tenant: "airqo" } };
+
+    it("excludes deleted entries when building the monitor list", async () => {
+      const registryFinds = [];
+      const util = loadUtil({ registryFinds });
+
+      await util.list(query);
+
+      expect(registryFinds).to.have.lengthOf(2);
+      registryFinds.forEach((filter) => {
+        expect(filter.deletedAt).to.equal(null);
+      });
+    });
+
+    it("does not return a deleted standalone entry from monitor detail", async () => {
+      const util = loadUtil({
+        registryById: {
+          _id: "reg-1",
+          name: "Trial",
+          deletedAt: new Date(),
+        },
+      });
+      const result = await util.getMonitor({
+        ...query,
+        params: { monitorId: "reg-1" },
+      });
+
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+    });
+
+    it("records who deleted the entry", async () => {
+      const registryRemovals = [];
+      const util = loadUtil({ registryRemovals });
+
+      await util.softDeleteRegistry({
+        ...query,
+        params: { registryId: "reg-1" },
+        identity: { userId: "user-1", groups: [] },
+      });
+
+      expect(registryRemovals).to.deep.equal([
+        { registryId: "reg-1", options: { deletedBy: "user-1" } },
+      ]);
+    });
+
+    it("still deletes when no user id was forwarded", async () => {
+      const registryRemovals = [];
+      const util = loadUtil({ registryRemovals });
+
+      const result = await util.softDeleteRegistry({
+        ...query,
+        params: { registryId: "reg-1" },
+      });
+
+      expect(result.success).to.be.true;
+      expect(registryRemovals[0].options.deletedBy).to.equal(null);
+    });
+
+    it("recomputes the monitor list after a soft delete", async () => {
+      let computes = 0;
+      const util = loadUtil({ onCompute: () => computes++ });
+
+      await util.list(query);
+      await util.softDeleteRegistry({
+        ...query,
+        params: { registryId: "reg-1" },
+      });
+      await util.list(query);
+
+      expect(computes).to.equal(2);
+    });
+
+    it("keeps the original delete endpoint as a hard delete", async () => {
+      const registryHardDeletes = [];
+      const registryRemovals = [];
+      const util = loadUtil({ registryHardDeletes, registryRemovals });
+
+      await util.deleteRegistry({
+        ...query,
+        params: { registryId: "reg-1" },
+      });
+
+      expect(registryHardDeletes).to.deep.equal([["reg-1"]]);
+      expect(registryRemovals).to.deep.equal([]);
+    });
+
+    it("leaves deletion fields out of the registration response", async () => {
+      const util = loadUtil({
+        registerResult: {
+          success: true,
+          status: httpStatus.CREATED,
+          data: {
+            _id: "reg-1",
+            country: "Uganda",
+            iso2: "",
+            deletedAt: null,
+            deletedBy: null,
+          },
+        },
+      });
+      const result = await util.upsertRegistry({
+        ...query,
+        body: { name: "x", country: "Uganda" },
+      });
+
+      expect(result.data).to.not.have.any.keys("deletedAt", "deletedBy");
     });
   });
 

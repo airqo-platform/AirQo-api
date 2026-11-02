@@ -276,6 +276,11 @@ const networkCoverageValidations = {
    * DELETE /network-coverage/registry/:registryId
    */
   deleteRegistry: [commonTenant, validObjectId("registryId")],
+
+  /**
+   * PATCH /network-coverage/registry/:registryId/soft-delete
+   */
+  softDeleteRegistry: [commonTenant, validObjectId("registryId")],
 };
 
 module.exports = networkCoverageValidations;
