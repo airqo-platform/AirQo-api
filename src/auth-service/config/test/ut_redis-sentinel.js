@@ -78,6 +78,20 @@ describe("Redis Sentinel client", () => {
     expect(sentinel.sendCommand.firstCall.args[0]).to.equal(false);
   });
 
+  it("rejects unsupported SET options without sending the command", async () => {
+    const sentinel = buildSentinelStub();
+    const client = loadSentinelClient(sinon.stub().returns(sentinel));
+    await client.connect();
+
+    const pending = client.set("key", "value", { PX: 1000 });
+    expect(pending).to.be.a("promise");
+
+    const error = await pending.catch((err) => err);
+    expect(error.message).to.include("PX");
+    sinon.assert.notCalled(sentinel.sendCommand);
+    expect(client.isReady).to.equal(true);
+  });
+
   it("accepts the sendCommand signature rate-limit-redis uses", async () => {
     const sentinel = buildSentinelStub();
     sentinel.sendCommand = sinon.stub().resolves("sha");

@@ -8,16 +8,25 @@ const redis = require("redis");
 // Every command called on the Redis client in this service, directly or through
 // the wrappers in config/redis.js. A new command must be added here to be usable.
 // These go through sendCommand because it is the only node-redis Sentinel call
-// that honours an abort signal; set only maps the options callers use today.
+// that honours an abort signal; set only maps the options callers use today and
+// rejects any other, so a new option can't silently produce a key with no TTL.
 const COMMAND_ARGS = {
   get: (key) => ["GET", key],
-  set: (key, value, { NX, EX } = {}) => [
-    "SET",
-    key,
-    typeof value === "number" ? String(value) : value,
-    ...(NX ? ["NX"] : []),
-    ...(EX ? ["EX", String(EX)] : []),
-  ],
+  set: (key, value, { NX, EX, ...unsupported } = {}) => {
+    const unsupportedOptions = Object.keys(unsupported);
+    if (unsupportedOptions.length > 0) {
+      throw new Error(
+        `Redis Sentinel client: unsupported SET option(s): ${unsupportedOptions.join(", ")}`,
+      );
+    }
+    return [
+      "SET",
+      key,
+      typeof value === "number" ? String(value) : value,
+      ...(NX ? ["NX"] : []),
+      ...(EX ? ["EX", String(EX)] : []),
+    ];
+  },
   setEx: (key, seconds, value) => ["SETEX", key, String(seconds), value],
   incr: (key) => ["INCR", key],
   expire: (key, seconds) => ["EXPIRE", key, String(seconds)],
@@ -93,7 +102,8 @@ const createSentinelClient = (sentinelOptions) => {
   };
 
   Object.keys(COMMAND_ARGS).forEach((command) => {
-    client[command] = (...args) => runCommand(COMMAND_ARGS[command](...args));
+    client[command] = async (...args) =>
+      runCommand(COMMAND_ARGS[command](...args));
   });
 
   // Same signature as the node-redis client, which rate-limit-redis relies on.
