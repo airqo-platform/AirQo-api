@@ -8295,6 +8295,7 @@ const isBareSessionRating = ({
   rating,
   category,
   platform,
+  screenshot_url,
 }) => {
   const generated = /^user rated their session experience: (\d)\/5 stars$/i.exec(
     (message || "").trim(),
@@ -8303,6 +8304,7 @@ const isBareSessionRating = ({
     /^session rating$/i.test((subject || "").trim()) &&
     category === "general" &&
     platform === "mobile" &&
+    isEmpty(screenshot_url) &&
     generated !== null &&
     Number(rating) === Number(generated[1])
   );
@@ -8489,6 +8491,7 @@ const feedbackUtil = {
         rating,
         category,
         platform,
+        screenshot_url,
       });
       const actionable =
         !isBareRating && classifyFeedback({ category, message, rating });

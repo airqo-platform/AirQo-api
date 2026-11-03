@@ -1680,6 +1680,10 @@ describe("create-user-util", function () {
         ["the platform is not mobile", { platform: "web" }],
         ["the star count differs from the rating", { rating: 2 }],
         ["no rating is submitted", { rating: undefined }],
+        [
+          "a screenshot is attached",
+          { screenshot_url: "https://example.com/screenshot.png" },
+        ],
       ].forEach(([scenario, overrides]) => {
         it(`should still notify support when ${scenario}`, async () => {
           await submit({
