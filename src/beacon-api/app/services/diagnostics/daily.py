@@ -19,11 +19,12 @@ from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_, case, func, text
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
 from app.crud.crud_device_data import RAW_FIELD_COLUMNS
 from app.crud.crud_diagnostics import crud_diagnostics
+from app.db.locks import advisory_lock
 from app.db.session import SessionLocal
 from app.models.device_data import SyncDailyDeviceData, SyncRawDeviceData
 from app.models.health import DeviceDailyDiagnostic, DeviceDailyIssue
@@ -391,28 +392,11 @@ def evaluate_device_day(
 @contextmanager
 def _run_lock(db: Session):
     """
-    Hold a session-level advisory lock for the whole run so overlapping runs cannot pick the
-    same device-days. Uses a dedicated connection, because the ORM session hands its connection
-    back to the pool after every commit. Yields False when another run holds the lock.
-    No-op on databases without advisory locks.
+    Hold an advisory lock for the whole run so overlapping runs cannot pick the same
+    device-days. Yields False when another run holds the lock.
     """
-    bind = db.get_bind()
-    if bind.dialect.name != "postgresql":
-        yield True
-        return
-
-    conn = bind.connect()
-    try:
-        acquired = bool(conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": RUN_LOCK_KEY}).scalar())
-        conn.commit()  # the lock is session-level; don't leave the connection idle in a transaction
-        try:
-            yield acquired
-        finally:
-            if acquired:
-                conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": RUN_LOCK_KEY})
-                conn.commit()
-    finally:
-        conn.close()
+    with advisory_lock(db.get_bind(), RUN_LOCK_KEY) as acquired:
+        yield acquired
 
 
 def _diagnose_pending(
