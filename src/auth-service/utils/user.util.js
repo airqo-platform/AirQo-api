@@ -8287,13 +8287,26 @@ const hasWrittenDetail = (message) => {
 };
 
 // The mobile post-logout sheet sends only a star count, wrapped in this fixed
-// subject and generated message. Both must match, so anything a person wrote
-// (or a future change in wording) still reaches support.
-const isBareSessionRating = ({ subject, message }) =>
-  /^session rating$/i.test((subject || "").trim()) &&
-  /^user rated their session experience: \d\/5 stars$/i.test(
+// subject and generated message. Everything must match what the sheet sends, so
+// anything a person wrote (or a future change in wording) still reaches support.
+const isBareSessionRating = ({
+  subject,
+  message,
+  rating,
+  category,
+  platform,
+}) => {
+  const generated = /^user rated their session experience: (\d)\/5 stars$/i.exec(
     (message || "").trim(),
   );
+  return (
+    /^session rating$/i.test((subject || "").trim()) &&
+    category === "general" &&
+    platform === "mobile" &&
+    generated !== null &&
+    Number(rating) === Number(generated[1])
+  );
+};
 
 // Submitters are only emailed about progress on items that need action, and
 // archiving is silent: it is an internal clean-up, not an outcome.
@@ -8470,7 +8483,13 @@ const feedbackUtil = {
 
       // A bare session rating is kept in the database but gives the team nothing
       // to act on, whatever the score: no emails, Slack posts or JIRA issues.
-      const isBareRating = isBareSessionRating({ subject, message });
+      const isBareRating = isBareSessionRating({
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+      });
       const actionable =
         !isBareRating && classifyFeedback({ category, message, rating });
 

@@ -1674,6 +1674,28 @@ describe("create-user-util", function () {
         expect(feedbackStub.calledOnce).to.be.true;
         expect(integrationsStub.calledOnce).to.be.true;
       });
+
+      [
+        ["the category is not general", { category: "bug" }],
+        ["the platform is not mobile", { platform: "web" }],
+        ["the star count differs from the rating", { rating: 2 }],
+        ["no rating is submitted", { rating: undefined }],
+      ].forEach(([scenario, overrides]) => {
+        it(`should still notify support when ${scenario}`, async () => {
+          await submit({
+            subject: "Session Rating",
+            message: "User rated their session experience: 1/5 stars",
+            rating: 1,
+            ...overrides,
+          });
+
+          expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(
+            true,
+          );
+          expect(feedbackStub.calledOnce).to.be.true;
+          expect(integrationsStub.calledOnce).to.be.true;
+        });
+      });
     });
 
     describe("page_satisfaction", () => {
