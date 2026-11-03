@@ -93,6 +93,23 @@ describe("Redis Sentinel client", () => {
     ]);
   });
 
+  it("rejects unsupported SET options without affecting later commands", async () => {
+    const sentinel = buildSentinelStub();
+    const client = loadSentinelClient(sinon.stub().returns(sentinel));
+    await client.connect();
+
+    const pending = client.set("key", "value", { PX: 1000 });
+    expect(pending).to.be.a("promise");
+
+    const error = await pending.catch((err) => err);
+    expect(error.message).to.include("PX");
+    sinon.assert.notCalled(sentinel.sendCommand);
+
+    await clock.tickAsync(COMMAND_TIMEOUT_MS);
+    expect(client.isReady).to.equal(true);
+    expect(await client.get("key")).to.equal("OK");
+  });
+
   it("times out a hung command and fails fast during the cooldown", async () => {
     const sentinel = buildSentinelStub();
     sentinel.sendCommand = sinon.stub().returns(new Promise(() => {}));
