@@ -8286,6 +8286,30 @@ const hasWrittenDetail = (message) => {
   return trimmed.length > 0 && !/^(positive|negative)$/i.test(trimmed);
 };
 
+// The mobile post-logout sheet sends only a star count, wrapped in this fixed
+// subject and generated message. Everything must match what the sheet sends, so
+// anything a person wrote (or a future change in wording) still reaches support.
+const isBareSessionRating = ({
+  subject,
+  message,
+  rating,
+  category,
+  platform,
+  screenshot_url,
+}) => {
+  const generated = /^user rated their session experience: (\d)\/5 stars$/i.exec(
+    (message || "").trim(),
+  );
+  return (
+    /^session rating$/i.test((subject || "").trim()) &&
+    category === "general" &&
+    platform === "mobile" &&
+    isEmpty(screenshot_url) &&
+    generated !== null &&
+    Number(rating) === Number(generated[1])
+  );
+};
+
 // Submitters are only emailed about progress on items that need action, and
 // archiving is silent: it is an internal clean-up, not an outcome.
 const shouldEmailSubmitterOnStatusChange = (item, newStatus) =>
@@ -8335,9 +8359,12 @@ const submitPageSatisfaction = async ({
   }
 
   // A bare click is fully captured by the counters. Only ratings with written
-  // detail reach support and Slack; the email is the only place the submitter
-  // and message text are kept.
-  if (hasDetail) {
+  // detail reach Slack, and only the ones needing action are also emailed to
+  // support; Slack and the email are the only places the message text is kept.
+  if (
+    hasDetail &&
+    classifyFeedback({ category: "page_satisfaction", message: trimmedMessage, rating })
+  ) {
     try {
       const details = [
         `Page: ${page}`,
@@ -8441,7 +8468,7 @@ const feedbackUtil = {
 
       // Page-satisfaction ratings are not issues or inquiries, so they are not
       // persisted as Feedback items (no status workflow, no follow-up emails).
-      // Support gets the email; only anonymous daily counters are stored.
+      // Only anonymous daily counters are stored.
       if (category === "page_satisfaction") {
         return await submitPageSatisfaction({
           tenant,
@@ -8456,7 +8483,18 @@ const feedbackUtil = {
         });
       }
 
-      const actionable = classifyFeedback({ category, message, rating });
+      // A bare session rating is kept in the database but gives the team nothing
+      // to act on, whatever the score: no emails, Slack posts or JIRA issues.
+      const isBareRating = isBareSessionRating({
+        subject,
+        message,
+        rating,
+        category,
+        platform,
+        screenshot_url,
+      });
+      const actionable =
+        !isBareRating && classifyFeedback({ category, message, rating });
 
       // Persist to database
       const createResult = await FeedbackModel(tenant).register({
@@ -8479,16 +8517,19 @@ const feedbackUtil = {
         return createResult;
       }
 
-      // Also dispatch a support email (best-effort; DB record already saved)
-      try {
-        await mailer.feedback(
-          { email: normalizedEmail, subject, message, screenshot_url },
-          next,
-        );
-      } catch (emailError) {
-        logger.warn(
-          `Feedback saved to DB but support email failed: ${emailError.message}`,
-        );
+      // Also dispatch a support email (best-effort; DB record already saved).
+      // Non-actionable items stay visible in the database and Slack instead.
+      if (actionable) {
+        try {
+          await mailer.feedback(
+            { email: normalizedEmail, subject, message, screenshot_url },
+            next,
+          );
+        } catch (emailError) {
+          logger.warn(
+            `Feedback saved to DB but support email failed: ${emailError.message}`,
+          );
+        }
       }
 
       // Confirm receipt to the submitter (best-effort) only when the team will
@@ -8532,7 +8573,9 @@ const feedbackUtil = {
       // Fire built-in Slack / JIRA / Trello integrations (best-effort).
       // Each only runs if its env vars are configured — all three are no-ops
       // when unconfigured, so this is safe to call unconditionally.
-      dispatchIntegrations(createResult.data || {}).catch(() => {});
+      if (!isBareRating) {
+        dispatchIntegrations(createResult.data || {}).catch(() => {});
+      }
 
       return {
         success: true,

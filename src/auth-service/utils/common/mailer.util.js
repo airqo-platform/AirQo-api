@@ -1436,6 +1436,8 @@ const createSecurityEmailFunction = (
   };
 };
 
+const ADMIN_ALERT_TO_HEADER = "undisclosed-recipients:;";
+
 const createAdminAlertFunction = (
   functionName,
   emailMessageFunction,
@@ -1464,18 +1466,6 @@ const createAdminAlertFunction = (
       if (recipients.length === 0) {
         logger.warn(`${functionName} called without valid recipients.`);
         return { success: true, message: "No valid recipients to send to." };
-      }
-
-      // Validate SUPPORT_EMAIL before queuing
-      if (!constants.SUPPORT_EMAIL || !constants.SUPPORT_EMAIL.includes("@")) {
-        logger.error(
-          `CRITICAL: ${functionName} cannot be sent because SUPPORT_EMAIL is not configured.`,
-        );
-        return {
-          success: true,
-          message: "Admin alert system not configured; email not sent.",
-          status: httpStatus.OK,
-        };
       }
 
       // ✅ STEP 1: Rate-limiting check (daily cap)
@@ -1517,34 +1507,18 @@ const createAdminAlertFunction = (
       }
 
       // ✅ STEP 2: Prepare mail option
-      // Filter SUPPORT_EMAIL out of the BCC list to prevent duplicate delivery.
-      // SUPPORT_EMAIL already receives the email via the `to` field; including it in
-      // BCC as well would result in two copies of every alert to that inbox.
-      const supportEmail = (constants.SUPPORT_EMAIL || "").toLowerCase().trim();
-      const filteredRecipients = recipients.filter(
-        (r) => r.toLowerCase().trim() !== supportEmail,
-      );
       // Privacy: All real recipients go in BCC so no recipient can see who else received
-      // the alert. The `to` field uses a non-disclosing placeholder address (SUPPORT_EMAIL)
-      // so that the visible "To" header does not expose any real recipient's address.
-      // Note: SUPPORT_EMAIL WILL receive this email as the `to` recipient — it acts as an
-      // audit copy inbox, not a silent sink. It must be a valid address that accepts mail
-      // (so the SMTP server does not reject the message), but it should NOT be an inbox
-      // that forwards externally or redistributes security alert content.
-      // To avoid duplicate delivery, SUPPORT_EMAIL is explicitly excluded from the BCC
-      // list below, even if it appears in the recipients array.
+      // the alert. The `to` field is an empty address group, which delivers to nobody, so
+      // the support inbox does not collect copies of alerts it has no action to take on.
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: constants.SUPPORT_EMAIL,
+        to: ADMIN_ALERT_TO_HEADER,
         subject: getEmailSubject(functionName, otherParams),
         html: emailMessageFunction({ recipients, ...otherParams }),
-        bcc:
-          filteredRecipients.length > 0
-            ? filteredRecipients.join(",")
-            : undefined,
+        bcc: recipients.join(","),
         attachments: attachments,
       };
 
@@ -1566,8 +1540,8 @@ const createAdminAlertFunction = (
           // We key on: the sorted BCC recipient list (so the same admin group produces
           // the same key), the subject, and the triggering IP address (so different IPs
           // each produce distinct keys and are not incorrectly collapsed together).
-          // We deliberately do NOT use mailOptions.to here because that is now always
-          // the SUPPORT_EMAIL placeholder and would collapse all bot IPs into one key.
+          // We deliberately do NOT use mailOptions.to here because that is always the
+          // same placeholder and would collapse all bot IPs into one key.
           const normalizedBcc = (mailOptions.bcc || "")
             .split(",")
             .map((e) => e.trim().toLowerCase())
@@ -2891,7 +2865,7 @@ const mailer = {
     { cooldownDays: 1, enableCooldown: true },
   ),
   // Internal admin-only weekly digest of every token with an active bypass.
-  // Uses the admin-alert path (BCC, SUPPORT_EMAIL audit copy, daily rate cap)
+  // Uses the admin-alert path (BCC, daily rate cap)
   // rather than createSecurityEmailFunction since this goes to a recipient
   // list, not a single token owner.
   bypassReportDigest: createAdminAlertFunction(

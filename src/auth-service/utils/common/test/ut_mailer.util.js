@@ -65,6 +65,10 @@ const mailer = proxyquire("../mailer.util", {
     createDefaultSubscription: (...args) => createDefaultSubscriptionStub(...args),
   }),
   "@models/EmailQueue": () => FakeEmailQueueDoc,
+  "@models/AdminAlertCounter": () => ({
+    findOneAndUpdate: () => Promise.resolve({ count: 1 }),
+    updateOne: () => Promise.resolve({}),
+  }),
   "@models/ApplicationEmailConfiguration": () => ({
     find: (...args) => appConfigFindStub(...args),
   }),
@@ -778,6 +782,34 @@ describe("mailer", () => {
         mailer.feedback({ email, subject, message, priority: "high" }),
         httpStatus.INTERNAL_SERVER_ERROR
       );
+    });
+  });
+
+  describe("admin alerts", () => {
+    const recipients = ["admin-one@airqo.net", "admin-two@airqo.net"];
+
+    [
+      [
+        "sendBotAlert",
+        {
+          ip: "203.0.113.5",
+          interval: 5,
+          occurrences: 10,
+          prefix: "203.0",
+          prefixBotCount: 1,
+        },
+      ],
+      ["bypassReportDigest", { bypasses: [] }],
+    ].forEach(([functionName, params]) => {
+      it(`${functionName} should reach the admins only, not the support inbox`, async () => {
+        const result = await mailer[functionName]({ recipients, ...params });
+
+        expect(result.success).to.be.true;
+        expect(queueSaveStub.calledOnce).to.be.true;
+        const { mailOptions } = queueSaveStub.firstCall.args[0];
+        expect(mailOptions.bcc).to.equal(recipients.join(","));
+        expect(mailOptions.to).to.equal("undisclosed-recipients:;");
+      });
     });
   });
 
