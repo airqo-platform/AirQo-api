@@ -17,7 +17,7 @@ checkMigrations:
   enabled: true
   waitTimeoutSeconds: 600
 migrationJob:
-  enabled: true
+  enabled: false
   args:
     - db
     - migrate
