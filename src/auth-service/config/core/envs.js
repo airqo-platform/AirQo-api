@@ -218,6 +218,11 @@ const envs = {
   // ── Cache / Redis ──────────────────────────────────────────────────────────
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: parseNumber(process.env.REDIS_PORT, 6379),
+  REDIS_HOST: process.env.REDIS_HOST,
+  REDIS_SENTINEL_MASTER: process.env.REDIS_SENTINEL_MASTER,
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD,
+  REDIS_SENTINEL_PASSWORD: process.env.REDIS_SENTINEL_PASSWORD,
+  REDIS_DB: process.env.REDIS_DB,
 
   // ── Paddle payments ────────────────────────────────────────────────────────
   PADDLE_API_KEY: process.env.PADDLE_API_KEY,

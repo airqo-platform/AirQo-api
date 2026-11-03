@@ -1,14 +1,51 @@
 // src/auth-service/config/redis.js - Redis v5 with Simple Function Exports
 const { createClient } = require("redis");
 const constants = require("./constants");
+const { createSentinelClient } = require("./redis-sentinel");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
 
-console.log(`Redis connecting to: ${REDIS_SERVER}:${REDIS_PORT}`);
+const USE_SENTINEL = constants.REDIS_USE_SENTINEL === true;
+const SENTINEL_HOST = constants.REDIS_HOST || REDIS_SERVER;
+// Read directly because constants.REDIS_PORT defaults to the standalone port.
+const SENTINEL_PORT = parseInt(process.env.REDIS_PORT, 10) || 26379;
+const REDIS_CONFIGURED = !USE_SENTINEL || Boolean(SENTINEL_HOST);
+const REDIS_TARGET = USE_SENTINEL
+  ? `${SENTINEL_HOST}:${SENTINEL_PORT}`
+  : `${REDIS_SERVER}:${REDIS_PORT}`;
+
+if (!REDIS_CONFIGURED) {
+  console.error("[redis] REDIS_HOST is not set. Redis will be unavailable.");
+}
+
+console.log(
+  `Redis initialized in ${USE_SENTINEL ? "SENTINEL" : "STANDALONE"} mode, connecting to: ${REDIS_TARGET}`
+);
+
+// Sentinel discovers the current master at runtime. Reconnects to Redis nodes are
+// left to node-redis, which re-resolves the master after a failover.
+const buildSentinelConfig = () => {
+  const redisDb = parseInt(constants.REDIS_DB, 10);
+  const socket = { connectTimeout: 10000 };
+  return {
+    name: constants.REDIS_SENTINEL_MASTER || "mymaster",
+    sentinelRootNodes: [{ host: SENTINEL_HOST, port: SENTINEL_PORT }],
+    RESP: 2,
+    nodeClientOptions: {
+      password: constants.REDIS_PASSWORD || undefined,
+      database: Number.isNaN(redisDb) ? undefined : redisDb,
+      socket,
+    },
+    sentinelClientOptions: {
+      password: constants.REDIS_SENTINEL_PASSWORD || undefined,
+      socket,
+    },
+  };
+};
 
 // Redis v5 configuration
-const redis = createClient({
+const redis = USE_SENTINEL ? createSentinelClient(buildSentinelConfig()) : createClient({
   url: `redis://${REDIS_SERVER}:${REDIS_PORT}`,
   // ── RESP protocol version ─────────────────────────────────────────────
   // redis@5 defaults to RESP3 which changes the return types of certain
@@ -47,7 +84,7 @@ const redis = createClient({
 
 // Event handlers for Redis v4
 redis.on("connect", () => {
-  console.log(`[redis] connected to ${REDIS_SERVER}:${REDIS_PORT}`);
+  console.log(`[redis] connected to ${REDIS_TARGET}`);
 });
 
 redis.on("ready", () => {
@@ -57,12 +94,12 @@ redis.on("ready", () => {
 redis.on("error", (error) => {
   if (error.code === "ECONNREFUSED") {
     console.warn(
-      `[redis] connection refused — is Redis running on ${REDIS_SERVER}:${REDIS_PORT}?`
+      `[redis] connection refused — is Redis running on ${REDIS_TARGET}?`
     );
   } else if (error.code === "ETIMEDOUT") {
-    console.warn(`[redis] connection timeout to ${REDIS_SERVER}:${REDIS_PORT}`);
+    console.warn(`[redis] connection timeout to ${REDIS_TARGET}`);
   } else if (error.code === "ENOTFOUND") {
-    console.error(`[redis] host not found: ${REDIS_SERVER}`);
+    console.error(`[redis] host not found: ${REDIS_TARGET}`);
   } else {
     console.error(`[redis] error: ${error.message}`, {
       code: error.code,
@@ -79,11 +116,17 @@ redis.on("reconnecting", () => {
   console.log("[redis] reconnecting…");
 });
 
+redis.on("topology-change", (event) => {
+  if (event.type === "MASTER_CHANGE") {
+    console.log("[redis] Sentinel master changed");
+  }
+});
+
 // Initialize connection. Skipped under NODE_ENV=test so requiring this module
 // during unit tests doesn't open a real Redis connection and spin up the
 // indefinite exponential-backoff reconnect loop below; the wrapper functions
 // above already guard on isOpen/isReady and degrade gracefully when unconnected.
-if (process.env.NODE_ENV !== "test") {
+if (process.env.NODE_ENV !== "test" && REDIS_CONFIGURED) {
   (async () => {
     try {
       await redis.connect();
@@ -254,7 +297,8 @@ const redisUtils = {
   getStatus: () => ({
     connected: redis.isOpen,
     ready: redis.isReady,
-    server: `${REDIS_SERVER}:${REDIS_PORT}`,
+    mode: USE_SENTINEL ? "sentinel" : "standalone",
+    server: REDIS_TARGET,
   }),
 
   ping: async (timeout = 3000) => {
