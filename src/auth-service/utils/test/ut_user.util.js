@@ -1488,8 +1488,15 @@ describe("create-user-util", function () {
       expect(response.success).to.equal(true);
     });
 
-    it("should skip the confirmation email for short, highly rated general notes", async () => {
-      sinon.stub(mailer, "feedback").resolves({ success: true });
+    it("should skip the support and confirmation emails for short, highly rated general notes", async () => {
+      const feedbackStub = sinon
+        .stub(mailer, "feedback")
+        .resolves({ success: true });
+      const integrationsStub = sinon.stub().resolves();
+      const origDispatchIntegrations = rewireCreateUser.__get__(
+        "dispatchIntegrations",
+      );
+      rewireCreateUser.__set__("dispatchIntegrations", integrationsStub);
       const confirmStub = sinon
         .stub(mailer, "feedbackConfirmation")
         .resolves({ success: true });
@@ -1506,13 +1513,27 @@ describe("create-user-util", function () {
         user: null,
       };
 
-      const response = await rewireCreateUser.submitFeedback(request, (err) => {
-        throw err;
-      });
+      try {
+        const response = await rewireCreateUser.submitFeedback(
+          request,
+          (err) => {
+            throw err;
+          },
+        );
 
-      expect(response.success).to.equal(true);
-      expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(false);
-      expect(confirmStub.called).to.be.false;
+        expect(response.success).to.equal(true);
+        expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(
+          false,
+        );
+        expect(feedbackStub.called).to.be.false;
+        expect(confirmStub.called).to.be.false;
+        expect(integrationsStub.calledOnce).to.be.true;
+      } finally {
+        rewireCreateUser.__set__(
+          "dispatchIntegrations",
+          origDispatchIntegrations,
+        );
+      }
     });
 
     it("should skip the confirmation email when the submitter declines contact", async () => {
@@ -1569,6 +1590,118 @@ describe("create-user-util", function () {
       expect(confirmStub.calledOnce).to.be.true;
     });
 
+    describe("bare session ratings", () => {
+      let feedbackStub;
+      let confirmStub;
+      let integrationsStub;
+      let origDispatchIntegrations;
+
+      const submit = (body) =>
+        rewireCreateUser.submitFeedback(
+          {
+            body: {
+              email: "user@example.com",
+              category: "general",
+              platform: "mobile",
+              ...body,
+            },
+            query: {},
+            user: null,
+          },
+          (err) => {
+            throw err;
+          },
+        );
+
+      beforeEach(() => {
+        feedbackStub = sinon.stub(mailer, "feedback").resolves({ success: true });
+        confirmStub = sinon
+          .stub(mailer, "feedbackConfirmation")
+          .resolves({ success: true });
+        integrationsStub = sinon.stub().resolves();
+        origDispatchIntegrations = rewireCreateUser.__get__(
+          "dispatchIntegrations",
+        );
+        rewireCreateUser.__set__("dispatchIntegrations", integrationsStub);
+      });
+
+      afterEach(() => {
+        rewireCreateUser.__set__(
+          "dispatchIntegrations",
+          origDispatchIntegrations,
+        );
+      });
+
+      [1, 3, 5].forEach((rating) => {
+        it(`should store a ${rating}-star rating without notifying anyone`, async () => {
+          const response = await submit({
+            subject: "Session Rating",
+            message: `User rated their session experience: ${rating}/5 stars`,
+            rating,
+          });
+
+          expect(response.success).to.equal(true);
+          expect(feedbackRegisterStub.calledOnce).to.be.true;
+          expect(feedbackRegisterStub.firstCall.args[0].rating).to.equal(rating);
+          expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(
+            false,
+          );
+          expect(feedbackStub.called).to.be.false;
+          expect(confirmStub.called).to.be.false;
+          expect(integrationsStub.called).to.be.false;
+        });
+      });
+
+      it("should still notify support when the message was written by a person", async () => {
+        await submit({
+          subject: "Session Rating",
+          message: "The app logged me out twice today",
+          rating: 1,
+        });
+
+        expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(true);
+        expect(feedbackStub.calledOnce).to.be.true;
+        expect(integrationsStub.calledOnce).to.be.true;
+      });
+
+      it("should still notify support when only the message wording matches", async () => {
+        await submit({
+          subject: "App bug",
+          message: "User rated their session experience: 1/5 stars",
+          rating: 1,
+        });
+
+        expect(feedbackStub.calledOnce).to.be.true;
+        expect(integrationsStub.calledOnce).to.be.true;
+      });
+
+      [
+        ["the category is not general", { category: "bug" }],
+        ["the platform is not mobile", { platform: "web" }],
+        ["the star count differs from the rating", { rating: 2 }],
+        ["no rating is submitted", { rating: undefined }],
+        [
+          "a screenshot is attached",
+          { screenshot_url: "https://example.com/screenshot.png" },
+        ],
+      ].forEach(([scenario, overrides]) => {
+        it(`should still notify support when ${scenario}`, async () => {
+          await submit({
+            subject: "Session Rating",
+            message: "User rated their session experience: 1/5 stars",
+            rating: 1,
+            ...overrides,
+          });
+
+          expect(feedbackRegisterStub.firstCall.args[0].actionable).to.equal(
+            true,
+          );
+          expect(feedbackStub.calledOnce).to.be.true;
+          expect(integrationsStub.calledOnce).to.be.true;
+        });
+      });
+    });
+
     describe("page_satisfaction", () => {
       let recordStub;
       let origPageSatisfactionModel;
@@ -1594,8 +1727,8 @@ describe("create-user-util", function () {
         body: {
           email: "user@example.com",
           subject: "Page Satisfaction: CSIR International Convention Center",
-          message: "Loved it",
-          rating: 5,
+          message: "The chart legend is unreadable",
+          rating: 2,
           category: "page_satisfaction",
           app: "website",
         },
@@ -1624,16 +1757,52 @@ describe("create-user-util", function () {
         expect(feedbackRegisterStub.called).to.be.false;
         expect(confirmStub.called).to.be.false;
         expect(feedbackStub.calledOnce).to.be.true;
-        expect(feedbackStub.firstCall.args[0].message).to.include("Rating: 5/5");
+        expect(feedbackStub.firstCall.args[0].message).to.include("Rating: 2/5");
         expect(recordStub.calledOnce).to.be.true;
         const recorded = recordStub.firstCall.args[0];
         expect(recorded).to.deep.include({
           page: "CSIR International Convention Center",
           app: "website",
-          rating: 5,
+          rating: 2,
           hasMessage: true,
         });
         expect(recorded).to.not.have.property("email");
+      });
+
+      it("should post short, highly rated comments to Slack without emailing support", async () => {
+        const feedbackStub = sinon
+          .stub(mailer, "feedback")
+          .resolves({ success: true });
+        const integrationsStub = sinon.stub().resolves();
+        const origDispatchIntegrations = rewireCreateUser.__get__(
+          "dispatchIntegrations",
+        );
+        rewireCreateUser.__set__("dispatchIntegrations", integrationsStub);
+
+        try {
+          const response = await rewireCreateUser.submitFeedback(
+            {
+              ...request,
+              body: { ...request.body, message: "Loved it", rating: 5 },
+            },
+            (err) => {
+              throw err;
+            },
+          );
+
+          expect(response.success).to.equal(true);
+          expect(feedbackStub.called).to.be.false;
+          expect(integrationsStub.calledOnce).to.be.true;
+          expect(integrationsStub.firstCall.args[0].message).to.equal(
+            "Loved it",
+          );
+          expect(recordStub.firstCall.args[0].hasMessage).to.equal(true);
+        } finally {
+          rewireCreateUser.__set__(
+            "dispatchIntegrations",
+            origDispatchIntegrations,
+          );
+        }
       });
 
       it("should fail without emailing support when the counters cannot be written", async () => {
