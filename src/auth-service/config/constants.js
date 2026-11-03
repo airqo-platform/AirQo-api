@@ -131,6 +131,7 @@ function envConfig(env) {
       (process.env.USAGE_INTERNAL_EMAIL_DOMAINS || "").toLowerCase(),
     ),
     USE_REDIS_SESSIONS: parseBool(process.env.USE_REDIS_SESSIONS, false),
+    REDIS_USE_SENTINEL: parseBool(process.env.REDIS_USE_SENTINEL, false),
     ANALYTICS_PII_ENABLED: parseBool(process.env.ANALYTICS_PII_ENABLED, false),
     POSTHOG_ENABLED: parseBool(process.env.POSTHOG_ENABLED, false),
     POSTHOG_TRACK_API_REQUESTS: parseBool(

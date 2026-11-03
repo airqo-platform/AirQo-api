@@ -72,7 +72,7 @@ Tokens near expiry are automatically refreshed. Check the `X-Access-Token` respo
 - Node.js v18 or higher
 - npm
 - MongoDB (configure `DB_URL` in your environment file)
-- Redis (configure `REDIS_SERVER` and `REDIS_PORT`)
+- Redis (configure `REDIS_SERVER` and `REDIS_PORT`; for Sentinel, set `REDIS_USE_SENTINEL=true`, `REDIS_HOST`, `REDIS_PORT=26379`, and optionally `REDIS_SENTINEL_MASTER`, `REDIS_PASSWORD`, `REDIS_SENTINEL_PASSWORD`, `REDIS_DB`)
 - Firebase Admin credentials
 - Mailchimp API key (optional, for newsletter features)
 

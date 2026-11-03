@@ -133,6 +133,11 @@ const initializeRedisStore = (name) => {
       sendCommand: (...args) => redis.redis.sendCommand(args),
       prefix: `rl:${name}:`,
     });
+    // The constructor starts script loads that nothing may await. If Redis fails
+    // then, the unhandled rejection would trigger the server's shutdown handler.
+    // Later increments still see the failure and retry the load themselves.
+    store.incrementScriptSha.catch(() => {});
+    store.getScriptSha.catch(() => {});
 
     logger.info(
       `✅ Rate Limiting: Using Redis store for "${name}" (distributed rate limiting)`
