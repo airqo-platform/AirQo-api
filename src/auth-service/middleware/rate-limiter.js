@@ -44,7 +44,7 @@ const testRedisConnectivity = async (timeoutMs = 3000) => {
 // Create Redis store with modern rate-limit-redis
 const createRedisStore = (options) => {
   try {
-    return new RedisStore({
+    const store = new RedisStore({
       // Function to send commands to Redis. `redis.sendCommand` doesn't
       // exist on the wrapper — the raw node-redis client (which has it) is
       // exported separately as `redis.redis`.
@@ -56,6 +56,12 @@ const createRedisStore = (options) => {
       // Whether to reset the expiry for a key whenever its hit count changes
       resetExpiryOnChange: true,
     });
+    // The constructor starts script loads that nothing may await. If Redis fails
+    // then, the unhandled rejection would trigger the server's shutdown handler.
+    // Later increments still see the failure and retry the load themselves.
+    store.incrementScriptSha.catch(() => {});
+    store.getScriptSha.catch(() => {});
+    return store;
   } catch (error) {
     logger.error(`Failed to create RedisStore: ${error.message}`);
     throw error;
