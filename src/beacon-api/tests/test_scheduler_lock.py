@@ -52,6 +52,15 @@ class AdvisoryLockTests(unittest.TestCase):
         self.assertIn("SELECT pg_advisory_unlock(:key)", _executed_sql(conn))
         conn.close.assert_called_once()
 
+    def test_failed_unlock_discards_the_connection_without_raising(self):
+        bind, conn = _postgres_bind(acquired=True)
+        conn.execute.side_effect = [conn.execute.return_value, RuntimeError("connection reset")]
+        with self.assertLogs("app.db.locks", level="WARNING"):
+            with advisory_lock(bind, 42) as acquired:
+                self.assertTrue(acquired)
+        conn.invalidate.assert_called_once()
+        conn.close.assert_called_once()
+
 
 class NightlySyncLockTests(unittest.IsolatedAsyncioTestCase):
     def _lock(self, acquired: bool):

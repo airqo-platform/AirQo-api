@@ -1,8 +1,11 @@
+import logging
 from contextlib import contextmanager
 from typing import Iterator
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -25,7 +28,13 @@ def advisory_lock(bind: Engine, key: int) -> Iterator[bool]:
             yield acquired
         finally:
             if acquired:
-                conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
-                conn.commit()
+                try:
+                    conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+                    conn.commit()
+                except Exception:
+                    # A pool reset only rolls back, which keeps a session-level lock held;
+                    # drop the connection instead so ending the backend session releases it.
+                    logger.warning(f"Could not release advisory lock {key}; discarding connection", exc_info=True)
+                    conn.invalidate()
     finally:
         conn.close()
