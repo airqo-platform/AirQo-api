@@ -3,8 +3,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pickle
-import gcsfs
-import joblib
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -20,11 +18,18 @@ class Regression:
     The class contains functionality for computing device calibrated values .
     """
 
-    def __init__(self):
-        self.rf_regressor = pickle.load(open(RF_REG_MODEL, "rb"))
-        self.lasso_regressor = pickle.load(open(LASSO_MODEL, "rb"))
-        # # load model from GCP
-        # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    def __init__(self, bucket=None):
+        self.workflow_features = bucket is not None
+        if bucket is not None:
+            from models.model_cache import prediction_model_cache
+
+            interval = float(os.getenv("MODEL_REFRESH_INTERVAL_SECONDS", "3600"))
+            self.rf_regressor, self.lasso_regressor = prediction_model_cache.get(bucket, interval)
+        else:
+            with open(RF_REG_MODEL, "rb") as handle:
+                self.rf_regressor = pickle.load(handle)
+            with open(LASSO_MODEL, "rb") as handle:
+                self.lasso_regressor = pickle.load(handle)
 
     # map_columns = {"datetime":"created_at"}
     def compute_calibrated_val(self, map_columns, df):
@@ -43,6 +48,9 @@ class Regression:
         df["error_pm2_5"] = np.abs(df["pm2_5"] - df["s2_pm2_5"])
         df["pm2_5_pm10"] = df["avg_pm2_5"] - df["avg_pm10"]
         df["pm2_5_pm10_mod"] = df["pm2_5_pm10"] / df["avg_pm10"]
+        if getattr(self, "workflow_features", False):
+            # Match airqo_etl_utils.airqo_utils calibration inference.
+            df["pm2_5_pm10_mod"] = df["avg_pm2_5"] / df["avg_pm10"]
         # df = df.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
 
         df_copy = df
@@ -64,7 +72,7 @@ class Regression:
         calibrated_pm2_5 = self.rf_regressor.predict(df)
         calibrated_pm10 = self.lasso_regressor.predict(df)
 
-        calibrated_data = df_copy[["avg_pm2_5", "avg_pm10", "datetime"]]
+        calibrated_data = df_copy[["avg_pm2_5", "avg_pm10", "datetime"]].copy()
         calibrated_data["calibrated_pm2_5"] = calibrated_pm2_5.round(2)
         calibrated_data["calibrated_pm10"] = calibrated_pm10.round(2)
 

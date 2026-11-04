@@ -9,3 +9,4 @@ data/
 venv/
 *.pkl
 *.csv
+*.json
