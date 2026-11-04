@@ -99,6 +99,18 @@ class CalibrationTests(unittest.TestCase):
         self.assertIn("26.0,41.0", lines[1])
         self.assertTrue(lines[1].endswith(",12.35,12.35"))
 
+    def test_mixed_timestamp_formats(self):
+        csv = ("datetime,pm2_5,pm10,humidity,temperature\n"
+               "2026-10-28,25,40,65,24\n"
+               "2026-10-28T10:00:00Z,25,40,65,24\n")
+        with patch.object(Regression, "__init__", return_value=None), \
+                patch.object(Regression, "rf_regressor", Predictor(), create=True), \
+                patch.object(Regression, "lasso_regressor", Predictor(), create=True):
+            response = self.client.post("/api/v2/calibrate/tool", data={
+                "file": (io.BytesIO(csv.encode()), "input.csv")})
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(len(response.get_data(as_text=True).splitlines()), 3)
+
     def test_invalid_rows_rejected_before_loading_models(self):
         with patch("calibrate_v2.Regression") as model:
             for row in ["bad,25,27,40,42,65,24",

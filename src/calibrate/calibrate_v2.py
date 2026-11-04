@@ -56,7 +56,7 @@ def calibrate_tool():
         else:
             # Blank secondary readings are optional on a per-row basis too.
             data[secondary] = data[secondary].fillna(data[primary])
-    data["datetime"] = pd.to_datetime(data["datetime"], errors="coerce", utc=True)
+    data["datetime"] = pd.to_datetime(data["datetime"], format="mixed", errors="coerce", utc=True)
     for field in FIELDS[1:]:
         data[field] = pd.to_numeric(data[field], errors="coerce")
     if data.isna().any().any() or not np.isfinite(data[list(FIELDS[1:])].values).all():
