@@ -349,7 +349,12 @@ class AQIImageGenerator:
         all_cities_cache_key = AQIImageGenerator.ALL_CITIES_CACHE_KEY
         
         if redis_client and not force_refresh:
-            cached_all_results = redis_client.get(all_cities_cache_key)
+            try:
+                cached_all_results = redis_client.get(all_cities_cache_key)
+            except redis.RedisError:
+                AQIImageGenerator.logger.warning("Could not read all-city heatmap cache.", exc_info=True)
+                redis_client = None
+                cached_all_results = None
             if cached_all_results:
                 AQIImageGenerator._schedule_refresh_if_due(redis_client)
                 print("Serving ALL cities AQI images from Redis cache (full response).")
@@ -441,7 +446,12 @@ class AQIImageGenerator:
 
         # Try to get from cache
         if redis_client:
-            cached_result = redis_client.get(cache_key)
+            try:
+                cached_result = redis_client.get(cache_key)
+            except redis.RedisError:
+                AQIImageGenerator.logger.warning("Could not read city heatmap cache.", exc_info=True)
+                redis_client = None
+                cached_result = None
             if cached_result:
                 AQIImageGenerator._schedule_refresh_if_due(redis_client)
                 print(f"Serving city ID {city_id} from Redis cache.")
