@@ -7,6 +7,8 @@ from app.services.thingspeak_sync_service import sync_device_data
 from app.services.external_sync_service import sync_external_device_data, poll_external_feeds
 from app.services.diagnostics.daily import run_daily_diagnostics_async, cleanup_old_daily_diagnostics
 from app.core.config import settings
+from app.db.locks import advisory_lock
+from app.db.session import engine
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +16,20 @@ logger = logging.getLogger(__name__)
 # and unaffected by host timezone or DST transitions.
 SCHEDULER_TIMEZONE = ZoneInfo(getattr(settings, "SCHEDULER_TIMEZONE", "UTC"))
 
+# PostgreSQL advisory lock key for the nightly sync. Every replica runs its own
+# scheduler, so only the replica that takes this lock runs the job.
+NIGHTLY_SYNC_LOCK_KEY = 820261103001
+
 scheduler = AsyncIOScheduler(timezone=SCHEDULER_TIMEZONE)
 
 async def scheduled_thingspeak_sync():
+    with advisory_lock(engine, NIGHTLY_SYNC_LOCK_KEY) as acquired:
+        if not acquired:
+            logger.info("Nightly sync is already running on another replica; skipping.")
+            return
+        await _run_nightly_sync()
+
+async def _run_nightly_sync():
     logger.info("Starting scheduled ThingSpeak data sync...")
     try:
         # Runs the sync orchestrator (default 14 days lookback, but will skip days already synced)
