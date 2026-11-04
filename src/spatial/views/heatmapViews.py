@@ -15,6 +15,7 @@ from shapely.geometry.base import BaseGeometry
 import base64
 from flask import jsonify
 import redis
+from utils.redis_client import create_redis_client
 import json
 from typing import Optional, Dict, Any, List, Tuple
 from models.heatmapModel import AirQualityData, AirQualityGrids, AirQualityPredictor
@@ -61,20 +62,10 @@ class AQIImageGenerator:
         Initializes and returns a Redis client, or None if connection fails.
         """
         if cls._redis_client is None:
-            redis_host = os.getenv("REDIS_HOST", "localhost")
-            redis_port = int(os.getenv("REDIS_PORT", 6379))
-            redis_db = int(os.getenv("REDIS_DB", 0))
             try:
-                cls._redis_client = redis.StrictRedis(
-                    host=redis_host,
-                    port=redis_port,
-                    db=redis_db,
-                    decode_responses=True
-                )
-                cls._redis_client.ping()
-                print(f"Connected to Redis at {redis_host}:{redis_port}")
-            except redis.exceptions.ConnectionError as e:
-                print(f"Could not connect to Redis: ")
+                cls._redis_client = create_redis_client(decode_responses=True)
+            except (redis.RedisError, ValueError, TypeError):
+                cls.logger.warning("Could not connect to Redis cache.", exc_info=True)
                 cls._redis_client = None
         return cls._redis_client
 

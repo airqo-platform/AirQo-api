@@ -17,12 +17,7 @@ import requests
 from shapely.geometry import Point, Polygon
 
 from configure import Config
-
-try:
-    import redis
-except ImportError:  # pragma: no cover - redis is optional at runtime
-    redis = None
-
+from utils.redis_client import create_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -320,32 +315,11 @@ class ActiveFireModel:
 
     @staticmethod
     def _init_redis_client():
-        if redis is None:
-            logger.info("Redis library not installed; active-fire caching is disabled.")
-            return None
-
-        redis_url = getattr(Config, "REDIS_URL", None) or os.getenv("REDIS_URL")
         try:
-            if redis_url:
-                client = redis.from_url(redis_url, decode_responses=True)
-                client.ping()
-                return client
-
-            redis_host = getattr(Config, "REDIS_HOST", None) or os.getenv("REDIS_HOST")
-            redis_port = getattr(Config, "REDIS_PORT", None) or os.getenv("REDIS_PORT")
-            if redis_host and redis_port:
-                client = redis.Redis(
-                    host=redis_host,
-                    port=int(redis_port),
-                    db=int(getattr(Config, "REDIS_DB", None) or os.getenv("REDIS_DB", 0)),
-                    password=getattr(Config, "REDIS_PASSWORD", None) or os.getenv("REDIS_PASSWORD"),
-                    decode_responses=True,
-                )
-                client.ping()
-                return client
+            return create_redis_client(decode_responses=True)
         except Exception:
-            logger.warning("Redis connection failed; active-fire caching is disabled.")
-        return None
+            logger.warning("Redis connection failed; active-fire caching is disabled.", exc_info=True)
+            return None
 
     def _cache_key(self, source: str, day_range: int, date: Optional[str]) -> str:
         payload = {

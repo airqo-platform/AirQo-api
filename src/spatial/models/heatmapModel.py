@@ -21,6 +21,7 @@ from urllib3.util.retry import Retry
 import joblib
 from configure import Config as config
 from utils.commons import download_file_from_gcs,upload_to_gcs
+from utils.redis_client import create_redis_client
 
 # Attempt to import optional dependency
 try:
@@ -112,39 +113,21 @@ class BaseAirQoAPI:
     def _init_redis(self) -> Optional[redis.Redis]:
         """
         Initializes and returns a Redis client if configured, otherwise None.
-        Prioritizes connection via REDIS_URL, then falls back to host/port settings.
+        Sentinel mode discovers the current master; standalone mode accepts a URL
+        or host and port.
         """
         if redis is None:
             self.logger.info("Redis library not installed; caching is disabled.")
             return None
 
-        redis_url = os.getenv("REDIS_URL")
         try:
-            if redis_url:
-                client = redis.from_url(redis_url, decode_responses=False)
-                client.ping()
-                self.logger.info("Redis connection successful via URL.")
-                return client
-
-            redis_host = config.REDIS_HOST
-            redis_port = config.REDIS_PORT
-            if redis_host and redis_port:
-                client = redis.Redis(
-                    host=redis_host,
-                    port=int(redis_port), 
-                    password=config.REDIS_PASSWORD,
-                    decode_responses=False,
-                )
-                client.ping()
-                self.logger.info("Redis connection successful via host/port.")
-                return client
-
-        except Exception as e:
-            self.logger.warning(f"Redis connection failed: Caching is disabled.")
+            client = create_redis_client(decode_responses=False)
+            if client is not None:
+                self.logger.info("Redis cache connected.")
+            return client
+        except Exception:
+            self.logger.warning("Redis connection failed; caching is disabled.", exc_info=True)
             return None
-
-        self.logger.info("Redis not configured; caching is disabled.")
-        return None
 
     def _cache_set(self, key: str, payload: Dict[str, Any]) -> None:
         """Serializes and stores a payload in the Redis cache with a TTL."""

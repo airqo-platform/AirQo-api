@@ -35,6 +35,8 @@ REDIS_PORT=6379
 REDIS_DB=0
 REDIS_URL=redis://localhost:6379/0
 REDIS_PASSWORD=
+REDIS_USE_SENTINEL=false
+REDIS_SENTINEL_MASTER=mymaster
 REDIS_CACHE_TTL=3600
 HEATMAP_REFRESH_INTERVAL_SECONDS=3600
 HEATMAP_REFRESH_RETRY_SECONDS=300
@@ -638,5 +640,16 @@ current request:
 - `must_have_locations` must fall inside the supplied polygon for site selection.
 - BigQuery and Storage operations require credentials for their configured datasets and buckets.
 - Redis is optional; if unavailable the heatmap and active-fire endpoints still work but skip caching.
+
+### Redis Sentinel transition
+
+All spatial Redis caches use `REDIS_USE_SENTINEL=false` by default. Deploy this
+code while the standalone endpoint is still active. After the Sentinel service
+is healthy, set `REDIS_USE_SENTINEL=true`, `REDIS_HOST` to the Sentinel service
+(for example `airqo-stage-redis-server`), `REDIS_PORT=26379`, and
+`REDIS_SENTINEL_MASTER=mymaster`, then restart spatial. Keep `REDIS_PASSWORD`
+and `REDIS_DB` set for the Redis master. In Sentinel mode `REDIS_URL` is ignored;
+it is only a standalone fallback. Set the flag back to `false` with the old
+host and port to roll back the client configuration.
 - Heatmap JSON is cached without expiry. The first cached request after `HEATMAP_REFRESH_INTERVAL_SECONDS` starts one background `/map` version check; unchanged data keeps the existing cache, while changed data atomically replaces it. Refresh processes are terminated after `HEATMAP_REFRESH_TIMEOUT_SECONDS`, and failed or timed-out refreshes retry after `HEATMAP_REFRESH_RETRY_SECONDS`.
 - OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.
