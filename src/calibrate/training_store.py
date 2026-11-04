@@ -24,7 +24,8 @@ class TrainingStore:
             if not uri:
                 raise RuntimeError("MONGO_URI is required for training jobs")
             # Construct after the Gunicorn fork, not at module import time.
-            self.client = MongoClient(uri, serverSelectionTimeoutMS=5000, socketTimeoutMS=30000)
+            self.client = MongoClient(uri, serverSelectionTimeoutMS=5000, socketTimeoutMS=30000,
+                                      tz_aware=True)
             database = self.client[os.getenv("CALIBRATION_JOB_DATABASE", "calibration_jobs")]
         self.db = database
         self.jobs = database["training_jobs"]

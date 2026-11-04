@@ -27,7 +27,6 @@ def process_one(store):
                     return
             except Exception:
                 logger.exception("Heartbeat failed for job %s", job["_id"])
-                return
 
     thread = threading.Thread(target=keep_lease, daemon=True)
     thread.start()

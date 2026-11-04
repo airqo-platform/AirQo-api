@@ -43,6 +43,15 @@ def sample_csv(count=40):
 
 
 class TrainingJobTests(unittest.TestCase):
+    def test_store_client_uses_utc_aware_datetimes(self):
+        with patch.dict(os.environ, {"MONGO_URI": "mongodb://localhost:27017"}), \
+                patch("training_store.MongoClient", return_value=mongomock.MongoClient(tz_aware=True)) as client:
+            store = TrainingStore()
+            store.close()
+        client.assert_called_once_with("mongodb://localhost:27017",
+                                       serverSelectionTimeoutMS=5000, socketTimeoutMS=30000,
+                                       tz_aware=True)
+
     def setUp(self):
         self.environment = patch.dict(os.environ, {"JWT_SECRET": SECRET})
         self.environment.start()
