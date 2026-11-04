@@ -4,7 +4,6 @@ import datetime
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso
 import pickle
-import gcsfs
 import joblib
 import os
 from dotenv import load_dotenv
