@@ -649,7 +649,10 @@ is healthy, set `REDIS_USE_SENTINEL=true`, `REDIS_HOST` to the Sentinel service
 (for example `airqo-stage-redis-server`), `REDIS_PORT=26379`, and
 `REDIS_SENTINEL_MASTER=mymaster`, then restart spatial. Keep `REDIS_PASSWORD`
 and `REDIS_DB` set for the Redis master. In Sentinel mode `REDIS_URL` is ignored;
-it is only a standalone fallback. Set the flag back to `false` with the old
-host and port to roll back the client configuration.
+it is only a standalone fallback. For the heatmap image cache, `REDIS_HOST`
+and `REDIS_PORT` take precedence over `REDIS_URL` in standalone mode. The other
+spatial caches continue to prefer `REDIS_URL`. To roll back, set the flag to
+`false` and restore the old host and port; also restore `REDIS_URL` if it is
+configured for the other caches.
 - Heatmap JSON is cached without expiry. The first cached request after `HEATMAP_REFRESH_INTERVAL_SECONDS` starts one background `/map` version check; unchanged data keeps the existing cache, while changed data atomically replaces it. Refresh processes are terminated after `HEATMAP_REFRESH_TIMEOUT_SECONDS`, and failed or timed-out refreshes retry after `HEATMAP_REFRESH_RETRY_SECONDS`.
 - OSMnx request cache files are stored in `src/spatial/cache`. Old cache files are pruned automatically based on `OSMNX_CACHE_MAX_FILES` and `OSMNX_CACHE_MAX_AGE_HOURS`.

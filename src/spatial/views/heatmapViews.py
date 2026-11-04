@@ -63,7 +63,9 @@ class AQIImageGenerator:
         """
         if cls._redis_client is None:
             try:
-                cls._redis_client = create_redis_client(decode_responses=True)
+                cls._redis_client = create_redis_client(
+                    decode_responses=True, prefer_host_port=True
+                )
             except (redis.RedisError, ValueError, TypeError):
                 cls.logger.warning("Could not connect to Redis cache.", exc_info=True)
                 cls._redis_client = None

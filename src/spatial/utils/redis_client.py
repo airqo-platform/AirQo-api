@@ -10,7 +10,7 @@ except ImportError:  # Redis caching is optional.
     Sentinel = None
 
 
-def create_redis_client(*, decode_responses=False):
+def create_redis_client(*, decode_responses=False, prefer_host_port=False):
     """Connect to the current master, or directly to standalone Redis."""
     if redis is None:
         return None
@@ -40,16 +40,21 @@ def create_redis_client(*, decode_responses=False):
         )
     else:
         url = os.getenv("REDIS_URL")
-        if url:
-            client = redis.from_url(url, decode_responses=decode_responses)
-        else:
-            host = os.getenv("REDIS_HOST")
-            port = os.getenv("REDIS_PORT")
-            if not host or not port:
-                return None
+        host = os.getenv("REDIS_HOST")
+        port = os.getenv("REDIS_PORT")
+        if prefer_host_port and host and port:
             client = redis.Redis(
                 host=host, port=int(port), db=db, password=password,
                 decode_responses=decode_responses,
             )
+        elif url:
+            client = redis.from_url(url, decode_responses=decode_responses)
+        elif host and port:
+            client = redis.Redis(
+                host=host, port=int(port), db=db, password=password,
+                decode_responses=decode_responses,
+            )
+        else:
+            return None
     client.ping()
     return client
