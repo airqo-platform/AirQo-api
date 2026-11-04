@@ -30,7 +30,7 @@ class ActiveFireView:
             return jsonify({"message": "Operation successful", "data": data}), 200
         except ActiveFireValidationError as error:
             logger.warning("Active fire request validation failed", exc_info=error)
-            return jsonify({"error": str(error)}), 400
+            return jsonify({"error": "Invalid request parameters."}), 400
         except ActiveFireConfigurationError as error:
             logger.warning("Active fire configuration error", exc_info=error)
             return jsonify({"error": "Service is temporarily unavailable."}), 503
