@@ -411,7 +411,7 @@ class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         """Cached list view"""
         cache_key = self.get_cache_key('inquiry_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -422,7 +422,7 @@ class InquiryViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('inquiry_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -476,7 +476,7 @@ class ProgramViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         """Cached list view"""
         cache_key = self.get_cache_key('program_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -487,7 +487,7 @@ class ProgramViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('program_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -523,7 +523,7 @@ class SessionViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         """Cached list view"""
         cache_key = self.get_cache_key('session_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -534,7 +534,7 @@ class SessionViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOn
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('session_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -570,7 +570,7 @@ class PartnerLogoViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Re
         """Cached list view"""
         cache_key = self.get_cache_key('partnerlogo_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -581,7 +581,7 @@ class PartnerLogoViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Re
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('partnerlogo_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -617,7 +617,7 @@ class ResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         """Cached list view"""
         cache_key = self.get_cache_key('resource_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -628,7 +628,7 @@ class ResourceViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadO
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('resource_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -661,7 +661,7 @@ class OrganizerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuery
     def list(self, request, *args, **kwargs):
         cache_key = self.get_cache_key('organizer_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -671,7 +671,7 @@ class OrganizerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuery
         identifier = str(kwargs.get(self.lookup_url_kwarg, kwargs.get('pk', '')))
         cache_key = self.get_cache_key('organizer_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -706,7 +706,7 @@ class EventOrganizerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
     def list(self, request, *args, **kwargs):
         cache_key = self.get_cache_key('event_organizer_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -716,7 +716,7 @@ class EventOrganizerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('event_organizer_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -757,7 +757,7 @@ class EventSideEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
     def list(self, request, *args, **kwargs):
         cache_key = self.get_cache_key('event_side_event_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -767,7 +767,7 @@ class EventSideEventViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('event_side_event_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -798,9 +798,11 @@ class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, Opti
         return qs
 
     def list(self, request, *args, **kwargs):
-        cache_key = self.get_cache_key('partner_list', query_params=request.query_params)
+        cache_key = self.get_cache_key(
+            'event_partner_catalog_list', query_params=request.query_params
+        )
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -808,9 +810,11 @@ class EventPartnerCatalogViewSet(SlugModelViewSetMixin, CachedViewSetMixin, Opti
 
     def retrieve(self, request, *args, **kwargs):
         identifier = str(kwargs.get(self.lookup_url_kwarg, kwargs.get('pk', '')))
-        cache_key = self.get_cache_key('partner_detail', identifier, request.query_params)
+        cache_key = self.get_cache_key(
+            'event_partner_catalog_detail', identifier, request.query_params
+        )
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -849,7 +853,7 @@ class EventPartnerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.R
     def list(self, request, *args, **kwargs):
         cache_key = self.get_cache_key('event_partner_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -859,7 +863,7 @@ class EventPartnerViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.R
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('event_partner_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)

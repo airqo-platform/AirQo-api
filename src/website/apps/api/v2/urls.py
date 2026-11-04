@@ -22,6 +22,10 @@ from .viewsets.externalteams import ExternalTeamMemberViewSet, ExternalTeamMembe
 from .viewsets.faqs import FAQViewSet, CategoryViewSet
 from .viewsets.highlights import HighlightViewSet, TagViewSet
 from .viewsets.impact import ImpactNumberViewSet
+from .viewsets.live_publication_overrides import LivePublicationOverrideViewSet
+from .viewsets.live_publication_feed_settings import (
+    LivePublicationFeedSettingsView,
+)
 from .viewsets.partners import PartnerViewSet, PartnerDescriptionViewSet
 from .viewsets.press import PressViewSet
 from .viewsets.publications import PublicationViewSet
@@ -80,10 +84,17 @@ router.register(r'partner-descriptions', PartnerDescriptionViewSet,
 router.register(r'press', PressViewSet, basename='v2-press')
 router.register(r'publications', PublicationViewSet,
                 basename='v2-publications')
+router.register(r'live-publication-overrides', LivePublicationOverrideViewSet,
+                basename='v2-live-publication-overrides')
 router.register(r'team-members', MemberViewSet, basename='v2-team-members')
 router.register(r'team-biographies', MemberBiographyViewSet,
                 basename='v2-team-biographies')
 
 urlpatterns = [
+    path(
+        'live-publication-feed-settings/',
+        LivePublicationFeedSettingsView.as_view(),
+        name='v2-live-publication-feed-settings',
+    ),
     path('', include(router.urls)),
 ]

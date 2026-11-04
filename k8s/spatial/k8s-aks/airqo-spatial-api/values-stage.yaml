@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-stage-spatial-api
-  tag: stage-57ae5846-1785672155
+  tag: stage-68a20a51-1793277565
 resources:
   limits:
     cpu: 200m

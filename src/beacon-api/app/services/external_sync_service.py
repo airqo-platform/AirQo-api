@@ -153,32 +153,35 @@ def feed_networks() -> Set[str]:
     return {n for n in (normalize_network(p) for p in raw.split(",")) if n}
 
 
+def supports_live_feed(dev: SyncDevice, allowed: Optional[Set[str]] = None) -> bool:
+    """
+    True when the latest reading of external device ``dev`` can be fetched:
+    through a direct manufacturer source, or through the registry feed for
+    networks with a working adapter (which needs the device's serial number).
+    ``allowed`` defaults to ``feed_networks()``.
+    """
+    network = normalize_network(dev.network_id)
+    if network in (None, AIRQO_NETWORK) or not dev.device_name or not is_network_enabled(network):
+        return False
+    # A direct manufacturer source only needs to recognise the device (an
+    # AirGradient device is identified by its registry name alone).
+    if direct_live_source_for(dev) is not None:
+        return True
+    if allowed is None:
+        allowed = feed_networks()
+    source = device_data_source(dev.network_id, dev.device_number, dev.readKey, dev.serial_number, dev.api_code)
+    return source == DATA_SOURCE_EXTERNAL_API and bool(dev.serial_number) and network in allowed
+
+
 def select_feed_devices(db: Session) -> List[SyncDevice]:
-    """
-    External devices whose latest reading can be fetched: through a direct
-    manufacturer source, or through the registry feed for networks with a
-    working adapter (which needs the device's serial number).
-    """
+    """External devices whose latest reading can be fetched (``supports_live_feed``)."""
     allowed = feed_networks()
     rows = (
         db.query(SyncDevice)
         .filter(SyncDevice.network_id.isnot(None), SyncDevice.device_name.isnot(None))
         .all()
     )
-    selected = []
-    for d in rows:
-        network = normalize_network(d.network_id)
-        if network in (None, AIRQO_NETWORK) or not is_network_enabled(network):
-            continue
-        # A direct manufacturer source only needs to recognise the device (an
-        # AirGradient device is identified by its registry name alone).
-        if direct_live_source_for(d) is not None:
-            selected.append(d)
-            continue
-        source = device_data_source(d.network_id, d.device_number, d.readKey, d.serial_number, d.api_code)
-        if source == DATA_SOURCE_EXTERNAL_API and d.serial_number and network in allowed:
-            selected.append(d)
-    return selected
+    return [d for d in rows if supports_live_feed(d, allowed)]
 
 
 def _platform_auth() -> Tuple[Dict[str, str], Dict[str, str]]:
@@ -822,6 +825,47 @@ async def fetch_live_feed(
     return payload, "ok"
 
 
+async def fetch_current_reading(
+    client: httpx.AsyncClient,
+    dev: SyncDevice,
+    params: Dict[str, str],
+    headers: Dict[str, str],
+    world_readings: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Tuple[Optional[Dict[str, Any]], str]:
+    """
+    Latest reading for one external device: straight from the manufacturer
+    when a direct live source applies (``world_readings`` reuses one bulk
+    AirGradient world call), else through the registry feed.
+    Returns ``(payload, outcome)`` like ``fetch_live_feed``.
+    """
+    direct = direct_live_source_for(dev)
+    if direct is None:
+        return await fetch_live_feed(client, dev, params, headers)
+    if isinstance(direct, AirGradientWorldSource) and world_readings is not None:
+        item = world_readings.get(airgradient_location_id(dev))
+        payload, outcome = (item, "ok") if item else (None, "not_found")
+    else:
+        payload, outcome = await direct.fetch_current(client, dev)
+    if outcome == "not_found" and dev.serial_number and normalize_network(dev.network_id) in feed_networks():
+        # Not on the public map after all; the registry adapter may still reach it.
+        payload, outcome = await fetch_live_feed(client, dev, params, headers)
+    return payload, outcome
+
+
+def store_device_rows(
+    db: Session, rows: List[Dict[str, Any]], device_id: Optional[str], now_utc: datetime,
+) -> Tuple[int, int, int]:
+    """
+    Upsert one device's raw rows and rebuild the hourly and daily aggregates
+    of the days they touch. Returns ``(raw, hourly, daily)`` counts.
+    """
+    raw = crud_device_data.upsert_raw_data(db, rows)
+    hourly, daily = recompute_aggregates_from_db(
+        db, rows[0]["channel_id"], device_id, [r["created_at_ts"] for r in rows], now_utc,
+    )
+    return raw, hourly, daily
+
+
 async def poll_external_feeds() -> Dict[str, Any]:
     """
     Poll the registry live feed once for every external device on a network
@@ -854,19 +898,9 @@ async def poll_external_feeds() -> Dict[str, Any]:
             world_readings = await world.fetch_all_current(client)
 
         for dev in devices:
-            direct = direct_live_source_for(dev)
-            if direct is not None:
-                if isinstance(direct, AirGradientWorldSource) and world_readings is not None:
-                    item = world_readings.get(airgradient_location_id(dev))
-                    payload, outcome = (item, "ok") if item else (None, "not_found")
-                else:
-                    payload, outcome = await direct.fetch_current(client, dev)
+            if direct_live_source_for(dev) is not None:
                 summary.direct += 1
-                if outcome == "not_found" and dev.serial_number and normalize_network(dev.network_id) in feed_networks():
-                    # Not on the public map after all; the registry adapter may still reach it.
-                    payload, outcome = await fetch_live_feed(client, dev, params, headers)
-            else:
-                payload, outcome = await fetch_live_feed(client, dev, params, headers)
+            payload, outcome = await fetch_current_reading(client, dev, params, headers, world_readings)
             summary.polled += 1
             if outcome == "not_found":
                 summary.not_found += 1
@@ -881,10 +915,8 @@ async def poll_external_feeds() -> Dict[str, Any]:
             summary.readings += 1
             db = SessionLocal()
             try:
-                summary.raw_records += crud_device_data.upsert_raw_data(db, rows)
-                hourly, daily = recompute_aggregates_from_db(
-                    db, rows[0]["channel_id"], dev.device_id, [r["created_at_ts"] for r in rows], now_utc,
-                )
+                raw, hourly, daily = store_device_rows(db, rows, dev.device_id, now_utc)
+                summary.raw_records += raw
                 summary.hourly_records += hourly
                 summary.daily_records += daily
             except Exception as e:

@@ -38,7 +38,7 @@ class BoardMemberViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Re
         """Cached list view"""
         cache_key = self.get_cache_key('board_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -49,7 +49,7 @@ class BoardMemberViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Re
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('board_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)

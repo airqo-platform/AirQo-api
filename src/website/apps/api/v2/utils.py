@@ -1,7 +1,9 @@
 """
 Utility functions and classes for v2 API
 """
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlencode
 from rest_framework import serializers
 from rest_framework.fields import empty
 from rest_framework.response import Response
@@ -18,19 +20,43 @@ class CachedViewSetMixin:
     cache_timeout_list = 300  # 5 minutes for list views
     cache_timeout_detail = 600  # 10 minutes for detail views
 
-    def get_cache_key(self, prefix: str, identifier: str = "", query_params: Optional[Dict] = None) -> str:
-        """Generate a cache key with proper hashing"""
+    cache_key_namespace = "airqo:website:v2"
+
+    def get_cache_key(
+        self,
+        prefix: str,
+        identifier: str = "",
+        query_params: Optional[Mapping[str, Any]] = None,
+    ) -> str:
+        """Build a stable, namespaced key for a public API response.
+
+        ``QueryDict.items()`` only returns the last value for repeated query
+        parameters. Using ``lists()`` when available preserves all values and
+        prevents different requests from sharing the wrong cached response.
+        Sort query keys so equivalent key ordering shares a cache entry, while
+        preserving the order of repeated values because some filters use the
+        last supplied value.
+        """
         if query_params is None:
             query_params = {}
 
-        query_str = str(sorted(query_params.items()))
-        hash_suffix = hashlib.md5(query_str.encode()).hexdigest()
+        if hasattr(query_params, "lists"):
+            raw_items = query_params.lists()
+        else:
+            raw_items = query_params.items()
 
-        if identifier:
-            return f"{prefix}_{identifier}_{hash_suffix}"
-        return f"{prefix}_{hash_suffix}"
+        pairs = []
+        for key, values in sorted(raw_items, key=lambda item: str(item[0])):
+            if not isinstance(values, (list, tuple)):
+                values = [values]
+            pairs.extend((str(key), str(value)) for value in values)
 
-    def get_cached_response(self, cache_key: str) -> Optional[Dict]:
+        query_string = urlencode(pairs)
+        digest_input = f"{identifier}\x00{query_string}".encode("utf-8")
+        digest = hashlib.sha256(digest_input).hexdigest()
+        return f"{self.cache_key_namespace}:{prefix}:{digest}"
+
+    def get_cached_response(self, cache_key: str) -> Optional[Any]:
         """Get cached response data"""
         from django.core.cache import cache
         return cache.get(cache_key)

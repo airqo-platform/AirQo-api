@@ -35,7 +35,7 @@ class DepartmentViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
         """Cached list view"""
         cache_key = self.get_cache_key('department_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -46,7 +46,7 @@ class DepartmentViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Rea
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('department_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -90,7 +90,7 @@ class CareerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySet
         """Cached list view"""
         cache_key = self.get_cache_key('career_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -101,7 +101,7 @@ class CareerViewSet(SlugModelViewSetMixin, CachedViewSetMixin, OptimizedQuerySet
         identifier = str(kwargs.get('slug', ''))
         cache_key = self.get_cache_key('career_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)

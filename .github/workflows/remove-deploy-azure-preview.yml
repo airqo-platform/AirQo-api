@@ -14,7 +14,7 @@ jobs:
 
   branch-name:
     name: Format branch name string
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       sanitized: ${{ steps.sanitize.outputs.sanitized }}
     steps:
@@ -48,10 +48,10 @@ jobs:
   remove-auth-service-preview:
     name: remove-auth-service-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -69,10 +69,10 @@ jobs:
   remove-beacon-api-preview:
     name: remove-beacon-api-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -90,10 +90,10 @@ jobs:
   remove-device-registry-preview:
     name: remove-device-registry-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -111,10 +111,10 @@ jobs:
   remove-predict-service-preview:
     name: remove-predict-service-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -132,10 +132,10 @@ jobs:
   remove-meta-data-preview:
     name: remove-meta-data-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -153,10 +153,10 @@ jobs:
   remove-view-preview:
     name: remove-view-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -174,10 +174,10 @@ jobs:
   remove-calibrate-api-preview:
     name: remove-calibrate-api-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -195,10 +195,10 @@ jobs:
   remove-spatial-preview:
     name: remove-spatial-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -216,10 +216,10 @@ jobs:
   remove-superset-preview:
     name: remove-superset-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -237,10 +237,10 @@ jobs:
   remove-website-api-preview:
     name: remove-website-api-preview
     needs: [branch-name]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 

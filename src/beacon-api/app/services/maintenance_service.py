@@ -1,6 +1,6 @@
 import math
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime, timedelta, timezone
 
 from app.services import cohort_service
@@ -12,7 +12,7 @@ from app.crud.crud_sync_device_data import (
 )
 from app.utils.networks import source_key_for_platform_device
 from app.db.session import SessionLocal
-from app.models.sync import SyncGrid, SyncGridSite, SyncDevice
+from app.models.sync import SyncGrid, SyncGridSite, SyncDevice, SyncSite
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +242,18 @@ def get_synced_map_view(
     function reads entirely from ``sync_cohort`` / ``sync_cohort_device`` /
     ``sync_device`` and enriches via the ``sync_*_device_data`` tables.
     """
+    device_map, _ = _synced_map_view_devices(db, cohort_ids, days, frequency)
+    return {"success": True, "data": list(device_map.values())}
+
+
+def _synced_map_view_devices(
+    db,
+    cohort_ids: Optional[List[str]],
+    days: int,
+    frequency: str,
+) -> Tuple[Dict[str, Dict[str, Any]], Set[str]]:
+    """The synced map-view device entries keyed by device name, and the names whose
+    error margin was measured (both PM2.5 sensors reported in the window)."""
     start_dt, end_dt = _compute_date_range(days)
 
     # Get cohorts from local sync tables, filtered to the group's set
@@ -251,6 +263,7 @@ def get_synced_map_view(
     cohorts = result.get("cohorts", [])
 
     device_map, name_to_channel = _build_map_view_devices(cohorts, db=db)
+    measured_error_margin: Set[str] = set()
 
     if name_to_channel:
         channel_metrics = get_device_metrics_for_map_view(
@@ -267,15 +280,102 @@ def get_synced_map_view(
                     device_map[d_name]["uptime"] = sanitize_metric(metrics["uptime"])
                     device_map[d_name]["data_completeness"] = sanitize_metric(metrics["data_completeness"])
                     device_map[d_name]["error_margin"] = sanitize_metric(metrics["error_margin"])
+                    if metrics.get("has_error_margin"):
+                        measured_error_margin.add(d_name)
 
     _override_last_active_from_local(device_map, name_to_channel, db=db)
 
-    output = []
     for d in device_map.values():
         d["cohorts"] = list(d["cohorts"])
         d.setdefault("grids", [])
-        output.append(d)
 
+    return device_map, measured_error_margin
+
+
+def _parse_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _latest_timestamp(values: List[Optional[str]]) -> Optional[str]:
+    """The latest of ``values`` as given; platform and local timestamps differ in format."""
+    dated = [(parsed, value) for value in values if (parsed := _parse_timestamp(value)) is not None]
+    return max(dated)[1] if dated else None
+
+
+def _mean(values: List[float]) -> float:
+    return sanitize_metric(sum(values) / len(values)) if values else 0.0
+
+
+def get_synced_site_map_view(
+    db,
+    cohort_ids: Optional[List[str]],
+    days: int = 14,
+    frequency: str = "hourly",
+) -> Dict[str, Any]:
+    """The synced map-view devices rolled up into the sites they are deployed at.
+
+    Every device in the device view counts towards its current site (``SyncDevice.site_id``),
+    so the two views agree; a device without a site appears only in the device view. Uptime
+    and data completeness are the average of the site's devices, error margin the average of
+    those that read both PM2.5 sensors, and ``last_active`` the latest of its devices.
+    """
+    device_map, measured_error_margin = _synced_map_view_devices(db, cohort_ids, days, frequency)
+
+    device_ids = [d["device_id"] for d in device_map.values() if d.get("device_id")]
+    site_by_device: Dict[str, str] = {}
+    if device_ids:
+        site_by_device = dict(
+            db.query(SyncDevice.device_id, SyncDevice.site_id)
+            .filter(SyncDevice.device_id.in_(device_ids), SyncDevice.site_id.isnot(None))
+            .all()
+        )
+
+    names_by_site: Dict[str, List[str]] = {}
+    for d_name, entry in device_map.items():
+        site_id = site_by_device.get(entry.get("device_id"))
+        if site_id:
+            names_by_site.setdefault(site_id, []).append(d_name)
+    if not names_by_site:
+        return {"success": True, "data": []}
+
+    sites = {s.site_id: s for s in db.query(SyncSite).filter(SyncSite.site_id.in_(names_by_site))}
+
+    output = []
+    for site_id, names in names_by_site.items():
+        site = sites.get(site_id)
+        site_device_names = sorted(names)
+        entries = [device_map[n] for n in site_device_names]
+        measured = [device_map[n]["error_margin"] for n in site_device_names if n in measured_error_margin]
+
+        # A device's map coordinates are its site's, so the site's own are used as they are
+        output.append({
+            "site_id": site_id,
+            "site_name": (site.name if site else None) or (site.generated_name if site else None) or site_id,
+            "generated_name": site.generated_name if site else None,
+            "latitude": site.latitude if site else None,
+            "longitude": site.longitude if site else None,
+            "city": site.city if site else None,
+            "district": site.district if site else None,
+            "region": site.region if site else None,
+            "country": site.country if site else None,
+            "last_active": _latest_timestamp([e.get("last_active") for e in entries]),
+            "uptime": _mean([e["uptime"] for e in entries]),
+            "data_completeness": _mean([e["data_completeness"] for e in entries]),
+            "error_margin": _mean(measured),
+            "error_margin_devices": len(measured),
+            "cohorts": sorted({c for e in entries for c in e["cohorts"]}),
+            "grids": sorted({g for e in entries for g in e["grids"]}),
+            "number_of_devices": len(entries),
+            "devices": entries,
+        })
+
+    output.sort(key=lambda s: (s["site_name"] or "").lower())
     return {"success": True, "data": output}
 
 

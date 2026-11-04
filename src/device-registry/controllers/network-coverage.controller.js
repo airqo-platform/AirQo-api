@@ -78,6 +78,10 @@ const networkCoverageController = {
           success: true,
           message: message || "Operation Successful",
           countries: data.countries,
+          // Only present when a search term was supplied
+          ...(data.cityMatches !== undefined && {
+            cityMatches: data.cityMatches,
+          }),
           meta: data.meta,
         });
       }
@@ -215,6 +219,22 @@ const networkCoverageController = {
       if (!request) return;
 
       const result = await networkCoverageUtil.deleteRegistry(request);
+      sendResponse(res, result, "registry");
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
+  /**
+   * PATCH /network-coverage/registry/:registryId/soft-delete
+   * Soft delete a registry entry, keeping it recoverable.
+   */
+  softDeleteRegistry: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const result = await networkCoverageUtil.softDeleteRegistry(request);
       sendResponse(res, result, "registry");
     } catch (error) {
       handleError(error, next);

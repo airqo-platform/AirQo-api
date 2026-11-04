@@ -19,7 +19,7 @@ jobs:
 #########################################
 
   branch-name:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       sanitized: ${{ steps.sanitize.outputs.sanitized }}
     steps:
@@ -51,7 +51,7 @@ jobs:
 #########################################
 
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }}
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }}
@@ -65,7 +65,7 @@ jobs:
       run_website_api: ${{ steps.check_files.outputs.run_website_api }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
 
@@ -142,15 +142,15 @@ jobs:
     name: build-push-deploy-auth-service-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_auth_service == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -200,7 +200,7 @@ jobs:
   auth-service-pr-comment:
     needs: [check, auth-service]
     if: needs.check.outputs.run_auth_service == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -220,15 +220,15 @@ jobs:
     name: build-push-deploy-beacon-api-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_beacon_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -278,7 +278,7 @@ jobs:
   beacon-api-pr-comment:
     needs: [check, beacon-api]
     if: needs.check.outputs.run_beacon_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -298,15 +298,15 @@ jobs:
     name: build-push-deploy-device-registry-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -356,7 +356,7 @@ jobs:
   device-registry-pr-comment:
     needs: [check, device-registry]
     if: needs.check.outputs.run_device_registry == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -376,15 +376,15 @@ jobs:
     name: build-push-deploy-predict-service-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_predict == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -434,7 +434,7 @@ jobs:
   predict-pr-comment:
     needs: [check, predict-service]
     if: needs.check.outputs.run_predict == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -454,15 +454,15 @@ jobs:
     name: build-push-deploy-meta-data-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_meta_data == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -512,7 +512,7 @@ jobs:
   meta-data-pr-comment:
     needs: [check, meta-data]
     if: needs.check.outputs.run_meta_data == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -532,15 +532,15 @@ jobs:
     name: build-push-deploy-view-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_view == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -590,7 +590,7 @@ jobs:
   view-pr-comment:
     needs: [check, view]
     if: needs.check.outputs.run_view == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -610,15 +610,15 @@ jobs:
     name: build-push-deploy-calibrate-api-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -629,7 +629,7 @@ jobs:
         run: |
           az keyvault secret show \
             --vault-name ${{ env.KEYVAULT }} \
-            --name sta-env-calibrate \
+            --name sta-env-calibrate-api \
             --query value -o tsv > secrets.json
 
       - name: Build and push image
@@ -668,7 +668,7 @@ jobs:
   calibrate-pr-comment:
     needs: [check, calibrate]
     if: needs.check.outputs.run_calibrate == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -688,15 +688,15 @@ jobs:
     name: build-push-deploy-spatial-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_spatial == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -746,7 +746,7 @@ jobs:
   spatial-pr-comment:
     needs: [check, spatial]
     if: needs.check.outputs.run_spatial == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -766,15 +766,15 @@ jobs:
     name: build-push-deploy-superset-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_superset == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -824,7 +824,7 @@ jobs:
   superset-pr-comment:
     needs: [check, superset]
     if: needs.check.outputs.run_superset == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:
@@ -844,15 +844,15 @@ jobs:
     name: build-push-deploy-website-api-preview
     needs: [check, branch-name]
     if: needs.check.outputs.run_website_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -902,7 +902,7 @@ jobs:
   website-api-pr-comment:
     needs: [check, website-api]
     if: needs.check.outputs.run_website_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v8
         with:

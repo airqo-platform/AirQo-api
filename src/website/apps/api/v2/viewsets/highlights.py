@@ -63,7 +63,7 @@ class HighlightViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
         """Cached list view"""
         cache_key = self.get_cache_key('highlight_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -74,7 +74,7 @@ class HighlightViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.Read
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('highlight_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)
@@ -120,7 +120,7 @@ class TagViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyMo
         """Cached list view"""
         cache_key = self.get_cache_key('tag_list', query_params=request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().list(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_list)
@@ -131,7 +131,7 @@ class TagViewSet(CachedViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyMo
         identifier = str(kwargs.get('pk', ''))
         cache_key = self.get_cache_key('tag_detail', identifier, request.query_params)
         cached = self.get_cached_response(cache_key)
-        if cached:
+        if cached is not None:
             return Response(cached)
         response = super().retrieve(request, *args, **kwargs)
         self.set_cached_response(cache_key, response.data, self.cache_timeout_detail)

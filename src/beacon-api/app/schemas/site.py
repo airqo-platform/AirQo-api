@@ -114,3 +114,26 @@ class SingleSyncedSiteResponse(BaseModel):
     success: bool
     message: str
     site: Optional[SyncedSite] = None
+
+
+class SitesPerformanceSummary(BaseModel):
+    """Performance of every device at the listed sites, rolled up to single values."""
+
+    total_sites: int = 0
+    total_devices: int = 0
+    # Mean of the devices' uptime (% of hours with a reading in the window)
+    uptime: Optional[float] = None
+    # Mean of the devices' daily PM2.5 sensor 1 vs sensor 2 agreement; only devices with
+    # readings from both sensors count, so they carry their own device counts
+    error_margin: Optional[float] = None
+    error_margin_devices: int = 0
+    correlation: Optional[float] = None
+    correlation_devices: int = 0
+    start_date_time: str
+    end_date_time: str
+
+
+class SitesPerformanceSummaryResponse(BaseModel):
+    success: bool
+    message: str
+    summary: SitesPerformanceSummary

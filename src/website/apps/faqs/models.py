@@ -4,6 +4,15 @@ from django_quill.fields import QuillField
 
 
 class Category(models.Model):
+    # This table predates the project-wide BigAutoField default. Keep the
+    # existing primary-key type explicit so migration reconciliation does not
+    # attempt an unnecessary production type change.
+    id = models.AutoField(
+        auto_created=True,
+        primary_key=True,
+        serialize=False,
+        verbose_name="ID",
+    )
     name = models.CharField(max_length=50, unique=True)
 
     class Meta:

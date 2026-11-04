@@ -1,6 +1,7 @@
 import httpx
 import json
 import logging
+import math
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
@@ -8,9 +9,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.crud.crud_sync_device_data import iter_hourly_records_by_channel
 from app.models.sync import SyncSite, SyncSiteDevice, SyncDevice
 from app.services import cohort_sync_service
 from app.services.device_service import AIRQO_NETWORK, upsert_device_to_sync
+from app.utils.field_mappings import get_category_mapping
+from app.utils.networks import device_source_key
 
 logger = logging.getLogger(__name__)
 
@@ -554,3 +558,168 @@ def apply_local_performance_synced_sites(
     cohort_sync_service.apply_local_performance_synced(
         sites, db, start_date_time, end_date_time, frequency=frequency
     )
+
+
+# ---------------------------------------------------------------------------
+# Performance summary across all of a group's sites
+# ---------------------------------------------------------------------------
+
+# The data pipeline treats PM2.5 outside this range as invalid (airqo_etl_utils config)
+PM2_5_VALID_RANGE = (0.0, 1000.0)
+
+
+def _is_reading(value: Any) -> bool:
+    """A PM2.5 value inside the valid range; a corrupt reading such as -1.3e24 would swamp any average."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or math.isnan(value):
+        return False
+    low, high = PM2_5_VALID_RANGE
+    return low <= value <= high
+
+
+def _mean_or_none(values: List[float]) -> Optional[float]:
+    return sum(values) / len(values) if values else None
+
+
+def _round_or_none(value: Optional[float], digits: int = 4) -> Optional[float]:
+    return None if value is None else round(value, digits)
+
+
+def _pearson(xs: List[float], ys: List[float]) -> Optional[float]:
+    """Pearson correlation of two equal-length series; None without two points or any variance."""
+    n = len(xs)
+    if n < 2:
+        return None
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    num = den_x = den_y = 0.0
+    for x, y in zip(xs, ys):
+        dx, dy = x - mean_x, y - mean_y
+        num += dx * dy
+        den_x += dx * dx
+        den_y += dy * dy
+    if den_x == 0 or den_y == 0:
+        return None
+    return num / math.sqrt(den_x * den_y)
+
+
+def _sensor_agreement(records: List[Dict[str, Any]]) -> Tuple[Optional[float], Optional[float]]:
+    """
+    One device's PM2.5 sensor 1 vs sensor 2 agreement as ``(error_margin, correlation)``.
+
+    Readings are grouped by UTC day; the error margin is the mean of each day's mean
+    ``|sensor1 - sensor2|`` and the correlation the mean of each day's Pearson correlation,
+    which is how the Performance Analysis table summarises a device. Both are None for a
+    device without readings from both sensors.
+    """
+    pairs_by_day: Dict[str, Tuple[List[float], List[float]]] = {}
+    for record in records:
+        s1 = record.get("pm2.5 sensor1")
+        s2 = record.get("pm2.5 sensor2")
+        dt_str = record.get("datetime")
+        if not dt_str or not _is_reading(s1) or not _is_reading(s2):
+            continue
+        try:
+            dt = datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        day = dt.astimezone(timezone.utc).date().isoformat()
+        s1_values, s2_values = pairs_by_day.setdefault(day, ([], []))
+        s1_values.append(float(s1))
+        s2_values.append(float(s2))
+
+    daily_margins: List[float] = []
+    daily_correlations: List[float] = []
+    for s1_values, s2_values in pairs_by_day.values():
+        daily_margins.append(sum(abs(a - b) for a, b in zip(s1_values, s2_values)) / len(s1_values))
+        correlation = _pearson(s1_values, s2_values)
+        if correlation is not None:
+            daily_correlations.append(correlation)
+    return _mean_or_none(daily_margins), _mean_or_none(daily_correlations)
+
+
+def _pm25_sensor_fields(category: Optional[str]) -> Optional[Tuple[str, str]]:
+    """The fields an airqo device of ``category`` reports PM2.5 sensor 1 and 2 in, if it has both."""
+    field_by_label = {label: field for field, label in get_category_mapping(category).items()}
+    sensor1, sensor2 = field_by_label.get("pm2.5 sensor1"), field_by_label.get("pm2.5 sensor2")
+    return (sensor1, sensor2) if sensor1 and sensor2 else None
+
+
+def get_sites_performance_summary(
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+    group_device_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Roll up the hourly performance of every device at the sites to single values.
+
+    Covers the sites and devices ``GET /sites/?includePerformance=true`` lists (airqo
+    devices, scoped to the group when ``group_device_ids`` is given) across all its pages,
+    counting each device once even when it has moved between sites. Uptime is the mean of
+    the devices' uptime; error margin and correlation are means over the devices that have
+    readings from both PM2.5 sensors.
+
+    Devices are told apart by id, not name: names are not unique, so a lookup by name could
+    take in the readings of a same-named device outside the group. Readings are rolled up a
+    channel at a time, so only one device's hourly rows are held at once.
+    """
+    # Local import, as in cohort_sync_service, to avoid a circular import at load time
+    from app.services import cohort_service
+
+    junctions = _site_device_junction_query(db, group_device_ids, airqo_only=True).all()
+    site_ids = {j.site_id for j in junctions}
+    device_ids = {j.device_id for j in junctions if j.device_id}
+
+    # Readings are stored by channel: the ThingSpeak channel number for airqo devices
+    device_ids_by_channel: Dict[str, List[str]] = {}
+    sensor_fields: Dict[str, Optional[Tuple[str, str]]] = {}
+    if device_ids:
+        devices = db.query(
+            SyncDevice.device_id, SyncDevice.device_number, SyncDevice.network_id, SyncDevice.category,
+        ).filter(SyncDevice.device_id.in_(device_ids))
+        for device in devices:
+            sensor_fields[device.device_id] = _pm25_sensor_fields(device.category)
+            channel = device_source_key(device.network_id, device.device_id, device.device_number)
+            if channel:
+                device_ids_by_channel.setdefault(channel, []).append(device.device_id)
+
+    uptime_by_device: Dict[str, float] = {}
+    error_margins: List[float] = []
+    correlations: List[float] = []
+    fields = {field for pair in sensor_fields.values() if pair for field in pair}
+    channel_records = iter_hourly_records_by_channel(
+        db, device_ids_by_channel, start_date_time, end_date_time, fields,
+    )
+    for channel, records in channel_records:
+        # Counted as compute_device_performance counts it, so the summary matches the sites list
+        uptime = cohort_service._compute_uptime(records, start_date_time, end_date_time, "hourly")
+        for device_id in device_ids_by_channel.get(channel, []):
+            uptime_by_device[device_id] = uptime
+            pair = sensor_fields.get(device_id)
+            if pair is None:
+                continue
+            sensor1, sensor2 = pair
+            error_margin, correlation = _sensor_agreement([
+                {"datetime": r["datetime"], "pm2.5 sensor1": r.get(sensor1), "pm2.5 sensor2": r.get(sensor2)}
+                for r in records
+            ])
+            if error_margin is not None:
+                error_margins.append(error_margin)
+            if correlation is not None:
+                correlations.append(correlation)
+
+    uptimes = [uptime_by_device.get(device_id, 0.0) for device_id in device_ids]
+
+    return {
+        "total_sites": len(site_ids),
+        "total_devices": len(device_ids),
+        "uptime": _round_or_none(_mean_or_none(uptimes), 2),
+        "error_margin": _round_or_none(_mean_or_none(error_margins)),
+        "error_margin_devices": len(error_margins),
+        "correlation": _round_or_none(_mean_or_none(correlations)),
+        "correlation_devices": len(correlations),
+        "start_date_time": start_date_time,
+        "end_date_time": end_date_time,
+    }

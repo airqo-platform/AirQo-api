@@ -20,7 +20,7 @@ jobs:
   image-tag:
     if: github.event.pull_request.merged == true
     name: create image tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build_id: ${{ steps.prep.outputs.build_id }}
       datetime: ${{ steps.prep.outputs.datetime }}
@@ -56,10 +56,10 @@ jobs:
       run_nginx: ${{ steps.check_files.outputs.run_nginx }}
       run_redis: ${{ steps.check_files.outputs.run_redis }}
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 2
 
@@ -201,13 +201,13 @@ jobs:
     name: build-push-auth-service
     needs: [check, image-tag]
     if: needs.check.outputs.run_auth_service == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -244,13 +244,13 @@ jobs:
     name: build-push-device-registry
     needs: [check, image-tag]
     if: needs.check.outputs.run_device_registry == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -287,13 +287,13 @@ jobs:
     name: build-push-analytics
     needs: [check, image-tag]
     if: needs.check.outputs.run_analytics == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -373,13 +373,13 @@ jobs:
     name: build-push-beacon-api
     needs: [check, image-tag]
     if: needs.check.outputs.run_beacon_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -416,10 +416,10 @@ jobs:
     name: build-push-predict-service
     needs: [check, image-tag]
     if: needs.check.outputs.run_predict == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -428,7 +428,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -474,10 +474,10 @@ jobs:
     name: build-push-meta-data
     needs: [check, image-tag]
     if: needs.check.outputs.run_meta_data == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -486,7 +486,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -533,10 +533,10 @@ jobs:
     name: build-push-view
     needs: [check, image-tag]
     if: needs.check.outputs.run_view == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -545,7 +545,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -582,10 +582,10 @@ jobs:
     name: build-push-calibrate
     needs: [check, image-tag]
     if: needs.check.outputs.run_calibrate == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -594,7 +594,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -644,10 +644,10 @@ jobs:
     name: build-push-workflows
     needs: [check, image-tag]
     if: needs.check.outputs.run_workflows == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -656,7 +656,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -713,13 +713,13 @@ jobs:
     name: build-push-spatial
     needs: [check, image-tag]
     if: needs.check.outputs.run_spatial == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -756,13 +756,13 @@ jobs:
     name: build-push-website-api
     needs: [check, image-tag]
     if: needs.check.outputs.run_website_api == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -798,18 +798,18 @@ jobs:
     name: deploy-redis
     needs: [check]
     if: needs.check.outputs.run_redis == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_STAGE }}
@@ -828,18 +828,18 @@ jobs:
     name: apply-nginx
     needs: [check]
     if: needs.check.outputs.run_nginx == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
+        uses: azure/k8s-set-context@8698eba2499e9012f0d5085f8798077cce4bc526 # v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_STAGE }}

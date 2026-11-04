@@ -99,3 +99,31 @@ class MapViewDeviceEntry(BaseModel):
 class MapViewResponse(BaseModel):
     success: bool = True
     data: List[MapViewDeviceEntry] = []
+
+
+class MapViewSiteEntry(BaseModel):
+    """A site on the maintenance map, carrying the device entries' metric fields for its devices."""
+    site_id: str
+    site_name: str
+    generated_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    last_active: Optional[str] = None
+    uptime: float = 0.0
+    data_completeness: float = 0.0
+    error_margin: float = 0.0
+    # Devices that read both PM2.5 sensors; error_margin averages only these
+    error_margin_devices: int = 0
+    cohorts: List[str] = []
+    grids: List[str] = []
+    number_of_devices: int = 0
+    devices: List[MapViewDeviceEntry] = []
+
+
+class SiteMapViewResponse(BaseModel):
+    success: bool = True
+    data: List[MapViewSiteEntry] = []

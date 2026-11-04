@@ -19,6 +19,7 @@ const NetworkCoverageRegistryModel = require("@models/NetworkCoverageRegistry");
 const GridModel = require("@models/Grid");
 const SdgCityModel = require("@models/SdgCity");
 const CityPopulationRegistryModel = require("@models/CityPopulationRegistry");
+const ComputedCacheModel = require("@models/ComputedCache");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -81,6 +82,7 @@ const COUNTRY_ISO2 = {
   France: "FR",
   Gabon: "GA",
   Gambia: "GM",
+  "The Gambia": "GM",
   Germany: "DE",
   Ghana: "GH",
   Greece: "GR",
@@ -541,16 +543,88 @@ function applyFilters(monitors, { search, activeOnly, types, network } = {}) {
 
   if (search) {
     const q = search.toLowerCase();
+    // ISO2 is matched exactly — substring matching on two-letter codes would
+    // pull in unrelated countries (e.g. "u" matching both UG and US).
     result = result.filter(
       (m) =>
         m.country.toLowerCase().includes(q) ||
         m.city.toLowerCase().includes(q) ||
         m.name.toLowerCase().includes(q) ||
-        m.network.toLowerCase().includes(q)
+        m.network.toLowerCase().includes(q) ||
+        (m.iso2 || "").toLowerCase() === q
     );
   }
 
   return result;
+}
+
+/**
+ * Builds the city-level search matches for the summary endpoint so a search
+ * such as "Nairobi" can resolve to the city itself rather than only to its
+ * parent country group. Only cities whose name contains the search term are
+ * returned — cities included merely because their country matched are not.
+ *
+ * Sorted exact match first, then prefix match, then by monitor count desc.
+ */
+function buildCityMatches(monitors, search) {
+  const q = (search || "").trim().toLowerCase();
+  if (!q) return [];
+
+  const cityMap = new Map();
+  for (const monitor of monitors) {
+    const city = (monitor.city || "").trim();
+    if (!city || !city.toLowerCase().includes(q)) continue;
+
+    const key = `${city.toLowerCase()}|${(monitor.country || "").toLowerCase()}`;
+    if (!cityMap.has(key)) {
+      cityMap.set(key, {
+        city,
+        country: monitor.country || "",
+        countryId: slugify(monitor.country || "Unknown"),
+        iso2: monitor.iso2 || "",
+        total: 0,
+        active: 0,
+        inactive: 0,
+        _latSum: 0,
+        _lngSum: 0,
+        _coordCount: 0,
+      });
+    }
+    const entry = cityMap.get(key);
+    entry.total++;
+    if (entry[monitor.status] !== undefined) entry[monitor.status]++;
+    if (monitor.latitude != null && monitor.longitude != null) {
+      entry._latSum += monitor.latitude;
+      entry._lngSum += monitor.longitude;
+      entry._coordCount++;
+    }
+  }
+
+  const rank = (city) => {
+    const c = city.toLowerCase();
+    if (c === q) return 0;
+    if (c.startsWith(q)) return 1;
+    return 2;
+  };
+
+  return Array.from(cityMap.values())
+    .map(({ _latSum, _lngSum, _coordCount, ...rest }) => ({
+      ...rest,
+      // Mean of member coordinates — a map centre for zooming to the city.
+      center:
+        _coordCount > 0
+          ? {
+              latitude: _latSum / _coordCount,
+              longitude: _lngSum / _coordCount,
+            }
+          : null,
+    }))
+    .sort(
+      (a, b) =>
+        rank(a.city) - rank(b.city) ||
+        b.total - a.total ||
+        a.city.localeCompare(b.city)
+    );
 }
 
 // Only fetch Site fields we actually need
@@ -660,11 +734,14 @@ async function fetchAllSources(tenant) {
     [enrichmentDocs, standaloneEntries] = await Promise.all([
       activeSiteIds.length > 0
         ? NetworkCoverageRegistryModel(tenant)
-            .find({ site_id: { $in: activeSiteIds } })
+            .find({ site_id: { $in: activeSiteIds }, deletedAt: null })
             .lean()
         : Promise.resolve([]),
       NetworkCoverageRegistryModel(tenant)
-        .find({ $or: [{ site_id: { $exists: false } }, { site_id: null }] })
+        .find({
+          $or: [{ site_id: { $exists: false } }, { site_id: null }],
+          deletedAt: null,
+        })
         .lean(),
     ]);
   } catch (err) {
@@ -791,6 +868,138 @@ async function fetchAllSources(tenant) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared cache of the fully built monitor list (MongoDB ComputedCache).
+// Deliberately has no in-memory layer: a registry write on one pod must be
+// visible to every pod on the next read. Every cache failure falls through to
+// the live computation, so the cache can never fail a request.
+// ---------------------------------------------------------------------------
+const MONITORS_CACHE_TTL_MS =
+  (constants.NETWORK_COVERAGE_CACHE_TTL_SECONDS || 300) * 1000;
+const MONITORS_CACHE_KEY = "network_coverage_monitors";
+// Records the last invalidation, so a computation that started before a write
+// cannot re-store its out-of-date result after that write has invalidated.
+const MONITORS_INVALIDATED_KEY = "network_coverage_monitors_invalidated";
+const _monitorsInflight = new Map(); // per-tenant in-flight computations
+
+async function computeAllMonitors(tenant) {
+  const {
+    airqoSites,
+    standaloneEntries,
+    registryBySiteId,
+    categoryBySiteId,
+    populationByCity,
+  } = await fetchAllSources(tenant);
+
+  const airqoMonitors = airqoSites.map((site) =>
+    buildAirQoMonitorItem(
+      site,
+      registryBySiteId.get(String(site._id)),
+      categoryBySiteId.get(String(site._id))
+    )
+  );
+  const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
+
+  return {
+    monitors: [...airqoMonitors, ...externalMonitors],
+    // Entries, not a plain object: the "city|country" keys can contain dots,
+    // which MongoDB does not accept in stored field names.
+    populationEntries: Array.from(populationByCity.entries()),
+  };
+}
+
+async function writeMonitorsCache(tenant, data, startedAt) {
+  try {
+    const invalidated = await ComputedCacheModel(tenant)
+      .findOne({ key: MONITORS_INVALIDATED_KEY, tenant })
+      .lean();
+    if (invalidated && invalidated.computedAt >= startedAt) return;
+
+    await ComputedCacheModel(tenant).findOneAndUpdate(
+      { key: MONITORS_CACHE_KEY, tenant },
+      {
+        $set: {
+          data,
+          computedAt: new Date(),
+          expiresAt: new Date(Date.now() + MONITORS_CACHE_TTL_MS),
+        },
+        $setOnInsert: { key: MONITORS_CACHE_KEY, tenant },
+      },
+      { upsert: true, new: false }
+    );
+  } catch (error) {
+    logger.warn(`Network coverage cache write failed: ${error.message}`);
+  }
+}
+
+/**
+ * The full monitor list used by the list, country, export and impact
+ * endpoints. AirQo status fields can lag by up to the cache TTL; registry and
+ * city population writes invalidate the cache immediately.
+ */
+async function loadAllMonitors(tenant) {
+  try {
+    const cached = await ComputedCacheModel(tenant)
+      .findOne({ key: MONITORS_CACHE_KEY, tenant })
+      .lean();
+    if (cached && cached.expiresAt > new Date()) {
+      return {
+        monitors: cached.data.monitors,
+        populationByCity: new Map(cached.data.populationEntries),
+      };
+    }
+  } catch (error) {
+    logger.warn(`Network coverage cache read failed: ${error.message}`);
+  }
+
+  let inflight = _monitorsInflight.get(tenant);
+  if (!inflight) {
+    const startedAt = new Date();
+    const computation = computeAllMonitors(tenant)
+      .then(async (data) => {
+        await writeMonitorsCache(tenant, data, startedAt);
+        return data;
+      })
+      .finally(() => {
+        // An invalidation may have replaced this entry with a newer computation.
+        if (_monitorsInflight.get(tenant) === computation) {
+          _monitorsInflight.delete(tenant);
+        }
+      });
+    _monitorsInflight.set(tenant, computation);
+    inflight = computation;
+  }
+
+  const { monitors, populationEntries } = await inflight;
+  return { monitors, populationByCity: new Map(populationEntries) };
+}
+
+async function invalidateMonitorsCache(tenant) {
+  _monitorsInflight.delete(tenant);
+  try {
+    const now = new Date();
+    await ComputedCacheModel(tenant).findOneAndUpdate(
+      { key: MONITORS_INVALIDATED_KEY, tenant },
+      {
+        $set: {
+          data: true,
+          computedAt: now,
+          // Must outlive any computation that started before this write.
+          expiresAt: new Date(now.getTime() + MONITORS_CACHE_TTL_MS),
+        },
+        $setOnInsert: { key: MONITORS_INVALIDATED_KEY, tenant },
+      },
+      { upsert: true, new: false }
+    );
+    await ComputedCacheModel(tenant).deleteOne({
+      key: MONITORS_CACHE_KEY,
+      tenant,
+    });
+  } catch (error) {
+    logger.warn(`Network coverage cache invalidation failed: ${error.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exported utility functions
 // ---------------------------------------------------------------------------
 
@@ -804,25 +1013,8 @@ const networkCoverageUtil = {
     try {
       const { tenant, search, activeOnly, types, network } = request.query;
 
-      const {
-        airqoSites,
-        standaloneEntries,
-        registryBySiteId,
-        categoryBySiteId,
-        populationByCity,
-      } = await fetchAllSources(tenant);
-
-      // Build monitor items from both sources
-      const airqoMonitors = airqoSites.map((site) =>
-        buildAirQoMonitorItem(
-          site,
-          registryBySiteId.get(String(site._id)),
-          categoryBySiteId.get(String(site._id))
-        )
-      );
-      const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
-
-      const allMonitors = [...airqoMonitors, ...externalMonitors];
+      const { monitors: allMonitors, populationByCity } =
+        await loadAllMonitors(tenant);
 
       // availableNetworks is derived before filtering so the source dropdown
       // always shows every network regardless of the active filter.
@@ -842,6 +1034,7 @@ const networkCoverageUtil = {
       });
 
       const countries = groupByCountry(filtered);
+      const cityMatches = search ? buildCityMatches(filtered, search) : undefined;
 
       // ── Impact stats (computed from the filtered set) ──────────────────────
       const byType = { Reference: 0, LCS: 0, Inactive: 0 };
@@ -893,6 +1086,7 @@ const networkCoverageUtil = {
         message: "Network coverage data retrieved successfully",
         data: {
           countries,
+          cityMatches,
           meta: {
             totalMonitors: filtered.length,
             byType,
@@ -967,7 +1161,7 @@ const networkCoverageUtil = {
         let registryDoc = null;
         try {
           registryDoc = await NetworkCoverageRegistryModel(tenant)
-            .findOne({ site_id: site._id })
+            .findOne({ site_id: site._id, deletedAt: null })
             .lean();
         } catch (err) {
           logger.warn(
@@ -993,7 +1187,7 @@ const networkCoverageUtil = {
         // fall through
       }
 
-      if (registryDoc && !registryDoc.site_id) {
+      if (registryDoc && !registryDoc.site_id && !registryDoc.deletedAt) {
         return {
           success: true,
           message: "Monitor retrieved successfully",
@@ -1028,27 +1222,16 @@ const networkCoverageUtil = {
       const { tenant, activeOnly, types, network } = request.query;
       const { countryId } = request.params;
 
-      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
-        await fetchAllSources(tenant);
-
-      const airqoMonitors = airqoSites
-        .filter((s) => slugify(s.country) === countryId)
-        .map((site) =>
-          buildAirQoMonitorItem(
-            site,
-            registryBySiteId.get(String(site._id)),
-            categoryBySiteId.get(String(site._id))
-          )
-        );
-
-      const externalMonitors = standaloneEntries
-        .filter((r) => slugify(r.country) === countryId)
-        .map(buildStandaloneMonitorItem);
-
-      const allMonitors = applyFilters(
-        [...airqoMonitors, ...externalMonitors],
-        { activeOnly, types, network }
+      const { monitors } = await loadAllMonitors(tenant);
+      const countryMonitors = monitors.filter(
+        (m) => slugify(m.country) === countryId
       );
+
+      const allMonitors = applyFilters(countryMonitors, {
+        activeOnly,
+        types,
+        network,
+      });
 
       if (allMonitors.length === 0) {
         return {
@@ -1061,8 +1244,7 @@ const networkCoverageUtil = {
         };
       }
 
-      const countryName =
-        airqoMonitors[0]?.country || externalMonitors[0]?.country || "";
+      const countryName = countryMonitors[0]?.country || "";
 
       return {
         success: true,
@@ -1096,19 +1278,9 @@ const networkCoverageUtil = {
       const { tenant, search, activeOnly, types, network, countryId } =
         request.query;
 
-      const { airqoSites, standaloneEntries, registryBySiteId, categoryBySiteId } =
-        await fetchAllSources(tenant);
+      const { monitors: allMonitors } = await loadAllMonitors(tenant);
 
-      const airqoMonitors = airqoSites.map((site) =>
-        buildAirQoMonitorItem(
-          site,
-          registryBySiteId.get(String(site._id)),
-          categoryBySiteId.get(String(site._id))
-        )
-      );
-      const externalMonitors = standaloneEntries.map(buildStandaloneMonitorItem);
-
-      let monitors = applyFilters([...airqoMonitors, ...externalMonitors], {
+      let monitors = applyFilters(allMonitors, {
         search,
         activeOnly,
         types,
@@ -1185,12 +1357,16 @@ const networkCoverageUtil = {
       // When linking to an AirQo site, verify the Site document exists first,
       // then check for active devices. Enrichment is allowed even when no
       // device is currently active (useful for temporarily offline sites).
+      let siteCountry = "";
+      // Standalone entries are readable as soon as they are saved; site
+      // entries only once the site has an active device.
+      let hasActive = true;
       if (data.site_id) {
-        const siteExists = await SiteModel(tenant).exists({
-          _id: data.site_id,
-        });
+        const siteDoc = await SiteModel(tenant)
+          .findById(data.site_id, { country: 1 })
+          .lean();
 
-        if (!siteExists) {
+        if (!siteDoc) {
           return {
             success: false,
             message: "Site not found",
@@ -1198,8 +1374,9 @@ const networkCoverageUtil = {
             status: httpStatus.NOT_FOUND,
           };
         }
+        siteCountry = siteDoc.country || "";
 
-        const hasActive = await DeviceModel(tenant).exists({
+        hasActive = await DeviceModel(tenant).exists({
           site_id: data.site_id,
           isActive: true,
         });
@@ -1212,7 +1389,33 @@ const networkCoverageUtil = {
       }
 
       const result = await NetworkCoverageRegistryModel(tenant).register(data);
-      return result;
+      if (!result.success || !result.data) return result;
+      await invalidateMonitorsCache(tenant);
+
+      // Expose the identifiers the read endpoints accept so callers can fetch
+      // the monitor straight after registering it. For site enrichment entries
+      // the monitor is addressed by its Site _id, not the registry _id.
+      const { deletedAt, deletedBy, ...record } =
+        typeof result.data.toObject === "function"
+          ? result.data.toObject()
+          : result.data;
+      // Site entries are listed under the Site's country, so prefer it here
+      // to keep countryId consistent with the read endpoints.
+      const country = siteCountry || record.country || "";
+      return {
+        ...result,
+        data: {
+          ...record,
+          monitorId: String(record.site_id || record._id),
+          countryId: slugify(country || "Unknown"),
+          iso2: record.iso2 || getIso2(country),
+          // Response-only (not stored): "available" when monitorId can be read
+          // from the list, country and monitor detail endpoints now; "pending"
+          // when the linked site has no active device yet, so those endpoints
+          // will not return it until a device is deployed there.
+          availability: hasActive ? "available" : "pending",
+        },
+      };
     } catch (error) {
       logger.error(
         `🐛🐛 networkCoverageUtil.upsertRegistry: ${error.message}`
@@ -1263,6 +1466,7 @@ const networkCoverageUtil = {
       const result = await CityPopulationRegistryModel(tenant).register(
         request.body
       );
+      if (result.success) await invalidateMonitorsCache(tenant);
       return result;
     } catch (error) {
       logger.error(
@@ -1288,6 +1492,7 @@ const networkCoverageUtil = {
       const result = await CityPopulationRegistryModel(tenant).removeById(
         cityId
       );
+      if (result.success) await invalidateMonitorsCache(tenant);
       return result;
     } catch (error) {
       logger.error(
@@ -1314,10 +1519,40 @@ const networkCoverageUtil = {
       const result = await NetworkCoverageRegistryModel(tenant).removeById(
         registryId
       );
+      if (result.success) await invalidateMonitorsCache(tenant);
       return result;
     } catch (error) {
       logger.error(
         `🐛🐛 networkCoverageUtil.deleteRegistry: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * PATCH /network-coverage/registry/:registryId/soft-delete
+   * Soft delete a registry entry by its own _id, hiding it from every read
+   * while keeping it recoverable by clearing deletedAt.
+   */
+  softDeleteRegistry: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { registryId } = request.params;
+
+      const result = await NetworkCoverageRegistryModel(tenant).softDeleteById(
+        registryId,
+        { deletedBy: request.identity?.userId || null }
+      );
+      if (result.success) await invalidateMonitorsCache(tenant);
+      return result;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 networkCoverageUtil.softDeleteRegistry: ${error.message}`
       );
       return {
         success: false,
@@ -1354,25 +1589,8 @@ const networkCoverageUtil = {
     try {
       const { tenant, search, activeOnly, types, network } = request.query;
 
-      const {
-        airqoSites,
-        standaloneEntries,
-        registryBySiteId,
-        categoryBySiteId,
-        populationByCity,
-      } = await fetchAllSources(tenant);
-
-      const airqoMonitors = airqoSites.map((site) =>
-        buildAirQoMonitorItem(
-          site,
-          registryBySiteId.get(String(site._id)),
-          categoryBySiteId.get(String(site._id))
-        )
-      );
-      const externalMonitors = standaloneEntries.map(
-        buildStandaloneMonitorItem
-      );
-      const allMonitors = [...airqoMonitors, ...externalMonitors];
+      const { monitors: allMonitors, populationByCity } =
+        await loadAllMonitors(tenant);
 
       const filtered = applyFilters(allMonitors, {
         search,

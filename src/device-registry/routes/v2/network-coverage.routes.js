@@ -7,6 +7,7 @@ const networkCoverageController = require("@controllers/network-coverage.control
 const networkCoverageValidations = require("@validators/network-coverage.validators");
 const { headers, validate } = require("@validators/common");
 const { verifyCaptcha } = require("@middleware/captcha.middleware");
+const { attachIdentityContext } = require("@middleware/identity-context.middleware");
 
 // Rate limiter for public registry write endpoints.
 // 20 requests per hour per IP — generous for a form, strict enough to deter
@@ -127,25 +128,29 @@ router.get(
 );
 
 // ---------------------------------------------------------------------------
-// Registry management – intentionally unauthenticated (public submission form)
+// Registry management – POST is intentionally unauthenticated (public submission form)
 // POST   /network-coverage/registry               – upsert registry entry
 // DELETE /network-coverage/registry/:registryId   – remove registry entry
+// PATCH  /network-coverage/registry/:registryId/soft-delete – soft delete entry
 //
 // THREAT MODEL / ACCEPTED RISKS:
-// These routes are deliberately public (no token required) to support a
+// POST is deliberately public (no token required) to support a
 // Google-Form-style public submission flow on the Network Coverage map page,
 // where external contributors can add or update monitor metadata without an
 // AirQo account.
 //
 // Accepted risks:
 //   - Any anonymous caller can create or overwrite a registry entry.
-//   - Any anonymous caller can delete a registry entry by its _id.
+//   - Any valid token holder can soft delete an entry. It stays recoverable by
+//     clearing deletedAt and records deletedBy, so CAPTCHA is not applied: the
+//     caller is already authenticated and has no browser to solve it in.
+//     Keep this route off POST, which the nginx bypass leaves token-free.
 //
 // Mitigations in place:
 //   - Registry writes never touch the Sites or Devices collections; the worst
 //     outcome is junk data in the network_coverage_registry collection.
 //   - Input is validated by networkCoverageValidations before the controller.
-//   - The nginx bypass is method-scoped to POST and DELETE only, so GET/PUT
+//   - The nginx bypass is method-scoped to POST only, so GET/PUT/DELETE
 //     on /registry still require a valid token.
 //   - IP-based rate limiting: 20 requests per hour per IP (registryLimiter).
 //   - CAPTCHA: verifyCaptcha middleware is wired in; enforced once
@@ -168,6 +173,15 @@ router.delete(
   networkCoverageValidations.deleteRegistry,
   validate,
   networkCoverageController.deleteRegistry
+);
+
+router.patch(
+  "/registry/:registryId/soft-delete",
+  registryLimiter,
+  attachIdentityContext,
+  networkCoverageValidations.softDeleteRegistry,
+  validate,
+  networkCoverageController.softDeleteRegistry
 );
 
 module.exports = router;

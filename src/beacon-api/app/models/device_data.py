@@ -144,3 +144,20 @@ class SyncDailyDeviceData(Base):
         UniqueConstraint("channel_id", "data_date", name="uq_daily_channel_date"),
         Index("ix_daily_channel_date", "channel_id", "data_date"),
     )
+
+
+class DeviceReadingsRefresh(Base):
+    """
+    Coordinates on-demand refreshes of one device's readings across workers
+    and replicas (see ``device_readings_service``).
+
+    state = ``running`` while a refresh holds the device, then the refresh's
+    outcome (``ok``, ``no_data``, ``failed`` ...) for a short cooldown.
+    The device is free again once expires_at has passed.
+    """
+    __tablename__ = "device_readings_refresh"
+
+    device_id = Column(String(100), primary_key=True)  # logical link to sync_device.device_id
+    state = Column(String(20), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
