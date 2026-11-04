@@ -65,7 +65,7 @@ jobs:
       run_website_api: ${{ steps.check_files.outputs.run_website_api }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
         with:
           fetch-depth: 0
 
@@ -147,10 +147,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -225,10 +225,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -303,10 +303,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -381,10 +381,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -459,10 +459,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -537,10 +537,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -615,10 +615,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -693,10 +693,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -771,10 +771,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -849,10 +849,10 @@ jobs:
       url: ${{ steps.preview.outputs.url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.1.0
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 

@@ -91,10 +91,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -129,7 +129,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -138,7 +138,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -195,10 +195,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -233,10 +233,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -271,10 +271,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -354,7 +354,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -363,7 +363,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -410,7 +410,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -419,7 +419,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -456,7 +456,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -465,7 +465,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -515,7 +515,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -524,7 +524,7 @@ jobs:
         uses: docker/setup-buildx-action@v2.7.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -570,7 +570,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
@@ -586,7 +586,7 @@ jobs:
           password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
+        uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
@@ -636,15 +636,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
+        uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
@@ -661,10 +661,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -699,10 +699,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -736,15 +736,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.1.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3.1.0
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
+        uses: azure/k8s-set-context@v5.0.1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.AZURE_K8S_CONFIG_PROD }}
