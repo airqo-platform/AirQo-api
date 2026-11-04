@@ -18,7 +18,11 @@ def test_sentinel_mode_discovers_master_and_ignores_standalone_url(monkeypatch):
         assert redis_client.create_redis_client(decode_responses=True) is client
     factory.assert_called_once_with(
         [("sentinel-service", 26379)], socket_timeout=0.5,
-        sentinel_kwargs={"password": "secret"},
+        sentinel_kwargs={
+            "socket_timeout": 0.5,
+            "socket_connect_timeout": 0.5,
+            "password": "secret",
+        },
     )
     sentinel.master_for.assert_called_once_with(
         "mymaster", db=2, password="secret", decode_responses=True,

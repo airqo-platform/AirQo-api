@@ -25,7 +25,11 @@ def create_redis_client(*, decode_responses=False):
         sentinel = Sentinel(
             [(host, port)],
             socket_timeout=0.5,
-            sentinel_kwargs={"password": password} if password else {},
+            sentinel_kwargs={
+                "socket_timeout": 0.5,
+                "socket_connect_timeout": 0.5,
+                **({"password": password} if password else {}),
+            },
         )
         client = sentinel.master_for(
             os.getenv("REDIS_SENTINEL_MASTER", "mymaster"),
