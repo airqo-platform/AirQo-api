@@ -3,7 +3,7 @@ app:
   label: sta-device-reg
   secret: sta-env-device-registry
   namespace: staging
-replicaCount: 2
+replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-device-registry-api
   tag: stage-03ef191e-1793678708

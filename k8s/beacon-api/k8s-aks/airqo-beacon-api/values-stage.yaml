@@ -4,7 +4,7 @@ app:
   azureSecret: sta-env-beacon
   k8sSecret: sta-beacon-api
   namespace: staging
-replicaCount: 2
+replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-beacon-api
   tag: stage-7d338159-1793711552
