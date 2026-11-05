@@ -15,6 +15,7 @@ from shapely.geometry.base import BaseGeometry
 import base64
 from flask import jsonify
 import redis
+from utils.redis_client import create_redis_client
 import json
 from typing import Optional, Dict, Any, List, Tuple
 from models.heatmapModel import AirQualityData, AirQualityGrids, AirQualityPredictor
@@ -61,20 +62,12 @@ class AQIImageGenerator:
         Initializes and returns a Redis client, or None if connection fails.
         """
         if cls._redis_client is None:
-            redis_host = os.getenv("REDIS_HOST", "localhost")
-            redis_port = int(os.getenv("REDIS_PORT", 6379))
-            redis_db = int(os.getenv("REDIS_DB", 0))
             try:
-                cls._redis_client = redis.StrictRedis(
-                    host=redis_host,
-                    port=redis_port,
-                    db=redis_db,
-                    decode_responses=True
+                cls._redis_client = create_redis_client(
+                    decode_responses=True, prefer_host_port=True
                 )
-                cls._redis_client.ping()
-                print(f"Connected to Redis at {redis_host}:{redis_port}")
-            except redis.exceptions.ConnectionError as e:
-                print(f"Could not connect to Redis: ")
+            except (redis.RedisError, ValueError, TypeError):
+                cls.logger.warning("Could not connect to Redis cache.", exc_info=True)
                 cls._redis_client = None
         return cls._redis_client
 
@@ -356,7 +349,12 @@ class AQIImageGenerator:
         all_cities_cache_key = AQIImageGenerator.ALL_CITIES_CACHE_KEY
         
         if redis_client and not force_refresh:
-            cached_all_results = redis_client.get(all_cities_cache_key)
+            try:
+                cached_all_results = redis_client.get(all_cities_cache_key)
+            except redis.RedisError:
+                AQIImageGenerator.logger.warning("Could not read all-city heatmap cache.", exc_info=True)
+                redis_client = None
+                cached_all_results = None
             if cached_all_results:
                 AQIImageGenerator._schedule_refresh_if_due(redis_client)
                 print("Serving ALL cities AQI images from Redis cache (full response).")
@@ -448,7 +446,12 @@ class AQIImageGenerator:
 
         # Try to get from cache
         if redis_client:
-            cached_result = redis_client.get(cache_key)
+            try:
+                cached_result = redis_client.get(cache_key)
+            except redis.RedisError:
+                AQIImageGenerator.logger.warning("Could not read city heatmap cache.", exc_info=True)
+                redis_client = None
+                cached_result = None
             if cached_result:
                 AQIImageGenerator._schedule_refresh_if_due(redis_client)
                 print(f"Serving city ID {city_id} from Redis cache.")
