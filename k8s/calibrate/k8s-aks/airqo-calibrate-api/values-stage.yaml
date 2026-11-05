@@ -2,14 +2,14 @@ app:
   name: airqo-stage-calibrate-api
   label: sta-calibrate
   secret: sta-env-calibrate-api
-replicaCount: 2
+replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-calibrate-api
-  tag: stage-fd9fad4d-1773145644
+  tag: stage-d6b26b9f-1793863559
 initContainer:
   image:
     repository: airqoacr.azurecr.io/airqo-stage-calibrate-pickle-file
-    tag: stage-fd9fad4d-1773145644
+    tag: stage-d6b26b9f-1793863559
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

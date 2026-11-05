@@ -5,11 +5,11 @@ app:
 replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-prod-calibrate-api
-  tag: prod-b1e15408-1773067011
+  tag: prod-081b9636-1793821100
 initContainer:
   image:
     repository: airqoacr.azurecr.io/airqo-prod-calibrate-pickle-file
-    tag: prod-b1e15408-1773067011
+    tag: prod-081b9636-1793821100
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

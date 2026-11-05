@@ -7,12 +7,12 @@ images:
     predictJob: airqoacr.azurecr.io/stage-airqo-predict-job
     trainJob: airqoacr.azurecr.io/stage-airqo-train-job
     predictPlaces: airqoacr.azurecr.io/stage-airqo-predict-places-air-quality
-  tag: stage-e46d4aab-1780735054
+  tag: stage-d6b26b9f-1793863559
 api:
   name: airqo-stage-prediction-api
   label: predict-api
   secret: sta-env-predict
-  replicaCount: 2
+  replicaCount: 1
   podAnnotations: {}
   resources:
     limits:
