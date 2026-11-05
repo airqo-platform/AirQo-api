@@ -9,6 +9,7 @@ document (status READY).  There is no email step — consumers poll
 ``GET /data-export?userId=``.
 
 Runs entirely on config.  Redis is the broker/result backend only.
+api.utils.cache.use_sentinel chooses Sentinel or the direct server at import.
 Note: the 5s beat has no distributed lock — the SCHEDULED→PROCESSING
 status flip is the only double-processing guard.
 
@@ -20,13 +21,15 @@ BigQuery message; the worker logs the request and the stage.
 
 import logging
 from datetime import timedelta
-from typing import List
+from typing import Any, Dict, List
 
+import redis.retry
 from celery import Celery
 from celery.utils.log import get_task_logger
 
 from api.models.data_export import DataExportModel, DataExportRequest
 from api.models.export_queries import data_export_query
+from api.utils.cache import sentinel_node_kwargs, use_sentinel
 from api.utils.exceptions import QueryForbidden, QueryRateLimited
 from config import settings
 from constants import DataExportStatus
@@ -35,10 +38,31 @@ celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
 
 
+def _redis_settings() -> Dict[str, Any]:
+    """The broker and result-backend settings, chosen once at import."""
+    if use_sentinel():
+        url = ";".join(
+            f"sentinel://{host}:{port}/0"
+            for host, port in settings.redis_sentinel_hosts_list()
+        )
+        transport_options = {
+            "master_name": settings.redis_sentinel_master_name,
+            "sentinel_kwargs": sentinel_node_kwargs(redis.retry.Retry),
+        }
+    else:
+        url = f"{settings.cache_redis_url}/0"
+        transport_options = {}
+    return {
+        "broker_url": url,
+        "result_backend": url,
+        "broker_transport_options": transport_options,
+        "result_backend_transport_options": transport_options,
+    }
+
+
 def make_celery():
     config = {
-        "broker_url": f"{settings.cache_redis_url}/0",
-        "result_backend": f"{settings.cache_redis_url}/0",
+        **_redis_settings(),
         "task_default_queue": "analytics",
         "beat_schedule": {
             "data_export_periodic_task": {
