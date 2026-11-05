@@ -1,9 +1,18 @@
 """
 Async Redis client used for rate limiting and the readiness probe.
 
+Each process chooses its Redis target once, at startup, through
+`use_sentinel`, and the Celery app (celery_app.py) makes the same choice for
+the broker. A Sentinel-backed client asks a Sentinel node for the master
+address each time it opens a connection, so it follows a failover without a
+restart. A direct client keeps the address of the direct Redis URL for the
+life of the process.
+
 When Redis is unreachable the helpers degrade instead of raising: `cache_get`
 returns None, `cache_set` returns False, `cache_incr` returns None and
-`cache_ping` returns False, each attempt bounded by the socket timeout below.
+`cache_ping` returns False. An attempt is bounded by the socket timeout below,
+once for the Redis server and once more for each Sentinel node that a new
+connection asks.
 `cache_incr` returning None means "unknown", not "zero" — it is the signal the
 rate limiter uses to fall back to per-process counters. The client itself is
 None only when the Redis URL is malformed.
@@ -15,11 +24,18 @@ _OUTAGE_WARNING_INTERVAL_SECONDS, so a fault that switches between failure
 and success writes one WARNING and INFO pair in that interval.
 """
 
+import asyncio
 import logging
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
+import redis
 import redis.asyncio as redis_asyncio
+import redis.asyncio.retry
+import redis.asyncio.sentinel
+import redis.retry
+import redis.sentinel
+from redis.backoff import NoBackoff
 
 from config import settings
 
@@ -27,6 +43,9 @@ logger = logging.getLogger(__name__)
 
 # Global cache instance
 _cache: Optional[redis_asyncio.Redis] = None
+
+# The Sentinel manager that owns the node clients of a Sentinel-backed _cache.
+_sentinel: Optional[redis.asyncio.sentinel.Sentinel] = None
 
 # True from a failed call to the next successful call.
 _unavailable = False
@@ -39,9 +58,90 @@ _last_warning_at: Optional[float] = None
 
 _OUTAGE_WARNING_INTERVAL_SECONDS = 60.0
 
-# Bounds how long a request can stall on an unreachable Redis. Every call
-# retries the connection, so this is the per-request cost of a Redis outage.
+# Bounds how long a request can stall on an unreachable Redis.
 _SOCKET_TIMEOUT_SECONDS = 1.0
+
+# The client speaks RESP2 (protocol=2), which every Redis server version supports.
+_CONNECTION_KWARGS: Dict[str, Any] = {
+    "socket_connect_timeout": _SOCKET_TIMEOUT_SECONDS,
+    "socket_timeout": _SOCKET_TIMEOUT_SECONDS,
+    "protocol": 2,
+}
+
+_CLIENT_KWARGS: Dict[str, Any] = {
+    **_CONNECTION_KWARGS,
+    "encoding": "utf-8",
+    "decode_responses": True,
+}
+
+
+def sentinel_node_kwargs(retry_class: Any) -> Dict[str, Any]:
+    """Options for the clients that talk to the Sentinel nodes, one attempt each."""
+    # The redis-py default of three retries with backoff stretches one timeout to many.
+    return {**_CONNECTION_KWARGS, "retry": retry_class(NoBackoff(), 0)}
+
+
+def _is_master(client: Any, label: str) -> bool:
+    """Send one ROLE command through a synchronous client, then close it."""
+    # A replica answers PING, so ROLE is the check that finds a writable server.
+    try:
+        role = client.role()[0]
+    except Exception as e:
+        logger.warning("Redis %s did not answer at startup: %s", label, e)
+        return False
+    finally:
+        client.close()
+    if role != "master":
+        logger.warning("Redis %s answered as a %s at startup.", label, role)
+    return role == "master"
+
+
+def use_sentinel() -> bool:
+    """
+    Decide once, at startup, whether this process reaches Redis through Sentinel.
+
+    Sentinel is chosen when its master answers as a master, the direct Redis
+    URL when only that server does, and Sentinel when neither does.
+    """
+    hosts = settings.redis_sentinel_hosts_list()
+    if not hosts:
+        return False
+
+    master_name = settings.redis_sentinel_master_name
+    node_kwargs = sentinel_node_kwargs(redis.retry.Retry)
+    sentinel = redis.sentinel.Sentinel(hosts, sentinel_kwargs=node_kwargs)
+    try:
+        master = sentinel.master_for(
+            master_name, retry=node_kwargs["retry"], **_CLIENT_KWARGS
+        )
+        if _is_master(master, f"Sentinel master {master_name!r}"):
+            logger.info("Redis target: Sentinel master %r", master_name)
+            return True
+    finally:
+        for node in sentinel.sentinels:
+            node.close()
+
+    # The log names the host and port only; the URL may carry a password.
+    try:
+        direct = redis.Redis.from_url(
+            settings.cache_redis_url, retry=node_kwargs["retry"], **_CLIENT_KWARGS
+        )
+        address = "{host}:{port}".format(**direct.connection_pool.connection_kwargs)
+    except Exception as e:
+        logger.error("The direct Redis URL cannot build a client: %s", e)
+    else:
+        if _is_master(direct, f"direct server {address}"):
+            logger.warning(
+                "Redis target: direct server %s, kept until this process restarts.",
+                address,
+            )
+            return False
+
+    logger.warning(
+        "Redis target: Sentinel master %r, although no target answered as a master.",
+        master_name,
+    )
+    return True
 
 
 def _record_failure(operation: str, key: Optional[str], exc: Exception) -> None:
@@ -89,31 +189,34 @@ async def init_cache() -> None:
     """
     Create the Redis client during application startup.
 
-    The client is kept even when the initial ping fails. `from_url` does not
-    open a connection — the pool connects lazily on the first command — so
-    holding on to it lets the service pick Redis up on its own once it comes
-    back.
+    The client is kept even when the initial ping fails. Neither `from_url`
+    nor `master_for` opens a connection — the pool connects lazily on the
+    first command — so holding on to it lets the service pick Redis up on its
+    own once it comes back.
 
     Timeouts are deliberately short: while Redis is unreachable every request
     still attempts a connection, and without a bound that attempt would stall
     the request for the OS-level TCP timeout.
 
-    The client speaks RESP2 (protocol=2), which every Redis server version
-    supports.  A failed ping marks the outage,
-    so the startup ERROR record stands for it and the first successful call
-    writes the INFO record.
+    `use_sentinel` runs in a worker thread, because it opens synchronous
+    connections.  A failed ping marks the outage, so the startup ERROR record
+    stands for it and the first successful call writes the INFO record.
     """
-    global _cache, _unavailable, _warned
+    global _cache, _sentinel, _unavailable, _warned
 
     try:
-        _cache = redis_asyncio.from_url(
-            settings.cache_redis_url,
-            encoding="utf-8",
-            decode_responses=True,
-            socket_connect_timeout=_SOCKET_TIMEOUT_SECONDS,
-            socket_timeout=_SOCKET_TIMEOUT_SECONDS,
-            protocol=2,
-        )
+        if await asyncio.to_thread(use_sentinel):
+            _sentinel = redis.asyncio.sentinel.Sentinel(
+                settings.redis_sentinel_hosts_list(),
+                sentinel_kwargs=sentinel_node_kwargs(redis.asyncio.retry.Retry),
+            )
+            _cache = _sentinel.master_for(
+                settings.redis_sentinel_master_name, **_CLIENT_KWARGS
+            )
+        else:
+            _cache = redis_asyncio.from_url(
+                settings.cache_redis_url, **_CLIENT_KWARGS
+            )
     except Exception as e:
         # Only a malformed URL reaches here; there is nothing to retry.
         logger.error(f"Failed to create Redis client: {str(e)}")
@@ -140,12 +243,17 @@ async def close_cache() -> None:
 
     This function should be called during application shutdown.
     """
-    global _cache
+    global _cache, _sentinel
 
     if _cache:
         await _cache.aclose()
         _cache = None
         logger.info("Redis cache connection closed")
+    if _sentinel:
+        # The master client closes its own pool only.
+        for node in _sentinel.sentinels:
+            await node.aclose()
+        _sentinel = None
 
 
 async def cache_ping() -> bool:
