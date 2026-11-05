@@ -4,7 +4,7 @@ app:
   secret: sta-env-airflow
   namespace: pipeline
   serviceAccount: stage-airflow-sa
-replicaCount: 2
+replicaCount: 1
 images:
   repositories:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom

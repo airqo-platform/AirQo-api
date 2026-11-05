@@ -10,7 +10,7 @@ api:
   name: airqo-stage-analytics-api
   label: analytics-api
   secret: sta-env-analytics
-  replicaCount: 2
+  replicaCount: 1
   podAnnotations: {}
   resources:
     common:

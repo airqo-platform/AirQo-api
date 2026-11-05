@@ -3,7 +3,7 @@ app:
   label: staspatial-api
   secret: sta-env-spatial
   namespace: staging
-replicaCount: 2
+replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-spatial-api
   tag: stage-68a20a51-1793277565

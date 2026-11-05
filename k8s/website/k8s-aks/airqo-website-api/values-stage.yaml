@@ -3,7 +3,7 @@ app:
   label: stawebsite-api
   secret: sta-env-website-backend
   namespace: staging
-replicaCount: 2
+replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-website-api
   tag: stage-515b3a77-1793278693

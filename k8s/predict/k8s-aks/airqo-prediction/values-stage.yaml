@@ -12,7 +12,7 @@ api:
   name: airqo-stage-prediction-api
   label: predict-api
   secret: sta-env-predict
-  replicaCount: 2
+  replicaCount: 1
   podAnnotations: {}
   resources:
     limits:
