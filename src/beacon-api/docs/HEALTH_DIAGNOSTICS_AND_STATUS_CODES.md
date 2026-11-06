@@ -56,6 +56,16 @@ GET /sites/?group=<title>&includePerformance=true&startDateTime=2026-10-01T00:00
 GET /devices/synced?group=<title>&includePerformance=true&startDateTime=2026-10-01T00:00:00Z&endDateTime=2026-10-08T00:00:00Z
 ```
 
+### Uptime without the readings: `includeSeries=false`
+
+`GET /cohorts/synced/{cohort_id}` only; the default is `true`. For a caller that only shows uptime: `uptime` and `data_completeness` are the same as with the series, on the cohort and its devices, but the readings are not read, so `data` comes back `[]` and `averages` `null`. Diagnostics are unaffected, and without `includePerformance=true` it changes nothing.
+
+A 37-device cohort over 14 days of hourly data goes from about 4 MB to 8 KB, before diagnostics.
+
+```
+GET /cohorts/synced/{cohort_id}?includePerformance=true&includeSeries=false&startDateTime=2026-10-01T00:00:00Z&endDateTime=2026-10-08T00:00:00Z
+```
+
 ---
 
 ## 3. Diagnostics in list responses: `includeDiagnostics=true`

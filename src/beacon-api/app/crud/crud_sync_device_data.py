@@ -209,6 +209,36 @@ def get_device_data_for_devices(
     return records_by_device, info_by_name
 
 
+def get_device_reading_times(
+    db: Session,
+    device_names: List[str],
+    start: Optional[str],
+    end: Optional[str],
+    frequency: str = "hourly",
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    The same rows and window as ``get_device_data_for_devices``, reduced to each row's
+    ``datetime``, for callers that only count uptime buckets: ``{device_name:
+    [{"datetime": <ISO 8601>}, ...]}``. The readings themselves are not read.
+    """
+    _info_by_name, name_by_channel = _resolve_devices(db, device_names)
+    times_by_device: Dict[str, List[Dict[str, Any]]] = {name: [] for name in device_names}
+
+    model_cls, ts_col, _suffix = _FREQ_CONFIG[frequency]
+    ts_attr = getattr(model_cls, ts_col)
+
+    channels = list(name_by_channel.keys())
+    BATCH_SIZE = 200
+    for i in range(0, len(channels), BATCH_SIZE):
+        batch = channels[i : i + BATCH_SIZE]
+        query = db.query(model_cls.channel_id, ts_attr).filter(model_cls.channel_id.in_(batch))
+        query = _apply_time_range(query, ts_attr, frequency, start, end)
+        for channel_id, ts_value in query:
+            times_by_device[name_by_channel[str(channel_id)]].append({"datetime": ts_value.isoformat()})
+
+    return times_by_device
+
+
 def iter_hourly_records_by_channel(
     db: Session,
     channel_ids: Iterable[str],

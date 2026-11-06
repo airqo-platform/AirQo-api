@@ -436,7 +436,8 @@ def _copy_cohort_perf_back(
     """Copy cohort-level performance fields from mirror back to synced dict."""
     synced_cohort["uptime"] = mirror_cohort.get("uptime", 0.0)
     synced_cohort["data_completeness"] = mirror_cohort.get("data_completeness", 0.0)
-    synced_cohort["averages"] = mirror_cohort.get("averages", {}) or {}
+    if "averages" in mirror_cohort:
+        synced_cohort["averages"] = mirror_cohort["averages"] or {}
     synced_cohort["data"] = mirror_cohort.get("data", []) or []
 
 
@@ -461,6 +462,7 @@ def apply_local_performance_synced(
     start_date_time: str,
     end_date_time: str,
     frequency: str = "hourly",
+    include_series: bool = True,
 ) -> None:
     """
     Enrich synced-shape cohorts in place with locally-computed performance.
@@ -470,6 +472,10 @@ def apply_local_performance_synced(
     it to ``cohort_service.apply_local_performance``, then copy the resulting
     ``data`` / ``uptime`` / ``data_completeness`` / ``averages`` fields back
     onto the original synced dicts.
+
+    ``include_series=False`` computes only ``uptime`` / ``data_completeness``,
+    through ``cohort_service.apply_local_uptime``: ``data`` stays empty and
+    ``averages`` stays unset, and the readings are not read.
     """
     # Local import to avoid a circular import at module load time.
     from app.services import cohort_service  # noqa: WPS433
@@ -483,7 +489,10 @@ def apply_local_performance_synced(
         for synced_cohort in cohorts
     ]
 
-    cohort_service.apply_local_performance(
+    apply_performance = (
+        cohort_service.apply_local_performance if include_series else cohort_service.apply_local_uptime
+    )
+    apply_performance(
         mirror_cohorts, db, start_date_time, end_date_time, frequency=frequency
     )
 

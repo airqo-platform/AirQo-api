@@ -40,6 +40,10 @@ Manufacturer profiles now carry component models for the IoT diagnostic engine, 
 - **`manufacturer_profiles.MANUFACTURER_COMPONENT_MODELS`** — components, metrics (ranges, rate limits, roles) and POWERS / COMMUNICATES_VIA relationships for `airgradient_lowcost` (incl. WiFi signal as `signal_strength` and a boot counter for reboot storms), `iqair_lowcost`, `metone_bam` and the generic single-PM profiles; attached on creation and retro-fitted to seeded profiles without components. Each sets a `reporting_interval` default.
 - **`GET /api/v1/networks/profiles`** — manufacturer profiles with the engine's readiness (diagnosable, components, warnings); the seed endpoint reports the same.
 
+### Feature: Cohort uptime without the readings
+
+`GET /api/v1/cohorts/synced/{cohort_id}` takes `includeSeries` (default `true`, so existing callers are unchanged). With `includePerformance=true&includeSeries=false` the cohort and its devices keep the same `uptime` and `data_completeness`, but only the rows' timestamps are read: `data` comes back empty and `averages` null. A 37-device cohort over 14 days of hourly data goes from about 4 MB to 8 KB, before diagnostics.
+
 
 ## Version 2.5.0
 **Released:** September 19, 2026
