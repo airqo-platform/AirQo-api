@@ -3515,8 +3515,9 @@ const createEvent = {
         skip,
         limit,
         // Narrower than the shared DIAGNOSTIC_WINDOW_DAYS default — this call
-        // site is the Nexus /recent endpoint, which only needs current state,
-        // not a full day of history to scan through.
+        // site is the /readings/recent endpoint (Nexus and the mobile app's
+        // Near You and map screens), which only needs current state. See the
+        // RECENT_ENDPOINT_LOOKBACK_HOURS comment in config/constants.js.
         lookbackDays: constants.RECENT_ENDPOINT_LOOKBACK_HOURS / 24,
       });
       const dbQueryDuration = Date.now() - dbQueryStart;

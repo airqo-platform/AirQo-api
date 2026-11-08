@@ -647,6 +647,11 @@ const readingsValidations = {
       ...commonValidations.primary,
       ...commonValidations.metadata,
       ...commonValidations.test,
+      // Coerce limit/skip to integers (400 on bad input) so they reach the
+      // $limit/$skip stages as numbers. Absent values stay undefined, leaving
+      // ReadingModel.recent's own defaults (limit 1000, skip 0) in charge.
+      ...commonValidations.limit,
+      ...commonValidations.skip,
       commonValidations.optionalCohortIdentifier("cohort_id"),
       commonValidations.objectId("grid_id"),
       commonValidations.objectId("device_id"),

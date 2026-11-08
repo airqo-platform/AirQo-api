@@ -146,10 +146,18 @@ function envConfig(env) {
       return Number.isFinite(val) && val > 0 ? val : 1;
     })(),
 
-    // Lookback window specifically for the Nexus-facing /recent endpoint
-    // (createEventUtil.readRecentWithFilter). Narrower than the shared
-    // DIAGNOSTIC_WINDOW_DAYS default (used by mobile/other callers of
-    // ReadingModel.recent()) to keep the sort-then-group scan small under load.
+    // Lookback window for GET/POST /readings/recent
+    // (createEventUtil.readRecentWithFilter, plus its events-collection
+    // fallback). Consumers include Nexus and the mobile app — both the Near You
+    // tab and the map screen call GET /readings/recent — so this window directly
+    // decides what those users see. Kept narrower than DIAGNOSTIC_WINDOW_DAYS
+    // (used by other ReadingModel.recent() callers) to keep the
+    // sort-then-group scan small under load.
+    //
+    // Readings older than this window are dropped from the response entirely
+    // (not returned as stale), so it must exceed the normal hourly-processing
+    // lag; otherwise a processing backlog makes whole areas disappear (e.g.
+    // Nov 2026). Production sets it explicitly via the environment.
     RECENT_ENDPOINT_LOOKBACK_HOURS: (() => {
       const val = parseInt(process.env.RECENT_ENDPOINT_LOOKBACK_HOURS, 10);
       return Number.isFinite(val) && val > 0 ? val : 6;
