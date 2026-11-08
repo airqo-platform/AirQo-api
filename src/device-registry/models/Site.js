@@ -507,6 +507,18 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
+// Fields returned by GET /sites/nearest?summary=true — just enough for a
+// "are there active sites near me?" coverage check.
+const NEAREST_SITE_SUMMARY_PROJECTION = {
+  _id: 1,
+  name: 1,
+  distance_km: 1,
+  lastRawData: 1,
+  lastActive: 1,
+  isOnline: 1,
+  rawOnlineStatus: 1,
+};
+
 // Shared by listAirQoActive and findNearestSites: both pipelines look up the
 // same latest_deployment_activity/latest_maintenance_activity/activities
 // arrays and need them flattened/summarized the same way.
@@ -1256,19 +1268,28 @@ siteSchema.statics = {
   // Radius search backing GET /sites/nearest. Uses the `location` 2dsphere
   // index via $geoNear so Mongo does the radius filtering and distance sort,
   // instead of fetching up to 1000 sites and Haversine-filtering them in JS.
+  //
+  // Returns one row per site (only sites with at least one device), nearest
+  // first, with `limit` counting distinct sites. `limit` is applied before the
+  // heavy grid/airqloud/activity lookups so they only run for returned rows.
+  //
+  // `summary: true` skips those heavy lookups entirely and returns only the
+  // fields a coverage check needs (see NEAREST_SITE_SUMMARY_PROJECTION).
   async findNearestSites(
-    { longitude, latitude, radius, filter = {}, limit = 20 } = {},
+    {
+      longitude,
+      latitude,
+      radius,
+      filter = {},
+      limit = 20,
+      summary = false,
+    } = {},
     next,
   ) {
     try {
-      const inclusionProjection = {
-        ...constants.SITES_INCLUSION_PROJECTION,
-        distance_km: 1,
-      };
-      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION("none");
       const maxResults = Math.min(Number(limit) || 20, 100);
 
-      const pipeline = await this.aggregate()
+      const sitesWithDevices = this.aggregate()
         .near({
           near: {
             type: "Point",
@@ -1286,8 +1307,35 @@ siteSchema.statics = {
           foreignField: "site_id",
           as: "devices",
         })
-        .unwind("$devices")
-        .match({ devices: { $exists: true, $ne: [] } })
+        // Keep sites with at least one device, without $unwind (which used to
+        // emit one row per device and let duplicates eat into `limit`).
+        .match({ "devices.0": { $exists: true } })
+        // $geoNear already sorted nearest-first.
+        .limit(maxResults);
+
+      if (summary) {
+        const response = await sitesWithDevices
+          .project(NEAREST_SITE_SUMMARY_PROJECTION)
+          .allowDiskUse(true);
+
+        return {
+          success: true,
+          message: "successfully retrieved the nearest sites",
+          data: response,
+          status: httpStatus.OK,
+        };
+      }
+
+      const inclusionProjection = {
+        ...constants.SITES_INCLUSION_PROJECTION,
+        distance_km: 1,
+      };
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION("none");
+
+      const pipeline = await sitesWithDevices
+        // Backward compatibility: the old $unwind made `devices` a single
+        // object, and existing clients may rely on that shape.
+        .addFields({ devices: { $arrayElemAt: ["$devices", 0] } })
         .lookup({
           from: "grids",
           localField: "grids",
@@ -1349,9 +1397,6 @@ siteSchema.statics = {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
         })
-        // $geoNear already sorted nearest-first; cap here rather than after
-        // the JS loop the old implementation used.
-        .limit(maxResults)
         .project(inclusionProjection)
         .project(exclusionProjection)
         .allowDiskUse(true);

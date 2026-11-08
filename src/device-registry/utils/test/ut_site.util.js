@@ -882,6 +882,152 @@ describe("createSite Util Functions", () => {
         expect(args.filter.isOnline).to.equal(true);
       });
 
+      describe("active_within_days", () => {
+        const NOW = new Date("2026-11-08T12:00:00.000Z");
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        let clock;
+
+        beforeEach(() => {
+          clock = sinon.useFakeTimers(NOW.getTime());
+          findNearestSitesStub.resolves({
+            success: true,
+            data: [],
+            status: httpStatus.OK,
+          });
+        });
+
+        afterEach(() => {
+          clock.restore();
+        });
+
+        const callWith = async (query) => {
+          await proxiedSiteUtil.findNearestSitesByCoordinates(
+            {
+              body: {},
+              query: {
+                radius: 10,
+                latitude: 0.3,
+                longitude: 32.5,
+                tenant: "airqo",
+                ...query,
+              },
+              params: {},
+            },
+            next
+          );
+          return findNearestSitesStub.firstCall.args[0].filter;
+        };
+
+        // Evaluates the generated $and/$or clause against a plain site doc,
+        // the same way Mongo would for these two simple $gte conditions.
+        const matchesActivityWindow = (filter, site) =>
+          filter.$and.every((clause) =>
+            clause.$or.some((cond) => {
+              const [field] = Object.keys(cond);
+              return site[field] instanceof Date && site[field] >= cond[field].$gte;
+            })
+          );
+
+        it("adds no activity condition when the parameter is absent (unchanged behaviour)", async () => {
+          const filter = await callWith({});
+          expect(filter).to.not.have.property("$and");
+        });
+
+        it("filters on lastRawData OR lastActive >= now - N days", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          const cutoff = new Date(NOW.getTime() - 7 * DAY_MS);
+          expect(filter.$and).to.deep.equal([
+            {
+              $or: [
+                { lastRawData: { $gte: cutoff } },
+                { lastActive: { $gte: cutoff } },
+              ],
+            },
+          ]);
+        });
+
+        it("keeps a site active inside the window on both fields", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          const recent = new Date(NOW.getTime() - 1 * DAY_MS);
+          expect(
+            matchesActivityWindow(filter, { lastRawData: recent, lastActive: recent })
+          ).to.equal(true);
+        });
+
+        it("drops a site whose readings are all outside the window", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          const old = new Date(NOW.getTime() - 30 * DAY_MS);
+          expect(
+            matchesActivityWindow(filter, { lastRawData: old, lastActive: old })
+          ).to.equal(false);
+        });
+
+        it("keeps a site when only lastRawData is recent (processing backlog)", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(
+            matchesActivityWindow(filter, {
+              lastRawData: new Date(NOW.getTime() - 2 * 60 * 60 * 1000),
+              lastActive: new Date(NOW.getTime() - 20 * DAY_MS),
+            })
+          ).to.equal(true);
+        });
+
+        it("keeps a site when only lastActive is recent", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(
+            matchesActivityWindow(filter, {
+              lastActive: new Date(NOW.getTime() - 3 * DAY_MS),
+            })
+          ).to.equal(true);
+        });
+
+        it("drops a site that has neither field set", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(matchesActivityWindow(filter, {})).to.equal(false);
+        });
+
+        it("does not clobber an existing $or from `search`", async () => {
+          const filter = await callWith({
+            active_within_days: 7,
+            search: "kampala",
+          });
+          expect(filter.$or).to.be.an("array").that.is.not.empty;
+          expect(filter.$and).to.have.length(1);
+        });
+
+        it("never filters on isOnline/rawOnlineStatus", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(filter).to.not.have.property("isOnline");
+          expect(filter).to.not.have.property("rawOnlineStatus");
+        });
+      });
+
+      it("passes summary through to the model as a boolean, defaulting to false", async () => {
+        findNearestSitesStub.resolves({
+          success: true,
+          data: [],
+          status: httpStatus.OK,
+        });
+        const base = {
+          radius: 10,
+          latitude: 0.3,
+          longitude: 32.5,
+          tenant: "airqo",
+        };
+
+        await proxiedSiteUtil.findNearestSitesByCoordinates(
+          { body: {}, query: { ...base, summary: true }, params: {} },
+          next
+        );
+        await proxiedSiteUtil.findNearestSitesByCoordinates(
+          { body: {}, query: base, params: {} },
+          next
+        );
+
+        expect(findNearestSitesStub.firstCall.args[0].summary).to.equal(true);
+        expect(findNearestSitesStub.secondCall.args[0].summary).to.equal(false);
+      });
+
       it("returns the model's failure response unchanged", async () => {
         const failureResponse = {
           success: false,

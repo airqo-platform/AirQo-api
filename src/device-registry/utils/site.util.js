@@ -2267,12 +2267,40 @@ const createSite = {
   },
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant, limit } = {
+      let {
+        radius,
+        latitude,
+        longitude,
+        tenant,
+        limit,
+        active_within_days,
+        summary,
+      } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
       const filter = generateFilter.sites(request, next);
+
+      // Keep only sites that reported within the window. Uses the device-feed
+      // timestamp (lastRawData) OR the processed-events one (lastActive), so a
+      // processing backlog alone never hides a site. Deliberately not based on
+      // isOnline/rawOnlineStatus, which go false during such backlogs.
+      // Appended via $and so it can't clobber an existing $or (e.g. `search`).
+      if (active_within_days) {
+        const cutoff = new Date(
+          Date.now() - Number(active_within_days) * 24 * 60 * 60 * 1000,
+        );
+        filter.$and = [
+          ...(filter.$and || []),
+          {
+            $or: [
+              { lastRawData: { $gte: cutoff } },
+              { lastActive: { $gte: cutoff } },
+            ],
+          },
+        ];
+      }
 
       const responseFromFindNearestSites = await SiteModel(
         tenant,
@@ -2283,6 +2311,7 @@ const createSite = {
           radius,
           filter,
           limit,
+          summary: summary === true || summary === "true",
         },
         next,
       );
