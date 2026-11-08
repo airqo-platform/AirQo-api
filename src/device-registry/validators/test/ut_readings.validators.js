@@ -271,6 +271,10 @@ const runRecentValidation = (query) =>
     const req = mockRequest(query);
     const res = {};
     let settled = false;
+    /**
+     * Resolves the promise once, ignoring any later next()/res.json() calls.
+     * @param {{req: Object, res: Object, passed: boolean}} result - Outcome.
+     */
     const settle = (result) => {
       if (!settled) {
         settled = true;
@@ -286,6 +290,7 @@ const runRecentValidation = (query) =>
       settle({ req, res, passed: false });
       return res;
     };
+    /** Marks validation as passed (called when every rule succeeds). */
     const next = () => settle({ req, res, passed: true });
 
     readingsValidations.recent(req, res, next);
