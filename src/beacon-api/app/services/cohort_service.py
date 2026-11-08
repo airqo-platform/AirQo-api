@@ -24,7 +24,7 @@ from app.utils.networks import (
     is_network_enabled,
     normalize_network,
 )
-from app.crud.crud_sync_device_data import get_device_data_for_devices
+from app.crud.crud_sync_device_data import get_device_data_for_devices, get_device_reading_times
 from app.models.device_schema import DeviceProfile
 from app.services.manufacturer_profiles import external_mapping_profile
 
@@ -1282,6 +1282,43 @@ def apply_local_performance(
             label: _mean(vals) for label, vals in averages_accumulator.items()
         }
         cohort["data"] = _aggregate_cohort_time_series(cohort, frequency)
+
+
+def apply_local_uptime(
+    cohorts: List[Dict[str, Any]],
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+    frequency: str = "hourly",
+) -> None:
+    """
+    :func:`apply_local_performance` without the readings.
+
+    Each device and cohort gets the same ``uptime`` / ``data_completeness``, but no
+    ``data`` or ``averages``, and only the timestamps of the rows are read.
+    """
+    frequency = (frequency or "hourly").lower()
+
+    times_by_device = get_device_reading_times(
+        db, list(_collect_active_device_names(cohorts)), start_date_time, end_date_time, frequency=frequency,
+    )
+    uptime_by_name = {
+        name: _compute_uptime(times, start_date_time, end_date_time, frequency)
+        for name, times in times_by_device.items()
+    }
+
+    for cohort in cohorts:
+        device_uptimes: List[float] = []
+        for dev in cohort.get("devices", []):
+            d_name = dev.get("name")
+            if not d_name:
+                continue
+            dev["uptime"] = uptime_by_name[d_name]
+            dev["data_completeness"] = uptime_by_name[d_name]
+            device_uptimes.append(uptime_by_name[d_name])
+        cohort_uptime = _mean(device_uptimes) or 0.0
+        cohort["uptime"] = cohort_uptime
+        cohort["data_completeness"] = cohort_uptime
 
 
 def get_cohorts_summary(cohorts: list, db) -> dict:

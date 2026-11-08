@@ -210,14 +210,18 @@ def get_synced_cohort(
     endDateTime: Optional[str] = None,
     frequency: Optional[str] = "hourly",
     includeDiagnostics: bool = False,
+    includeSeries: bool = True,
     db: Session = Depends(get_db),
 ):
     """Get a single cohort from the local sync table with associated devices.
 
     When ``includePerformance=true`` and both ``startDateTime`` /
     ``endDateTime`` are provided, the cohort and its devices are enriched
-    with locally-computed performance metrics. When ``includeDiagnostics=true``,
-    devices carry their latest stored diagnosis and the cohort a roll-up.
+    with locally-computed performance metrics. ``includeSeries=false`` keeps
+    their ``uptime`` / ``data_completeness`` but does not load the readings,
+    so ``data`` comes back empty and ``averages`` null on both. When
+    ``includeDiagnostics=true``, devices carry their latest stored diagnosis
+    and the cohort a roll-up.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -240,6 +244,7 @@ def get_synced_cohort(
                 startDateTime,
                 endDateTime,
                 frequency=freq,
+                include_series=includeSeries,
             )
 
         if includeDiagnostics and cohort:
