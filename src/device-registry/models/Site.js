@@ -1265,16 +1265,27 @@ siteSchema.statics = {
     }
   },
 
-  // Radius search backing GET /sites/nearest. Uses the `location` 2dsphere
-  // index via $geoNear so Mongo does the radius filtering and distance sort,
-  // instead of fetching up to 1000 sites and Haversine-filtering them in JS.
-  //
-  // Returns one row per site (only sites with at least one device), nearest
-  // first, with `limit` counting distinct sites. `limit` is applied before the
-  // heavy grid/airqloud/activity lookups so they only run for returned rows.
-  //
-  // `summary: true` skips those heavy lookups entirely and returns only the
-  // fields a coverage check needs (see NEAREST_SITE_SUMMARY_PROJECTION).
+  /**
+   * Radius search backing GET /sites/nearest. Uses the `location` 2dsphere
+   * index via $geoNear so Mongo does the radius filtering and distance sort,
+   * instead of fetching up to 1000 sites and Haversine-filtering them in JS.
+   *
+   * Returns one row per site (only sites with at least one device), nearest
+   * first, with `limit` counting distinct sites. `limit` is applied before the
+   * heavy grid/airqloud/activity lookups so they only run for returned rows.
+   *
+   * @param {Object} options
+   * @param {number|string} options.longitude - Search point longitude.
+   * @param {number|string} options.latitude - Search point latitude.
+   * @param {number|string} options.radius - Search radius in kilometres.
+   * @param {Object} [options.filter={}] - Extra site filter, folded into the $geoNear query.
+   * @param {number} [options.limit=20] - Max distinct sites to return (capped at 100).
+   * @param {boolean} [options.summary=false] - Skip heavy lookups and return only
+   *   the fields in NEAREST_SITE_SUMMARY_PROJECTION.
+   * @param {Function} next - Express error callback, called on failure.
+   * @returns {Promise<{success: boolean, message: string, data: Object[], status: number}|undefined>}
+   *   The nearest sites, or undefined after calling `next` with an error.
+   */
   async findNearestSites(
     {
       longitude,

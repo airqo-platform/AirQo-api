@@ -370,6 +370,11 @@ describe("the Site Model", function() {
         "allowDiskUse",
       ];
 
+      /**
+       * Builds a fake model whose aggregate() chain records each stage call.
+       * @param {Object[]} response - Rows the awaited pipeline resolves to.
+       * @returns {{model: Object, stages: Array<{method: string, arg: *}>}}
+       */
       function recordingModel(response) {
         const stages = [];
         const chain = {};
@@ -383,9 +388,22 @@ describe("the Site Model", function() {
         return { model: { aggregate: sinon.stub().returns(chain) }, stages };
       }
 
+      /**
+       * Position of the $lookup stage joining the given collection.
+       * @param {Array<{method: string, arg: *}>} stages - Recorded stages.
+       * @param {string} from - Collection name of the lookup.
+       * @returns {number} Stage index, or -1 if absent.
+       */
       const indexOfLookup = (stages, from) =>
         stages.findIndex((s) => s.method === "lookup" && s.arg.from === from);
 
+      /**
+       * Calls findNearestSites against a recording model with default
+       * coordinates/radius, asserting no error was passed to `next`.
+       * @param {Object} args - Overrides for the findNearestSites options.
+       * @param {Object[]} [response=[]] - Rows the pipeline resolves to.
+       * @returns {Promise<{result: Object, stages: Array<{method: string, arg: *}>}>}
+       */
       async function run(args, response = []) {
         const { model, stages } = recordingModel(response);
         const next = sinon.stub();

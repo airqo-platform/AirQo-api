@@ -2265,6 +2265,18 @@ const createSite = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
+  /**
+   * Finds the sites nearest a coordinate for GET /sites/nearest. Builds the
+   * site filter from the request (including the optional `active_within_days`
+   * activity window) and delegates the geo query to SiteModel.findNearestSites.
+   *
+   * @param {Object} request - Express request; reads `radius`, `latitude`,
+   *   `longitude`, `tenant`, `limit`, `active_within_days` and `summary` from
+   *   body, query and params.
+   * @param {Function} next - Express error callback, called on failure.
+   * @returns {Promise<Object|undefined>} The model's response, or undefined
+   *   after calling `next` with an error.
+   */
   findNearestSitesByCoordinates: async (request, next) => {
     try {
       let {

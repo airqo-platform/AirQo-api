@@ -900,6 +900,12 @@ describe("createSite Util Functions", () => {
           clock.restore();
         });
 
+        /**
+         * Calls the util with default coordinates plus the given query and
+         * returns the filter it passed to the model.
+         * @param {Object} query - Extra query parameters.
+         * @returns {Promise<Object>} The filter handed to findNearestSites.
+         */
         const callWith = async (query) => {
           await proxiedSiteUtil.findNearestSitesByCoordinates(
             {
@@ -918,8 +924,13 @@ describe("createSite Util Functions", () => {
           return findNearestSitesStub.firstCall.args[0].filter;
         };
 
-        // Evaluates the generated $and/$or clause against a plain site doc,
-        // the same way Mongo would for these two simple $gte conditions.
+        /**
+         * Evaluates the generated $and/$or clause against a plain site doc,
+         * the same way Mongo would for these two simple $gte conditions.
+         * @param {Object} filter - Filter produced by the util.
+         * @param {Object} site - Site doc with optional lastRawData/lastActive Dates.
+         * @returns {boolean} Whether the site passes the activity window.
+         */
         const matchesActivityWindow = (filter, site) =>
           filter.$and.every((clause) =>
             clause.$or.some((cond) => {

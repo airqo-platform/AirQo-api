@@ -3,17 +3,34 @@ const { expect } = require("chai");
 const { validationResult } = require("express-validator");
 const siteValidator = require("@validators/site.validators");
 
+/**
+ * Builds a minimal Express-like request for express-validator chains.
+ * @param {Object} [query={}] - Query parameters.
+ * @param {Object} [body={}] - Request body.
+ * @param {Object} [params={}] - Route params.
+ * @returns {Object} Mock request.
+ */
 const mockRequest = (query = {}, body = {}, params = {}) => ({
   query,
   body,
   params,
   headers: {},
+  /**
+   * Reads a request header, mirroring Express's req.get().
+   * @param {string} header - Header name.
+   * @returns {string|undefined} Header value.
+   */
   get(header) {
     return this.headers[header];
   },
 });
 
-// Runs every chain in a validator array against the request.
+/**
+ * Runs every chain in a validator array against the request, in order.
+ * @param {Array} chains - express-validator chains.
+ * @param {Object} req - Mock request.
+ * @returns {Promise<Object>} The express-validator result.
+ */
 const runChains = async (chains, req) => {
   for (const chain of chains) {
     await chain.run(req);
@@ -21,6 +38,11 @@ const runChains = async (chains, req) => {
   return validationResult(req);
 };
 
+/**
+ * Field names that failed validation.
+ * @param {Object} result - express-validator result.
+ * @returns {string[]} Failing parameter names.
+ */
 const errorFields = (result) => result.array().map((e) => e.param);
 
 describe("Site Validator", () => {
