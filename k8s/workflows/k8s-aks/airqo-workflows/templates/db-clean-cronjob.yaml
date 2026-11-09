@@ -1,0 +1,65 @@
+{{- if .Values.dbClean.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: '{{ .Values.app.name }}-db-clean'
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "airqo-workflows.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.dbClean.schedule | quote }}
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.dbClean.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app: '{{ .Values.app.label }}-db-clean'
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Values.app.serviceAccount }}
+
+          nodeSelector:
+            {{- toYaml .Values.nodeSelector | nindent 12 }}
+
+          tolerations:
+            {{- toYaml .Values.tolerations | nindent 12 }}
+
+          initContainers:
+            {{- include "airqo-workflows.xcomInitContainer" . | nindent 12 }}
+          containers:
+            - name: '{{ .Values.app.name }}-db-clean'
+              image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+              imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+              envFrom:
+                - secretRef:
+                    name: {{ .Values.app.secret }}
+              args:
+                - bash
+                - -c
+                - >-
+                  exec airflow db clean
+                  --clean-before-timestamp "$(date -u -d '-{{ .Values.dbClean.retentionDays }} days' +%Y-%m-%dT%H:%M:%S+00:00)"
+                  --tables "{{ join "," .Values.dbClean.tables }}"
+                  --skip-archive --yes
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                limits:
+                  cpu: {{ .Values.resources.dbClean.limits.cpu }}
+                  memory: {{ .Values.resources.dbClean.limits.memory }}
+                requests:
+                  cpu: {{ .Values.resources.dbClean.requests.cpu }}
+                  memory: {{ .Values.resources.dbClean.requests.memory }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,75 @@
+{{- if .Values.dagProcessor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: '{{ .Values.app.name }}-dag-processor'
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "airqo-workflows.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: '{{ .Values.app.label }}-dag-processor'
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: '{{ .Values.app.label }}-dag-processor'
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: {{ .Values.app.serviceAccount }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
+      initContainers:
+        {{- include "airqo-workflows.xcomInitContainer" . | nindent 8 }}
+        {{- if .Values.checkMigrations.enabled }}
+        {{- include "airqo-workflows.checkMigrationsInitContainer" . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: '{{ .Values.app.name }}-dag-processor'
+          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.app.secret }}
+          env:
+            {{- include "airqo-workflows.standaloneDagProcessorEnv" . | nindent 12 }}
+          args: ["dag-processor"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.dagProcessor.limits.cpu }}
+              memory: {{ .Values.resources.dagProcessor.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.dagProcessor.requests.cpu }}
+              memory: {{ .Values.resources.dagProcessor.requests.memory }}
+          {{- if .Values.livenessProbes.enabled }}
+          livenessProbe:
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+            exec:
+              command: ["airflow", "jobs", "check", "--job-type", "DagProcessorJob", "--local"]
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
