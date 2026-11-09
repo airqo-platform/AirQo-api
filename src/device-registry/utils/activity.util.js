@@ -1,5 +1,8 @@
 const ActivityModel = require("@models/Activity");
 const qs = require("qs");
+const {
+  buildPaginationQuery,
+} = require("@utils/common/pagination-query.util");
 const { HttpError, logObject, logText } = require("@utils/shared");
 const createDeviceUtil = require("@utils/device.util");
 const createSiteUtil = require("@utils/site.util");
@@ -547,13 +550,19 @@ const createActivity = {
       if (baseUrl) {
         const nextSkip = _skip + _limit;
         if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          const nextQuery = buildPaginationQuery(request.query, {
+            skip: nextSkip,
+            limit: _limit,
+          });
           meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
         }
 
         const prevSkip = _skip - _limit;
         if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          const prevQuery = buildPaginationQuery(request.query, {
+            skip: prevSkip,
+            limit: _limit,
+          });
           meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
         }
       }

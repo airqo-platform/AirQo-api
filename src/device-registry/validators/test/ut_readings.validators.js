@@ -258,3 +258,94 @@ describe("readingsValidations.recentBySiteIds", () => {
     expect(res.statusCode).to.equal(400);
   });
 });
+
+/**
+ * Runs the GET /recent validator against a query, resolving on next() (passed)
+ * or res.json() (rejected with 400), and returns req so tests can inspect
+ * sanitized values.
+ * @param {Object} query - Query parameters.
+ * @returns {Promise<{req: Object, res: Object, passed: boolean}>}
+ */
+const runRecentValidation = (query) =>
+  new Promise((resolve) => {
+    const req = mockRequest(query);
+    const res = {};
+    let settled = false;
+    /**
+     * Resolves the promise once, ignoring any later next()/res.json() calls.
+     * @param {{req: Object, res: Object, passed: boolean}} result - Outcome.
+     */
+    const settle = (result) => {
+      if (!settled) {
+        settled = true;
+        resolve(result);
+      }
+    };
+    res.status = (code) => {
+      res.statusCode = code;
+      return res;
+    };
+    res.json = (body) => {
+      res.body = body;
+      settle({ req, res, passed: false });
+      return res;
+    };
+    /** Marks validation as passed (called when every rule succeeds). */
+    const next = () => settle({ req, res, passed: true });
+
+    readingsValidations.recent(req, res, next);
+  });
+
+// GET /recent used to forward string limit/skip straight into the $limit/$skip
+// aggregation stages, which Mongo rejects (HTTP 500). The validator must now
+// hand them on as integers, leave them undefined when absent (so the model's
+// defaults apply), and reject bad values with a 400.
+describe("readingsValidations.recent limit/skip", () => {
+  it("converts string limit and skip to integers", async () => {
+    const { passed, req } = await runRecentValidation({
+      limit: "5",
+      skip: "10",
+    });
+
+    expect(passed).to.equal(true);
+    expect(req.query.limit).to.equal(5);
+    expect(req.query.skip).to.equal(10);
+  });
+
+  it("leaves limit and skip undefined when absent", async () => {
+    const { passed, req } = await runRecentValidation({});
+
+    expect(passed).to.equal(true);
+    expect(req.query.limit).to.equal(undefined);
+    expect(req.query.skip).to.equal(undefined);
+  });
+
+  ["abc", "-1", "0", "2001", "1.5", ""].forEach((limit) => {
+    it(`rejects limit=${JSON.stringify(limit)} with 400`, async () => {
+      const { passed, res } = await runRecentValidation({ limit });
+
+      expect(passed).to.equal(false);
+      expect(res.statusCode).to.equal(400);
+    });
+  });
+
+  ["abc", "-1", "1.5", ""].forEach((skip) => {
+    it(`rejects skip=${JSON.stringify(skip)} with 400`, async () => {
+      const { passed, res } = await runRecentValidation({ skip });
+
+      expect(passed).to.equal(false);
+      expect(res.statusCode).to.equal(400);
+    });
+  });
+
+  it("applies the same limit/skip conversion to POST /recent (recentBySiteIds)", async () => {
+    const { passed, req } = await runBodyValidation(
+      { site_ids: ["624d2f9a994194001ddccbb6"] },
+      { limit: "5", skip: "0" },
+    );
+
+    expect(passed).to.equal(true);
+    expect(req.query.limit).to.equal(5);
+    expect(req.query.skip).to.equal(0);
+  });
+});

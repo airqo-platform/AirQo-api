@@ -1059,9 +1059,9 @@ const DIAGNOSTIC_WINDOW_DAYS = constants.DIAGNOSTIC_WINDOW_DAYS;
 // that bogus reading would display as "the current reading" indefinitely.
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
-// lookbackDays lets a specific caller (e.g. the Nexus-facing /recent endpoint)
-// request a narrower window than the shared DIAGNOSTIC_WINDOW_DAYS default
-// that other callers (mobile app, signals) still rely on. Exported standalone
+// lookbackDays lets a specific caller (e.g. the /readings/recent endpoint, used
+// by Nexus and the mobile app) request a narrower window than the shared
+// DIAGNOSTIC_WINDOW_DAYS default that other callers still rely on. Exported standalone
 // so its precedence/fallback logic is unit-testable without a DB connection.
 const resolveRecentLookbackDays = (lookbackDays, fallbackDays) =>
   Number.isFinite(lookbackDays) && lookbackDays > 0
