@@ -4,6 +4,9 @@ const SiteModel = require("@models/Site");
 const CohortDeviceSnapshotModel = require("@models/CohortDeviceSnapshot");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
+const {
+  buildPaginationQuery,
+} = require("@utils/common/pagination-query.util");
 const networkUtil = require("@utils/network.util");
 const publicCohortUtil = require("@utils/public-cohort.util");
 const isEmpty = require("is-empty");
@@ -643,13 +646,19 @@ const createCohort = {
       if (baseUrl) {
         const nextSkip = _skip + _limit;
         if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          const nextQuery = buildPaginationQuery(request.query, {
+            skip: nextSkip,
+            limit: _limit,
+          });
           meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
         }
 
         const prevSkip = _skip - _limit;
         if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          const prevQuery = buildPaginationQuery(request.query, {
+            skip: prevSkip,
+            limit: _limit,
+          });
           meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
         }
       }
@@ -2176,13 +2185,19 @@ const createCohort = {
       if (baseUrl) {
         const nextSkip = _skip + _limit;
         if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          const nextQuery = buildPaginationQuery(request.query, {
+            skip: nextSkip,
+            limit: _limit,
+          });
           meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
         }
 
         const prevSkip = _skip - _limit;
         if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          const prevQuery = buildPaginationQuery(request.query, {
+            skip: prevSkip,
+            limit: _limit,
+          });
           meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
         }
       }
@@ -2473,13 +2488,19 @@ const createCohort = {
       if (baseUrl) {
         const nextSkip = _skip + _limit;
         if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          const nextQuery = buildPaginationQuery(request.query, {
+            skip: nextSkip,
+            limit: _limit,
+          });
           meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
         }
 
         const prevSkip = _skip - _limit;
         if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          const prevQuery = buildPaginationQuery(request.query, {
+            skip: prevSkip,
+            limit: _limit,
+          });
           meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
         }
       }

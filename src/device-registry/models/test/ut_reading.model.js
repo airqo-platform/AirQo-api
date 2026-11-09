@@ -127,6 +127,49 @@ describe("ReadingModel time-window helpers", () => {
     });
   });
 
+  describe("recent() limit/skip", () => {
+    /**
+     * Calls the recent() static against a fake model whose aggregate chain
+     * records the values handed to skip() and limit().
+     * @param {Object} args - recent() options.
+     * @returns {Promise<{skip: *, limit: *}>} Values passed to the stages.
+     */
+    const captureSkipLimit = async (args) => {
+      const captured = {};
+      const chain = {};
+      ["match", "sort", "group", "replaceRoot", "option"].forEach((m) => {
+        chain[m] = () => chain;
+      });
+      chain.skip = (v) => {
+        captured.skip = v;
+        return chain;
+      };
+      chain.limit = (v) => {
+        captured.limit = v;
+        return chain;
+      };
+      chain.then = (resolve) => resolve([]);
+      await ReadingModel.schema.statics.recent.call(
+        { aggregate: () => chain },
+        args,
+      );
+      return captured;
+    };
+
+    it("defaults to limit 1000 and skip 0 when not provided", async () => {
+      expect(await captureSkipLimit({ filter: {} })).to.deep.equal({
+        skip: 0,
+        limit: 1000,
+      });
+    });
+
+    it("passes validated integer limit/skip through unchanged", async () => {
+      expect(
+        await captureSkipLimit({ filter: {}, limit: 5, skip: 10 }),
+      ).to.deep.equal({ skip: 10, limit: 5 });
+    });
+  });
+
   describe("recent() covering indexes", () => {
     // recent()'s single $match stage combines site_id/device_id + time +
     // deviceDetails.isActive. site_time_latest_idx/device_time_latest_idx don't

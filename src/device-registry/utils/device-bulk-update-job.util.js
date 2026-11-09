@@ -7,6 +7,9 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const qs = require("qs");
+const {
+  buildPaginationQuery,
+} = require("@utils/common/pagination-query.util");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- device-bulk-update-job-util`
@@ -111,18 +114,20 @@ const deviceBulkUpdateJobUtil = {
 
       if (baseUrl) {
         if (_skip + _limit < total) {
-          meta.nextPage = `${baseUrl}?${qs.stringify({
-            ...request.query,
-            skip: _skip + _limit,
-            limit: _limit,
-          })}`;
+          meta.nextPage = `${baseUrl}?${qs.stringify(
+            buildPaginationQuery(request.query, {
+              skip: _skip + _limit,
+              limit: _limit,
+            }),
+          )}`;
         }
         if (_skip > 0) {
-          meta.previousPage = `${baseUrl}?${qs.stringify({
-            ...request.query,
-            skip: Math.max(0, _skip - _limit),
-            limit: _limit,
-          })}`;
+          meta.previousPage = `${baseUrl}?${qs.stringify(
+            buildPaginationQuery(request.query, {
+              skip: Math.max(0, _skip - _limit),
+              limit: _limit,
+            }),
+          )}`;
         }
       }
 

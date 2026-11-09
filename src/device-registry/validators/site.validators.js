@@ -475,8 +475,24 @@ const validateGetApproximateCoordinates = [
 
 const validateNearestSite = [
   createTenantValidation({ isOptional: true }),
-  createCoordinateValidation("longitude"),
-  createCoordinateValidation("latitude"),
+  // A search point needs no minimum precision (unlike site creation), and
+  // trailing zeros are stripped before counting, so `0.247000` used to fail.
+  createCoordinateValidation("longitude", { minPlaces: 0 }),
+  createCoordinateValidation("latitude", { minPlaces: 0 }),
+  query("active_within_days")
+    .optional()
+    .trim()
+    .isInt({ min: 1, max: 365 })
+    .withMessage("the active_within_days must be an integer between 1 and 365")
+    .bail()
+    .toInt(),
+  query("summary")
+    .optional()
+    .trim()
+    .isBoolean()
+    .withMessage("the summary must be a boolean (true or false)")
+    .bail()
+    .toBoolean(true),
   query("radius")
     .exists()
     .withMessage("the radius is missing in request")

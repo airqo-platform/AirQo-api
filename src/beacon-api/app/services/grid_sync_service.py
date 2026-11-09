@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.sync import SyncGrid, SyncGridSite, SyncSite, SyncDevice, SyncSiteDevice
+from app.services import performance_summary
 from app.services.site_service import upsert_site_to_sync
 from app.utils.networks import is_network_enabled
 
@@ -559,6 +560,32 @@ def _prune_grid_to_enabled_networks(synced_grid: Dict[str, Any]) -> bool:
     synced_grid["sites"] = filtered_sites
     synced_grid["number_of_sites"] = len(filtered_sites)
     return total_devices > 0
+
+
+def _grid_devices(synced_grid: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [dev for site in synced_grid.get("sites") or [] for dev in site.get("devices") or []]
+
+
+def apply_performance_summary_synced_grids(
+    grids: List[Dict[str, Any]],
+    db: Session,
+    start_date_time: str,
+    end_date_time: str,
+) -> None:
+    """Enrich synced-shape grids in place through ``performance_summary``, without loading readings."""
+    grids[:] = [grid for grid in grids if _prune_grid_to_enabled_networks(grid)]
+    performance_summary.apply_performance_summary(
+        grids, db, start_date_time, end_date_time, devices_of=_grid_devices,
+    )
+
+
+def drop_grid_sites(grids: List[Dict[str, Any]]) -> None:
+    """Empty each grid's site list, keeping its device count and the country its sites are in."""
+    for grid in grids:
+        sites = grid.get("sites") or []
+        grid["number_of_devices"] = len(_grid_devices(grid))
+        grid["country"] = next((site["country"] for site in sites if site.get("country")), None)
+        grid["sites"] = []
 
 
 def _build_mirror_cohort_from_grid(

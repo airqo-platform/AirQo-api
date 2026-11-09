@@ -72,6 +72,11 @@ FROM base AS webserver
 USER airflow
 CMD ["airflow", "webserver"]
 
+# Parses the DAG folder in place of the scheduler; needs AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR=True.
+FROM base AS dag-processor
+USER airflow
+CMD ["airflow", "dag-processor"]
+
 
 # As of Airflow 2.7.0, you need to install the celery provider package to use this executor.
 # This can be done by installing apache-airflow-providers-celery>=3.3.0 or by installing

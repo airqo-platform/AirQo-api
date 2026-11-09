@@ -10,7 +10,7 @@ from app.schemas.cohort import (
     SyncedCohortResponse,
     SingleSyncedCohortResponse,
 )
-from app.services import cohort_service, cohort_sync_service
+from app.services import cohort_service, cohort_sync_service, performance_summary
 from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
 
@@ -140,6 +140,8 @@ def get_synced_cohorts(
     end_date_time: Optional[str] = Query(None, alias="endDateTime"),
     frequency: Optional[str] = "hourly",
     include_diagnostics: bool = Query(False, alias="includeDiagnostics"),
+    include_series: bool = Query(True, alias="includeSeries"),
+    include_devices: bool = Query(True, alias="includeDevices"),
     db: Session = Depends(get_db),
 ):
     """List cohorts from the local sync table (source of truth).
@@ -150,8 +152,11 @@ def get_synced_cohorts(
     every supplied tag. When ``include_performance=true`` and both
     ``start_date_time`` / ``end_date_time`` are provided, each cohort and its
     devices are enriched with locally-computed performance metrics.
+    ``includeSeries=false`` summarises those metrics without loading the
+    readings, see ``performance_summary.apply_performance_summary``.
     When ``includeDiagnostics=true``, each device carries its most recent
     stored daily diagnosis and each cohort a ``diagnostics_summary`` roll-up.
+    ``includeDevices=false`` leaves each cohort's device list out of the response.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -159,6 +164,10 @@ def get_synced_cohorts(
             status_code=400,
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
+
+    with_performance = bool(include_performance and start_date_time and end_date_time)
+    if with_performance and not include_series:
+        performance_summary.validate_summary_request(start_date_time, end_date_time, freq)
 
     # Resolve group → cohort IDs, then intersect with explicit cohort_ids if provided
     from app.services.group_filter import resolve_group_cohort_ids
@@ -182,7 +191,11 @@ def get_synced_cohorts(
             tags=tags,
         )
 
-        if include_performance and start_date_time and end_date_time:
+        if with_performance and not include_series:
+            performance_summary.apply_performance_summary(
+                result.get("cohorts", []), db, start_date_time, end_date_time,
+            )
+        elif with_performance:
             cohort_sync_service.apply_local_performance_synced(
                 result.get("cohorts", []),
                 db,
@@ -193,6 +206,9 @@ def get_synced_cohorts(
 
         if include_diagnostics:
             apply_diagnostics_to_containers(result.get("cohorts", []), db)
+
+        if not include_devices:
+            performance_summary.drop_device_lists(result.get("cohorts", []))
 
         return result
     except HTTPException:
@@ -210,14 +226,18 @@ def get_synced_cohort(
     endDateTime: Optional[str] = None,
     frequency: Optional[str] = "hourly",
     includeDiagnostics: bool = False,
+    includeSeries: bool = True,
     db: Session = Depends(get_db),
 ):
     """Get a single cohort from the local sync table with associated devices.
 
     When ``includePerformance=true`` and both ``startDateTime`` /
     ``endDateTime`` are provided, the cohort and its devices are enriched
-    with locally-computed performance metrics. When ``includeDiagnostics=true``,
-    devices carry their latest stored diagnosis and the cohort a roll-up.
+    with locally-computed performance metrics. ``includeSeries=false`` keeps
+    their ``uptime`` / ``data_completeness`` but does not load the readings,
+    so ``data`` comes back empty and ``averages`` null on both. When
+    ``includeDiagnostics=true``, devices carry their latest stored diagnosis
+    and the cohort a roll-up.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -240,6 +260,7 @@ def get_synced_cohort(
                 startDateTime,
                 endDateTime,
                 frequency=freq,
+                include_series=includeSeries,
             )
 
         if includeDiagnostics and cohort:

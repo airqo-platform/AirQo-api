@@ -22,6 +22,32 @@ migrationJob:
     - db
     - migrate
   activeDeadlineSeconds: 1800
+dagProcessor:
+  enabled: false
+livenessProbes:
+  enabled: false
+dbClean:
+  enabled: false
+  schedule: '30 0 * * 0'
+  retentionDays: 30
+  activeDeadlineSeconds: 3600
+  tables:
+    - callback_request
+    - celery_taskmeta
+    - celery_tasksetmeta
+    - dag_run
+    - dataset_event
+    - import_error
+    - job
+    - log
+    - session
+    - sla_miss
+    - task_fail
+    - task_instance
+    - task_instance_history
+    - task_reschedule
+    - trigger
+    - xcom
 nodeSelector:
   workload: airflow
 tolerations:
@@ -40,21 +66,21 @@ resources:
   webserver:
     requests:
       cpu: 125m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 500m
       memory: 2000Mi
   scheduler:
     requests:
       cpu: 500m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 1500m
       memory: 1800Mi
   celery:
     requests:
       cpu: 1000m
-      memory: 2500Mi
+      memory: 512Mi
     limits:
       cpu: 2000m
       memory: 3000Mi
@@ -75,10 +101,24 @@ resources:
   migrationJob:
     requests:
       cpu: 500m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 1500m
       memory: 1800Mi
+  dagProcessor:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1500Mi
+  dbClean:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1500Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

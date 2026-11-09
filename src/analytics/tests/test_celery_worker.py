@@ -10,7 +10,8 @@ Covers:
   - the worker marks a request that BigQuery refuses with HTTP 403 as
     failed, and keeps a retry only for a quota or rate refusal;
   - the export and devices-summary helpers translate a 403 into
-    QueryForbidden.
+    QueryForbidden;
+  - the broker and result backend follow the startup choice of use_sentinel.
 
 No Mongo/BigQuery/Redis needed: models are constructed without __init__ or
 exercised as pure functions.
@@ -29,6 +30,7 @@ from google.api_core.exceptions import Forbidden
 
 from api.models.data_export import DataExportModel
 from api.models.export_queries import data_export_query
+from api.utils.cache import _SOCKET_TIMEOUT_SECONDS
 from api.utils.exceptions import QueryForbidden, QueryRateLimited
 from constants import DataExportStatus, Frequency
 
@@ -208,6 +210,43 @@ class TestWorkerImports:
         import celery_app
 
         assert celery_app.celery.conf.task_default_queue == "analytics"
+
+
+class TestWorkerRedisTarget:
+    """The broker and result backend follow the startup choice of use_sentinel."""
+
+    def test_sentinel_transport_and_backend(self, monkeypatch):
+        import celery_app
+
+        monkeypatch.setattr(celery_app.settings, "redis_sentinel_hosts", "s1,s2:26380")
+        monkeypatch.setattr(celery_app.settings, "redis_sentinel_master_name", "m")
+        monkeypatch.setattr(celery_app, "use_sentinel", lambda: True)
+
+        app = celery_app.make_celery()
+
+        url = "sentinel://s1:26379/0;sentinel://s2:26380/0"
+        assert app.conf.broker_url == url
+        assert app.conf.result_backend == url
+        assert type(app.backend).__name__ == "SentinelBackend"
+        transport = app.connection_for_write().transport
+        assert type(transport).__name__ == "SentinelTransport"
+        options = app.conf.broker_transport_options
+        assert app.conf.result_backend_transport_options is options
+        assert options["master_name"] == "m"
+        node_kwargs = options["sentinel_kwargs"]
+        assert node_kwargs["socket_connect_timeout"] == _SOCKET_TIMEOUT_SECONDS
+        assert node_kwargs["retry"]._retries == 0
+
+    def test_direct_urls_without_sentinel(self, monkeypatch):
+        import celery_app
+
+        monkeypatch.setattr(celery_app, "use_sentinel", lambda: False)
+
+        app = celery_app.make_celery()
+
+        assert app.conf.broker_url == f"{celery_app.settings.cache_redis_url}/0"
+        assert app.conf.result_backend == f"{celery_app.settings.cache_redis_url}/0"
+        assert app.conf.broker_transport_options == {}
 
 
 def _refused(reason: str = "accessDenied") -> Forbidden:

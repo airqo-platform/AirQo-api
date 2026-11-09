@@ -44,8 +44,23 @@ warning once a minute. Limits stay enforced but become approximate — roughly
 `/health/ready` still reports 503, so a pod is pulled from the load balancer
 until Redis returns.
 
-Redis is also the Celery broker (`redis://{REDIS_SERVER}:{REDIS_PORT}/0`),
-and that has no fallback — scheduled exports stop until it is back.
+Each process chooses its Redis target once, at startup. With
+`REDIS_SENTINEL_HOSTS` set, it asks Sentinel for the master named by
+`REDIS_SENTINEL_MASTER_NAME` and uses it when it answers `ROLE` as a master.
+When only the direct Redis URL (`REDIS_SERVER` and `REDIS_PORT`) answers as a
+master, the process uses that server and keeps its address until the process
+restarts. When neither answers as a master, the process keeps Sentinel. A
+Sentinel-backed process asks a Sentinel node for the master address each
+time it opens a connection, so it follows a failover without a restart; each
+node that does not answer costs one socket timeout. The startup log names the
+target of each process. A malformed `REDIS_SENTINEL_HOSTS`, or a host list
+without a master name, stops the app at startup. The `ROLE` command must be
+available on every Redis server.
+
+Redis is also the Celery broker and result backend, through the same startup
+choice (`sentinel://host:port/0` for each Sentinel node, or
+`redis://{REDIS_SERVER}:{REDIS_PORT}/0`). The broker has no fallback within a
+running process — scheduled exports stop until Redis is back.
 Paging keeps its state in the cursor and in the BigQuery result that the
 cursor names, so it continues while Redis is unavailable. A cursor is a signed
 token that names the job whose stored result holds the remaining pages, and
@@ -56,6 +71,8 @@ Locally:
 ```bash
 docker run -d -p 6379:6379 redis:7.2
 export REDIS_SERVER=localhost REDIS_PORT=6379
+# Optional, to go through Sentinel; the default port is 26379.
+export REDIS_SENTINEL_HOSTS=localhost:26379 REDIS_SENTINEL_MASTER_NAME=mymaster
 ```
 
 When deployed, point `REDIS_SERVER` at a Redis that every replica shares —
@@ -124,6 +141,8 @@ diagnose from the symptom. The rest have sane defaults.
 | `DATA_EXPORT_LOCATION`      | `EU`                   | Must match the BigQuery dataset's region, or export jobs fail.                                                                                                                                                                                                                                                                                                                                                                                         |
 | `AIRQO_API_TIMEOUT`         | `10.0`                 | Without a timeout urllib3 waits forever and parks a shared worker thread.                                                                                                                                                                                                                                                                                                                                                                              |
 | `CACHE_KEY_PREFIX`          | `Analytics-production` | Namespaces Redis keys. Two environments sharing a Redis without distinct prefixes will share rate-limit counters.                                                                                                                                                                                                                                                                                                                                      |
+| `REDIS_SENTINEL_HOSTS`      | empty                  | Comma-separated `host[:port]` list of Sentinel nodes (host names or IPv4 addresses; the default port is 26379). See [Runtime dependencies](#runtime-dependencies) for how a process chooses between Sentinel and the direct URL. A malformed or repeated entry **stops the app** at startup.                                                                                                                                                             |
+| `REDIS_SENTINEL_MASTER_NAME` | empty                 | The master group that Sentinel monitors. Required when `REDIS_SENTINEL_HOSTS` is set; a host list without it **stops the app** at startup.                                                                                                                                                                                                                                                                                                             |
 
 ## API endpoints
 

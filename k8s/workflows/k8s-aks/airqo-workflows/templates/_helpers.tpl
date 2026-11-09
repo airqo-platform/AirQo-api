@@ -135,3 +135,39 @@ XCom init container of the workflows pods and of the migration Job.
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
+
+{{/*
+Init container that waits until the database schema matches the image's migrations.
+*/}}
+{{- define "airqo-workflows.checkMigrationsInitContainer" -}}
+- name: '{{ .Values.app.name }}-check-migrations'
+  image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
+  imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
+  envFrom:
+    - secretRef:
+        name: {{ .Values.app.secret }}
+  env:
+    - name: PYTHONDONTWRITEBYTECODE
+      value: "1"
+  command: ["/usr/bin/dumb-init", "--", "airflow"]
+  args: ["db", "check-migrations", "--migration-wait-timeout", "{{ .Values.checkMigrations.waitTimeoutSeconds }}"]
+  {{- with .Values.volumeMounts }}
+  volumeMounts:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  resources:
+    limits:
+      cpu: {{ .Values.resources.checkMigrations.limits.cpu }}
+      memory: {{ .Values.resources.checkMigrations.limits.memory }}
+    requests:
+      cpu: {{ .Values.resources.checkMigrations.requests.cpu }}
+      memory: {{ .Values.resources.checkMigrations.requests.memory }}
+{{- end }}
+
+{{/*
+Setting that moves DAG parsing from the scheduler to the standalone DAG processor.
+*/}}
+{{- define "airqo-workflows.standaloneDagProcessorEnv" -}}
+- name: AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR
+  value: "True"
+{{- end }}

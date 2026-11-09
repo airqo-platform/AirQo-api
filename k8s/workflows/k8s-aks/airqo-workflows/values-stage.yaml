@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-d6b26b9f-1793863559
+  tag: stage-893eaa04-1794232421
 inPodRedis:
   enabled: true
 checkMigrations:
@@ -22,6 +22,32 @@ migrationJob:
     - db
     - migrate
   activeDeadlineSeconds: 1800
+dagProcessor:
+  enabled: true
+livenessProbes:
+  enabled: true
+dbClean:
+  enabled: true
+  schedule: 30 0 * * 0
+  retentionDays: 30
+  activeDeadlineSeconds: 3600
+  tables:
+    - callback_request
+    - celery_taskmeta
+    - celery_tasksetmeta
+    - dag_run
+    - dataset_event
+    - import_error
+    - job
+    - log
+    - session
+    - sla_miss
+    - task_fail
+    - task_instance
+    - task_instance_history
+    - task_reschedule
+    - trigger
+    - xcom
 resources:
   initContainer:
     requests:
@@ -33,21 +59,21 @@ resources:
   webserver:
     requests:
       cpu: 125m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 500m
       memory: 1500Mi
   scheduler:
     requests:
       cpu: 500m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 3000m
       memory: 1800Mi
   celery:
     requests:
       cpu: 125m
-      memory: 1500Mi
+      memory: 512Mi
     limits:
       cpu: 2500m
       memory: 3000Mi
@@ -68,10 +94,24 @@ resources:
   migrationJob:
     requests:
       cpu: 500m
-      memory: 1000Mi
+      memory: 512Mi
     limits:
       cpu: 1500m
       memory: 1800Mi
+  dagProcessor:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1500Mi
+  dbClean:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1500Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

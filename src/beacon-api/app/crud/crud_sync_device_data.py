@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from itertools import groupby
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import BigInteger, cast, extract, func, literal_column
 from sqlalchemy.orm import Session
 
 from app.models.device_data import (
@@ -207,6 +207,95 @@ def get_device_data_for_devices(
 
     records_by_device = _group_rows_by_device(rows, name_by_channel, device_names, frequency)
     return records_by_device, info_by_name
+
+
+def get_device_reading_times(
+    db: Session,
+    device_names: List[str],
+    start: Optional[str],
+    end: Optional[str],
+    frequency: str = "hourly",
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    The same rows and window as ``get_device_data_for_devices``, reduced to each row's
+    ``datetime``, for callers that only count uptime buckets: ``{device_name:
+    [{"datetime": <ISO 8601>}, ...]}``. The readings themselves are not read.
+    """
+    _info_by_name, name_by_channel = _resolve_devices(db, device_names)
+    times_by_device: Dict[str, List[Dict[str, Any]]] = {name: [] for name in device_names}
+
+    model_cls, ts_col, _suffix = _FREQ_CONFIG[frequency]
+    ts_attr = getattr(model_cls, ts_col)
+
+    channels = list(name_by_channel.keys())
+    BATCH_SIZE = 200
+    for i in range(0, len(channels), BATCH_SIZE):
+        batch = channels[i : i + BATCH_SIZE]
+        query = db.query(model_cls.channel_id, ts_attr).filter(model_cls.channel_id.in_(batch))
+        query = _apply_time_range(query, ts_attr, frequency, start, end)
+        for channel_id, ts_value in query:
+            times_by_device[name_by_channel[str(channel_id)]].append({"datetime": ts_value.isoformat()})
+
+    return times_by_device
+
+
+def get_hourly_row_counts_by_day(
+    db: Session,
+    channel_ids: Iterable[str],
+    start: Optional[str],
+    end: Optional[str],
+) -> Dict[str, Dict[str, int]]:
+    """
+    ``{channel_id: {UTC date: hours with a reading}}`` over the same window as
+    ``get_device_data_for_devices``, counted by the database so no rows are loaded.
+    A channel has at most one hourly row per hour. Channels without rows are left out.
+    """
+    ids = sorted({str(c) for c in channel_ids if c is not None and str(c) != ""})
+    if not ids:
+        return {}
+
+    epoch = cast(extract("epoch", SyncHourlyDeviceData.hour_start), BigInteger)
+    utc_day = (epoch - epoch % literal_column("86400")).label("utc_day")
+    query = db.query(SyncHourlyDeviceData.channel_id, utc_day, func.count()).filter(
+        SyncHourlyDeviceData.channel_id.in_(ids)
+    )
+    query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, end)
+
+    counts: Dict[str, Dict[str, int]] = {}
+    for channel_id, day_start, hours in query.group_by(SyncHourlyDeviceData.channel_id, utc_day):
+        day = datetime.fromtimestamp(int(day_start), timezone.utc).date().isoformat()
+        counts.setdefault(str(channel_id), {})[day] = int(hours)
+    return counts
+
+
+def get_hourly_sensor_totals(
+    db: Session,
+    channel_ids: Iterable[str],
+    sensor1_field: str,
+    sensor2_field: str,
+    start: Optional[str],
+    end: Optional[str],
+) -> List[Tuple[datetime, Optional[float], int, Optional[float], int]]:
+    """
+    One ``(hour_start, sensor 1 sum, sensor 1 count, sensor 2 sum, sensor 2 count)`` per hour
+    across ``channel_ids``. Totals rather than means, so a caller can combine channels whose
+    sensors sit in different fields.
+    """
+    ids = sorted({str(c) for c in channel_ids if c is not None and str(c) != ""})
+    if not ids:
+        return []
+
+    sensor1 = getattr(SyncHourlyDeviceData, f"{sensor1_field}_avg")
+    sensor2 = getattr(SyncHourlyDeviceData, f"{sensor2_field}_avg")
+    query = db.query(
+        SyncHourlyDeviceData.hour_start,
+        func.sum(sensor1),
+        func.count(sensor1),
+        func.sum(sensor2),
+        func.count(sensor2),
+    ).filter(SyncHourlyDeviceData.channel_id.in_(ids))
+    query = _apply_time_range(query, SyncHourlyDeviceData.hour_start, "hourly", start, end)
+    return [tuple(row) for row in query.group_by(SyncHourlyDeviceData.hour_start)]
 
 
 def iter_hourly_records_by_channel(

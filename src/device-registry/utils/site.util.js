@@ -2,6 +2,9 @@ const SiteModel = require("@models/Site");
 const CohortModel = require("@models/Cohort");
 const CohortSiteSnapshotModel = require("@models/CohortSiteSnapshot");
 const qs = require("qs");
+const {
+  buildPaginationQuery,
+} = require("@utils/common/pagination-query.util");
 const ActivityModel = require("@models/Activity");
 const DeviceModel = require("@models/Device");
 const GridModel = require("@models/Grid");
@@ -25,6 +28,10 @@ const httpStatus = require("http-status");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- site-util`,
 );
+
+// Grace period for slightly-future timestamps (device clock skew); anything
+// later is treated as corrupted. Matches the 5-minute value used elsewhere.
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 const geolib = require("geolib");
 const {
@@ -1860,13 +1867,19 @@ const createSite = {
       if (baseUrl) {
         const nextSkip = _skip + _limit;
         if (nextSkip < total) {
-          const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+          const nextQuery = buildPaginationQuery(request.query, {
+            skip: nextSkip,
+            limit: _limit,
+          });
           meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
         }
 
         const prevSkip = _skip - _limit;
         if (prevSkip >= 0) {
-          const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+          const prevQuery = buildPaginationQuery(request.query, {
+            skip: prevSkip,
+            limit: _limit,
+          });
           meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
         }
       }
@@ -2265,14 +2278,55 @@ const createSite = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
+  /**
+   * Finds the sites nearest a coordinate for GET /sites/nearest. Builds the
+   * site filter from the request (including the optional `active_within_days`
+   * activity window) and delegates the geo query to SiteModel.findNearestSites.
+   *
+   * @param {Object} request - Express request; reads `radius`, `latitude`,
+   *   `longitude`, `tenant`, `limit`, `active_within_days` and `summary` from
+   *   body, query and params.
+   * @param {Function} next - Express error callback, called on failure.
+   * @returns {Promise<Object|undefined>} The model's response, or undefined
+   *   after calling `next` with an error.
+   */
   findNearestSitesByCoordinates: async (request, next) => {
     try {
-      let { radius, latitude, longitude, tenant, limit } = {
+      let {
+        radius,
+        latitude,
+        longitude,
+        tenant,
+        limit,
+        active_within_days,
+        summary,
+      } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
       const filter = generateFilter.sites(request, next);
+
+      // Keep only sites that reported within the window. Uses the device-feed
+      // timestamp (lastRawData) OR the processed-events one (lastActive), so a
+      // processing backlog alone never hides a site. Deliberately not based on
+      // isOnline/rawOnlineStatus, which go false during such backlogs.
+      // Appended via $and so it can't clobber an existing $or (e.g. `search`).
+      // Each timestamp is also capped at now + MAX_CLOCK_SKEW_MS so a corrupted
+      // future value (bad device clock) can't make a silent site look active.
+      if (active_within_days) {
+        const now = Date.now();
+        const window = {
+          $gte: new Date(now - Number(active_within_days) * 24 * 60 * 60 * 1000),
+          $lte: new Date(now + MAX_CLOCK_SKEW_MS),
+        };
+        filter.$and = [
+          ...(filter.$and || []),
+          {
+            $or: [{ lastRawData: window }, { lastActive: window }],
+          },
+        ];
+      }
 
       const responseFromFindNearestSites = await SiteModel(
         tenant,
@@ -2283,6 +2337,7 @@ const createSite = {
           radius,
           filter,
           limit,
+          summary: summary === true || summary === "true",
         },
         next,
       );

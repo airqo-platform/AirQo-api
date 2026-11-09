@@ -6,6 +6,7 @@ get, set, and delete operations.
 """
 
 import logging
+import socket
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -28,6 +29,7 @@ def reset_cache_state():
 
     def reset():
         api.utils.cache._cache = None
+        api.utils.cache._sentinel = None
         api.utils.cache._unavailable = False
         api.utils.cache._warned = False
         api.utils.cache._last_warning_at = None
@@ -297,6 +299,176 @@ class TestRedisRecovery:
             await init_cache()
 
         assert api.utils.cache._cache is None
+
+
+class TestSentinelStartup:
+    """Each process chooses Sentinel or the direct server once, at startup."""
+
+    @pytest.fixture(autouse=True)
+    def sentinel_settings(self, monkeypatch):
+        settings = api.utils.cache.settings
+        monkeypatch.setattr(settings, "redis_sentinel_hosts", "s1,s2:26380")
+        monkeypatch.setattr(settings, "redis_sentinel_master_name", "m")
+
+    @staticmethod
+    def _server(role):
+        """A synchronous client whose ROLE reply is the given list or exception."""
+        client = MagicMock()
+        client.connection_pool.connection_kwargs = {"host": "h", "port": 6379}
+        if isinstance(role, Exception):
+            client.role.side_effect = role
+        else:
+            client.role.return_value = role
+        return client
+
+    @classmethod
+    def _sync_sentinel(cls, master_answers: bool):
+        """A patched synchronous Sentinel whose master answers or refuses."""
+        master = cls._server(
+            ["master", 0, []] if master_answers else ConnectionError("refused")
+        )
+        sentinel = MagicMock()
+        sentinel.master_for.return_value = master
+        sentinel.sentinels = [MagicMock(), MagicMock()]
+        return sentinel, master
+
+    @pytest.mark.asyncio
+    async def test_not_configured_uses_the_direct_client(self, monkeypatch):
+        monkeypatch.setattr(api.utils.cache.settings, "redis_sentinel_hosts", "")
+        with patch("redis.sentinel.Sentinel") as sync_sentinel, patch(
+            "redis.asyncio.sentinel.Sentinel"
+        ) as async_sentinel, patch("redis.asyncio.from_url") as from_url:
+            from_url.return_value = AsyncMock()
+            await init_cache()
+
+        sync_sentinel.assert_not_called()
+        async_sentinel.assert_not_called()
+        assert from_url.call_args.args == (api.utils.cache.settings.cache_redis_url,)
+
+    @pytest.mark.asyncio
+    async def test_master_that_answers_backs_the_client(self):
+        sentinel, master = self._sync_sentinel(master_answers=True)
+        async_sentinel = MagicMock()
+        async_sentinel.master_for.return_value = AsyncMock()
+        with patch("redis.sentinel.Sentinel", return_value=sentinel), patch(
+            "redis.asyncio.sentinel.Sentinel", return_value=async_sentinel
+        ) as async_class, patch("redis.asyncio.from_url") as from_url:
+            await init_cache()
+
+        from_url.assert_not_called()
+        assert async_class.call_args.args == ([("s1", 26379), ("s2", 26380)],)
+        assert async_sentinel.master_for.call_args.args == ("m",)
+        assert api.utils.cache._cache is async_sentinel.master_for.return_value
+        assert api.utils.cache._sentinel is async_sentinel
+        master.close.assert_called_once()
+        for node in sentinel.sentinels:
+            node.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_direct_server_wins_when_only_it_answers(self, caplog):
+        sentinel, _ = self._sync_sentinel(master_answers=False)
+        with caplog.at_level(logging.WARNING, logger="api.utils.cache"):
+            with patch("redis.sentinel.Sentinel", return_value=sentinel), patch(
+                "redis.Redis.from_url", return_value=self._server(["master", 0, []])
+            ) as direct, patch("redis.asyncio.sentinel.Sentinel") as async_class, patch(
+                "redis.asyncio.from_url"
+            ) as from_url:
+                from_url.return_value = AsyncMock()
+                await init_cache()
+
+        assert direct.call_args.args == (api.utils.cache.settings.cache_redis_url,)
+        async_class.assert_not_called()
+        assert from_url.call_args.args == (api.utils.cache.settings.cache_redis_url,)
+        assert api.utils.cache._sentinel is None
+        levels = [r.levelno for r in caplog.records if r.name == "api.utils.cache"]
+        assert levels == [logging.WARNING, logging.WARNING]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "direct_role",
+        [ConnectionError("refused"), ["slave", "h", 6379, "connected", 0]],
+    )
+    async def test_sentinel_wins_when_no_master_answers(self, direct_role):
+        """A direct server that is a replica counts the same as one that is down."""
+        sentinel, _ = self._sync_sentinel(master_answers=False)
+        direct = self._server(direct_role)
+        async_sentinel = MagicMock()
+        async_sentinel.master_for.return_value = AsyncMock()
+        with patch("redis.sentinel.Sentinel", return_value=sentinel), patch(
+            "redis.Redis.from_url", return_value=direct
+        ), patch("redis.asyncio.sentinel.Sentinel", return_value=async_sentinel), patch(
+            "redis.asyncio.from_url"
+        ) as from_url:
+            await init_cache()
+
+        from_url.assert_not_called()
+        assert api.utils.cache._sentinel is async_sentinel
+
+    def test_each_unreachable_node_costs_one_connection_attempt(self, monkeypatch):
+        """Two Sentinel nodes and the direct server give three attempts, so a
+        startup against hosts that time out is bounded by one timeout for each."""
+        attempts = []
+
+        def time_out(self):
+            attempts.append((self.host, self.port))
+            raise socket.timeout("timed out")
+
+        monkeypatch.setattr("redis.connection.Connection._connect", time_out)
+
+        assert api.utils.cache.use_sentinel() is True
+        settings = api.utils.cache.settings
+        direct = (settings.cache_redis_host, settings.cache_redis_port)
+        assert attempts == [("s1", 26379), ("s2", 26380), direct]
+
+    @pytest.mark.asyncio
+    async def test_async_client_asks_each_node_once_and_closes(self, monkeypatch):
+        """The real async Sentinel client carries the bounded options, tries
+        each node once for a command, and close_cache releases every node client."""
+        attempts = []
+
+        async def time_out(self):
+            attempts.append((self.host, self.port))
+            raise socket.timeout("timed out")
+
+        monkeypatch.setattr("redis.asyncio.connection.Connection._connect", time_out)
+        monkeypatch.setattr(api.utils.cache, "use_sentinel", lambda: True)
+
+        await init_cache()
+        attempts.clear()
+
+        timeout = api.utils.cache._SOCKET_TIMEOUT_SECONDS
+        bounded = {
+            "socket_connect_timeout": timeout,
+            "socket_timeout": timeout,
+            "protocol": 2,
+        }
+        master_kwargs = api.utils.cache._cache.connection_pool.connection_kwargs
+        assert {k: master_kwargs[k] for k in bounded} == bounded
+        assert master_kwargs["decode_responses"] is True
+        for node in api.utils.cache._sentinel.sentinels:
+            node_kwargs = node.connection_pool.connection_kwargs
+            assert {k: node_kwargs[k] for k in bounded} == bounded
+            assert node_kwargs["retry"]._retries == 0
+
+        assert await cache_ping() is False
+        assert attempts == [("s1", 26379), ("s2", 26380)]
+
+        await close_cache()
+        assert api.utils.cache._cache is None
+        assert api.utils.cache._sentinel is None
+
+    @pytest.mark.asyncio
+    async def test_close_cache_closes_the_node_clients_without_a_master_client(self):
+        api.utils.cache._cache = None
+        sentinel = MagicMock()
+        sentinel.sentinels = [AsyncMock(), AsyncMock()]
+        api.utils.cache._sentinel = sentinel
+
+        await close_cache()
+
+        for node in sentinel.sentinels:
+            node.aclose.assert_awaited_once()
+        assert api.utils.cache._sentinel is None
 
 
 class TestCachePing:
