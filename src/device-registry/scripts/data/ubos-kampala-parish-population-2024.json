@@ -1,0 +1,39 @@
+{
+  "_comment": "Partial seed. Source: UBOS National Population and Housing Census 2024, retrieved via NSO Uganda opendataforafrica.org (dataset boawfff, published 2025-06-16). Only the parishes forwarded by UBOS in the 2026-09-13 email are included: all 20 parishes of KAMPALA CENTRAL DIVISION (verified below) plus the first 2 of 22 parishes of KAWEMPE DIVISION. The other 3 Kampala divisions (MAKINDYE, NAKAWA, RUBAGA) and the remaining 20 KAWEMPE parishes are not yet in hand — re-run this script (upsert-safe) once the full 202-row export arrives.",
+  "district": "KAMPALA",
+  "year": 2024,
+  "source": "UBOS — National Population and Housing Census 2024 (opendataforafrica.org)",
+  "dataset_id": "boawfff",
+  "division_totals_reference": {
+    "_comment": "Published division-level rollup from the same UBOS email, used by the ingestion script to cross-check summed parish rows. Divisions not fully seeded above are expected to under-count against this table.",
+    "KAMPALA CENTRAL DIVISION": { "male": 48204, "female": 33454, "total": 81658 },
+    "KAWEMPE DIVISION": { "male": 230649, "female": 159521, "total": 390170 },
+    "MAKINDYE DIVISION": { "male": 264968, "female": 221794, "total": 486762 },
+    "NAKAWA DIVISION": { "male": 227129, "female": 201603, "total": 428732 },
+    "RUBAGA DIVISION": { "male": 233934, "female": 176466, "total": 410400 }
+  },
+  "rows": [
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "BUKESA", "male": 5355, "female": 4083 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "CIVIC CENTRE", "male": 1289, "female": 558 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "INDUSTRIAL AREA", "male": 2077, "female": 1492 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KAGUGUBE", "male": 4128, "female": 2771 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KAMWOKYA I", "male": 1091, "female": 727 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KAMWOKYA II", "male": 8126, "female": 7894 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KISENYI I", "male": 1150, "female": 444 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KISENYI II", "male": 2812, "female": 1707 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KISENYI III", "male": 4793, "female": 1974 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KOLOLO I", "male": 1382, "female": 885 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KOLOLO II", "male": 725, "female": 404 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KOLOLO III", "male": 899, "female": 508 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "KOLOLO IV", "male": 940, "female": 569 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "MENGO", "male": 5803, "female": 5222 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "NAKASERO I", "male": 1000, "female": 376 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "NAKASERO II", "male": 1379, "female": 797 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "NAKASERO III", "male": 1225, "female": 708 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "NAKASERO IV", "male": 1188, "female": 641 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "NAKIVUBO", "male": 821, "female": 241 },
+    { "division": "KAMPALA CENTRAL DIVISION", "parish": "OLD KAMPALA", "male": 2021, "female": 1453 },
+    { "division": "KAWEMPE DIVISION", "parish": "BWAISE I", "male": 13118, "female": 8524 },
+    { "division": "KAWEMPE DIVISION", "parish": "BWAISE II", "male": 11854, "female": 8121 }
+  ]
+}
