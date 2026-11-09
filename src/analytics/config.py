@@ -5,7 +5,7 @@ Application settings, resolved from the environment via pydantic-settings.
 import os
 import re
 from pathlib import Path
-from typing import ClassVar, Dict, List, Optional, Any, Set
+from typing import ClassVar, Dict, List, Optional, Any, Set, Tuple
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices, Field, field_validator, SecretStr
 from constants import DataType, DeviceCategory, Frequency
@@ -20,6 +20,37 @@ from constants import DataType, DeviceCategory, Frequency
 TABLE_NAME_RE = re.compile(r"[A-Za-z0-9_-]+([.:][A-Za-z0-9_-]+){0,2}")
 
 _WHITESPACE_RE = re.compile(r"\s+")
+
+SENTINEL_DEFAULT_PORT = 26379
+
+# A host name or an IPv4 address with an optional port; IPv6 literals are out.
+_SENTINEL_HOST_RE = re.compile(r"(?P<host>[A-Za-z0-9._-]+)(:(?P<port>[0-9]+))?")
+
+
+def split_list(value: str) -> List[str]:
+    """Split a comma-separated setting into its non-empty, stripped entries."""
+    return [entry.strip() for entry in (value or "").split(",") if entry.strip()]
+
+
+def parse_sentinel_hosts(value: str) -> List[Tuple[str, int]]:
+    """
+    Parse a comma-separated list of ``host[:port]`` Sentinel addresses.
+
+    Raises:
+        ValueError: If an entry is malformed, has a port outside 1 to 65535,
+            or repeats an earlier entry.
+    """
+    hosts: List[Tuple[str, int]] = []
+    for entry in split_list(value):
+        match = _SENTINEL_HOST_RE.fullmatch(entry)
+        port = int(match.group("port") or SENTINEL_DEFAULT_PORT) if match else 0
+        address = (match.group("host"), port) if match else None
+        if not 1 <= port <= 65535 or address in hosts:
+            raise ValueError(
+                f"REDIS_SENTINEL_HOSTS entry {entry!r} is not a valid host[:port]."
+            )
+        hosts.append(address)
+    return hosts
 
 
 def normalize_table_name(table: str, label: Optional[str] = None) -> str:
@@ -134,6 +165,35 @@ class BaseConfig(BaseSettings):
             return f"redis://{host}:{port}"
         return v
 
+    # api/utils/cache.py chooses Sentinel or the direct URL once, at startup.
+    redis_sentinel_master_name: str = Field(
+        default="", validation_alias="REDIS_SENTINEL_MASTER_NAME"
+    )
+    redis_sentinel_hosts: str = Field(
+        default="", validation_alias="REDIS_SENTINEL_HOSTS"
+    )
+
+    @field_validator("redis_sentinel_master_name")
+    @classmethod
+    def strip_sentinel_master_name(cls, v: str) -> str:
+        """A name of whitespace only counts as unset."""
+        return v.strip()
+
+    @field_validator("redis_sentinel_hosts")
+    @classmethod
+    def validate_sentinel_hosts(cls, v: str, info: Any) -> str:
+        """A malformed host list, or one without a master name, stops the app."""
+        hosts = parse_sentinel_hosts(v)
+        if hosts and not info.data.get("redis_sentinel_master_name"):
+            raise ValueError(
+                "REDIS_SENTINEL_MASTER_NAME must be set when "
+                "REDIS_SENTINEL_HOSTS is set."
+            )
+        return v
+
+    def redis_sentinel_hosts_list(self) -> List[Tuple[str, int]]:
+        return parse_sentinel_hosts(self.redis_sentinel_hosts)
+
     # HTTP surface settings — comma-separated to keep .env parsing simple.
     # Defaults are permissive for local dev; production must set both.
     cors_allowed_origins: str = Field(
@@ -242,10 +302,10 @@ class BaseConfig(BaseSettings):
         return min(self.max_aggregation_query_days, self.max_query_days)
 
     def cors_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+        return split_list(self.cors_allowed_origins)
 
     def allowed_hosts_list(self) -> List[str]:
-        return [h.strip() for h in self.allowed_hosts.split(",") if h.strip()]
+        return split_list(self.allowed_hosts)
 
     # External API settings
     airqo_api_base_url: str = Field(

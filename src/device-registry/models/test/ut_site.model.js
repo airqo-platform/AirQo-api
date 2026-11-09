@@ -354,5 +354,159 @@ describe("the Site Model", function() {
         lat_long: { $ne: "4_4" },
       });
     });
+
+    // Records every stage in call order so tests can assert pipeline shape:
+    // one row per site (no $unwind), `limit` counting distinct sites, and
+    // which lookups run with/without `summary`.
+    describe("pipeline shape", function() {
+      const STAGES = [
+        "near",
+        "match",
+        "lookup",
+        "unwind",
+        "addFields",
+        "project",
+        "limit",
+        "allowDiskUse",
+      ];
+
+      /**
+       * Builds a fake model whose aggregate() chain records each stage call.
+       * @param {Object[]} response - Rows the awaited pipeline resolves to.
+       * @returns {{model: Object, stages: Array<{method: string, arg: *}>}}
+       */
+      function recordingModel(response) {
+        const stages = [];
+        const chain = {};
+        STAGES.forEach((method) => {
+          chain[method] = sinon.stub().callsFake((arg) => {
+            stages.push({ method, arg });
+            return chain;
+          });
+        });
+        chain.then = (resolve) => resolve(response);
+        return { model: { aggregate: sinon.stub().returns(chain) }, stages };
+      }
+
+      /**
+       * Position of the $lookup stage joining the given collection.
+       * @param {Array<{method: string, arg: *}>} stages - Recorded stages.
+       * @param {string} from - Collection name of the lookup.
+       * @returns {number} Stage index, or -1 if absent.
+       */
+      const indexOfLookup = (stages, from) =>
+        stages.findIndex((s) => s.method === "lookup" && s.arg.from === from);
+
+      /**
+       * Calls findNearestSites against a recording model with default
+       * coordinates/radius, asserting no error was passed to `next`.
+       * @param {Object} args - Overrides for the findNearestSites options.
+       * @param {Object[]} [response=[]] - Rows the pipeline resolves to.
+       * @returns {Promise<{result: Object, stages: Array<{method: string, arg: *}>}>}
+       */
+      async function run(args, response = []) {
+        const { model, stages } = recordingModel(response);
+        const next = sinon.stub();
+        const result = await SiteSchema.statics.findNearestSites.call(
+          model,
+          { longitude: 32.5, latitude: 0.3, radius: 10, filter: {}, ...args },
+          next
+        );
+        expect(next.called).to.equal(false);
+        return { result, stages };
+      }
+
+      it("never unwinds devices, so a site with several devices yields one row", async function() {
+        const { stages } = await run({});
+        expect(stages.map((s) => s.method)).to.not.include("unwind");
+
+        const devicesLookup = indexOfLookup(stages, "devices");
+        const deviceMatch = stages[devicesLookup + 1];
+        expect(deviceMatch.method).to.equal("match");
+        expect(deviceMatch.arg).to.deep.equal({
+          "devices.0": { $exists: true },
+        });
+      });
+
+      it("applies limit right after the device match, so it counts distinct sites", async function() {
+        const { stages } = await run({ limit: 5 });
+        const devicesLookup = indexOfLookup(stages, "devices");
+        const limitStage = stages[devicesLookup + 2];
+        expect(limitStage).to.deep.equal({ method: "limit", arg: 5 });
+
+        // ...and before the heavy lookups, which then only run for returned rows.
+        const limitIndex = devicesLookup + 2;
+        ["grids", "airqlouds", "activities"].forEach((from) => {
+          expect(indexOfLookup(stages, from)).to.be.greaterThan(limitIndex);
+        });
+      });
+
+      it("caps limit at 100 and defaults it to 20", async function() {
+        const capped = await run({ limit: 500 });
+        expect(capped.stages.find((s) => s.method === "limit").arg).to.equal(
+          100
+        );
+        const defaulted = await run({ limit: undefined });
+        expect(
+          defaulted.stages.find((s) => s.method === "limit").arg
+        ).to.equal(20);
+      });
+
+      it("keeps `devices` as a single object in the default response (backward compatible)", async function() {
+        const { stages } = await run({});
+        const addDevices = stages.find(
+          (s) => s.method === "addFields" && s.arg.devices
+        );
+        expect(addDevices.arg.devices).to.deep.equal({
+          $arrayElemAt: ["$devices", 0],
+        });
+      });
+
+      it("runs the full lookups by default", async function() {
+        const { stages } = await run({});
+        ["grids", "airqlouds", "activities"].forEach((from) => {
+          expect(indexOfLookup(stages, from)).to.be.at.least(0);
+        });
+      });
+
+      it("summary=true skips heavy lookups and projects only the coverage fields", async function() {
+        const rows = [{ _id: "a", name: "site_a", distance_km: 0.4 }];
+        const { result, stages } = await run({ summary: true }, rows);
+
+        const lookups = stages
+          .filter((s) => s.method === "lookup")
+          .map((s) => s.arg.from);
+        expect(lookups).to.deep.equal(["devices"]);
+        expect(stages.map((s) => s.method)).to.not.include("addFields");
+
+        const projections = stages.filter((s) => s.method === "project");
+        expect(projections).to.have.length(1);
+        expect(projections[0].arg).to.deep.equal({
+          _id: 1,
+          name: 1,
+          distance_km: 1,
+          lastRawData: 1,
+          lastActive: 1,
+          isOnline: 1,
+          rawOnlineStatus: 1,
+        });
+
+        expect(result.success).to.equal(true);
+        expect(result.data).to.deep.equal(rows);
+      });
+
+      it("summary=true still only returns sites with devices, nearest first, limited", async function() {
+        const { stages } = await run({ summary: true, limit: 3 });
+        expect(stages.map((s) => s.method)).to.deep.equal([
+          "near",
+          "lookup",
+          "match",
+          "limit",
+          "project",
+          "allowDiskUse",
+        ]);
+        expect(stages[3].arg).to.equal(3);
+      });
+    });
   });
 });

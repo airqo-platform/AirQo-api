@@ -119,6 +119,45 @@ class TestGoogleCredentialsExport:
         assert "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ
 
 
+class TestSentinelSettings:
+    """A malformed Sentinel setting stops the app at startup."""
+
+    def test_hosts_parse_with_the_default_port(self):
+        config = BaseConfig(
+            FLASK_ENV="development",
+            REDIS_SENTINEL_HOSTS="h1:26380, h2",
+            REDIS_SENTINEL_MASTER_NAME="m",
+        )
+        assert config.redis_sentinel_hosts_list() == [("h1", 26380), ("h2", 26379)]
+
+    def test_empty_hosts_mean_no_sentinel(self):
+        assert BaseConfig(FLASK_ENV="development").redis_sentinel_hosts_list() == []
+
+    def test_malformed_entries_are_rejected(self):
+        import pytest
+        from pydantic import ValidationError
+
+        for hosts in ("h1:port", "h1:70000", "h1:26379;h2", "sentinel://h1", "h1,h1"):
+            with pytest.raises(ValidationError):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    REDIS_SENTINEL_HOSTS=hosts,
+                    REDIS_SENTINEL_MASTER_NAME="m",
+                )
+
+    def test_hosts_without_a_master_name_are_rejected(self):
+        import pytest
+        from pydantic import ValidationError
+
+        for master_name in ("", " "):
+            with pytest.raises(ValidationError):
+                BaseConfig(
+                    FLASK_ENV="development",
+                    REDIS_SENTINEL_HOSTS="h1",
+                    REDIS_SENTINEL_MASTER_NAME=master_name,
+                )
+
+
 class TestSecretKeyGuard:
     """SECRET_KEY signs pagination cursors. A cursor names the BigQuery job
     whose stored result the service reads, so a predictable key would let a

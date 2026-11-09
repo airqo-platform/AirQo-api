@@ -5,6 +5,9 @@ const { resolveCohortObjectIds } = require("@utils/cohort.util");
 const ComputedCacheModel = require("@models/ComputedCache");
 const LRUCache = require("lru-cache");
 const qs = require("qs");
+const {
+  buildPaginationQuery,
+} = require("@utils/common/pagination-query.util");
 const DeviceModel = require("@models/Device");
 const AdminLevelModel = require("@models/AdminLevel");
 const geolib = require("geolib");
@@ -208,12 +211,18 @@ function buildGridListMeta({ total, _skip, _limit, request }) {
   if (baseUrl) {
     const nextSkip = _skip + _limit;
     if (nextSkip < total) {
-      const nextQuery = { ...request.query, skip: nextSkip, limit: _limit };
+      const nextQuery = buildPaginationQuery(request.query, {
+        skip: nextSkip,
+        limit: _limit,
+      });
       meta.nextPage = `${baseUrl}?${qs.stringify(nextQuery)}`;
     }
     const prevSkip = _skip - _limit;
     if (prevSkip >= 0) {
-      const prevQuery = { ...request.query, skip: prevSkip, limit: _limit };
+      const prevQuery = buildPaginationQuery(request.query, {
+        skip: prevSkip,
+        limit: _limit,
+      });
       meta.previousPage = `${baseUrl}?${qs.stringify(prevQuery)}`;
     }
   }
@@ -1987,5 +1996,6 @@ createGrid._clearPrivateSiteIdsCache = () => {
 createGrid._clearCountriesCache = () => {
   _countriesCache.reset();
 };
+createGrid._buildGridListMeta = buildGridListMeta;
 
 module.exports = createGrid;

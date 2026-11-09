@@ -9,7 +9,7 @@ from app.schemas.grid import (
     SyncedGridResponse,
     SingleSyncedGridResponse,
 )
-from app.services import grid_service, grid_sync_service
+from app.services import grid_service, grid_sync_service, performance_summary
 from app.services.diagnostics.summaries import apply_diagnostics_to_grids
 from app.db.session import get_db, SessionLocal
 
@@ -114,6 +114,8 @@ def get_synced_grids(
     frequency: Optional[str] = "hourly",
     admin_level: Annotated[Optional[str], Query(alias="admin_level")] = None,
     include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
+    include_series: Annotated[bool, Query(alias="includeSeries")] = True,
+    include_devices: Annotated[bool, Query(alias="includeDevices")] = True,
     db: Annotated[Session, Depends(get_db)] = None,
 ):
     """List grids from the local sync table (source of truth), filtered by group.
@@ -125,8 +127,12 @@ def get_synced_grids(
     Optional ``admin_level`` filters grids by admin level.
     When ``includePerformance=true`` and both date bounds are provided, each
     grid and its underlying devices are enriched with locally-computed metrics.
+    ``includeSeries=false`` summarises those metrics without loading the
+    readings, see ``performance_summary.apply_performance_summary``.
     When ``includeDiagnostics=true``, each device carries its most recent
     stored daily diagnosis, and each site and grid a ``diagnostics_summary``.
+    ``includeDevices=false`` leaves each grid's sites and their devices out of
+    the response, keeping ``number_of_devices`` and ``country`` on the grid.
     """
     freq = (frequency or "hourly").lower()
     if freq not in {"raw", "hourly", "daily"}:
@@ -134,6 +140,10 @@ def get_synced_grids(
             status_code=400,
             detail="Invalid frequency. Expected one of: raw, hourly, daily.",
         )
+
+    with_performance = bool(include_performance and start_date_time and end_date_time)
+    if with_performance and not include_series:
+        performance_summary.validate_summary_request(start_date_time, end_date_time, freq)
 
     # Resolve group → device IDs for filtering grids
     from app.services.group_filter import resolve_group_cohort_ids, resolve_group_device_ids
@@ -152,7 +162,11 @@ def get_synced_grids(
             group_device_ids=group_device_ids,
         )
 
-        if include_performance and start_date_time and end_date_time:
+        if with_performance and not include_series:
+            grid_sync_service.apply_performance_summary_synced_grids(
+                result.get("grids", []), db, start_date_time, end_date_time,
+            )
+        elif with_performance:
             grid_sync_service.apply_local_performance_synced_grids(
                 result.get("grids", []),
                 db,
@@ -163,6 +177,9 @@ def get_synced_grids(
 
         if include_diagnostics:
             apply_diagnostics_to_grids(result.get("grids", []), db)
+
+        if not include_devices:
+            grid_sync_service.drop_grid_sites(result.get("grids", []))
 
         return result
     except HTTPException:

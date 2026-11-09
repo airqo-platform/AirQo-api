@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Feature: Performance summaries for cohort, grid and site lists
+
+`GET /cohorts/synced`, `GET /grids/synced` and `GET /sites/` take `includeSeries=false` and `includeDevices=false`. With `includePerformance=true`, the first replaces every device's hourly readings with `error_margin`, `correlation`, `offline_devices` and a `daily` breakdown per entity, counted by the database so no readings are loaded. The second leaves out the device list (on grids, the sites). Defaults are unchanged. See `docs/HEALTH_DIAGNOSTICS_AND_STATUS_CODES.md`.
+
 ### Feature: Devices from other sensor manufacturers
 
 Beacon no longer drops platform devices whose network is not `airqo`. Devices from every manufacturer the device registry holds (airgradient, iqair, metone, clarity/kcca, airbeam, ...) are mirrored with their manufacturer identity, and the networks list itself is mirrored so devices can be filtered and counted per manufacturer. See `docs/MULTI_MANUFACTURER_DEVICES.md` for the research behind this and the follow-up phases (readings for external devices).
@@ -39,6 +43,10 @@ Manufacturer profiles now carry component models for the IoT diagnostic engine, 
 
 - **`manufacturer_profiles.MANUFACTURER_COMPONENT_MODELS`** — components, metrics (ranges, rate limits, roles) and POWERS / COMMUNICATES_VIA relationships for `airgradient_lowcost` (incl. WiFi signal as `signal_strength` and a boot counter for reboot storms), `iqair_lowcost`, `metone_bam` and the generic single-PM profiles; attached on creation and retro-fitted to seeded profiles without components. Each sets a `reporting_interval` default.
 - **`GET /api/v1/networks/profiles`** — manufacturer profiles with the engine's readiness (diagnosable, components, warnings); the seed endpoint reports the same.
+
+### Feature: Cohort uptime without the readings
+
+`GET /api/v1/cohorts/synced/{cohort_id}` takes `includeSeries` (default `true`, so existing callers are unchanged). With `includePerformance=true&includeSeries=false` the cohort and its devices keep the same `uptime` and `data_completeness`, but only the rows' timestamps are read: `data` comes back empty and `averages` null. A 37-device cohort over 14 days of hourly data goes from about 4 MB to 8 KB, before diagnostics.
 
 
 ## Version 2.5.0
