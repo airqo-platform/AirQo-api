@@ -20,6 +20,7 @@ x-common-data: &common-data
     AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 240
     AIRFLOW__SCHEDULER__ZOMBIE_MAX_AGE: 3600
     AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
+    AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR: "True"
     AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
     AIRFLOW_UID: 50000
     #    BOOTSTRAP_SERVERS: message-broker:9092
@@ -90,6 +91,16 @@ services:
     build:
       context: .
       target: scheduler
+    restart: on-failure
+    depends_on:
+      - db-setup
+
+  dag-processor:
+    <<: *common-data
+    container_name: dag-processor
+    build:
+      context: .
+      target: dag-processor
     restart: on-failure
     depends_on:
       - db-setup

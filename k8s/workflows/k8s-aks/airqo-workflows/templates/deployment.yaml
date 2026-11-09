@@ -39,28 +39,7 @@ spec:
       initContainers:
         {{- include "airqo-workflows.xcomInitContainer" . | nindent 8 }}
         {{- if .Values.checkMigrations.enabled }}
-        - name: '{{ .Values.app.name }}-check-migrations'
-          image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.app.secret }}
-          env:
-            - name: PYTHONDONTWRITEBYTECODE
-              value: "1"
-          command: ["/usr/bin/dumb-init", "--", "airflow"]
-          args: ["db", "check-migrations", "--migration-wait-timeout", "{{ .Values.checkMigrations.waitTimeoutSeconds }}"]
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            limits:
-              cpu: {{ .Values.resources.checkMigrations.limits.cpu }}
-              memory: {{ .Values.resources.checkMigrations.limits.memory }}
-            requests:
-              cpu: {{ .Values.resources.checkMigrations.requests.cpu }}
-              memory: {{ .Values.resources.checkMigrations.requests.memory }}
+        {{- include "airqo-workflows.checkMigrationsInitContainer" . | nindent 8 }}
         {{- end }}
       containers:
         - name: '{{ .Values.app.name }}-scheduler'
@@ -69,6 +48,10 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.app.secret }}
+          {{- if .Values.dagProcessor.enabled }}
+          env:
+            {{- include "airqo-workflows.standaloneDagProcessorEnv" . | nindent 12 }}
+          {{- end }}
           command: ["airflow"]
           args: ["scheduler"]
           {{- with .Values.volumeMounts }}
@@ -82,6 +65,15 @@ spec:
             requests:
               cpu: {{ .Values.resources.scheduler.requests.cpu }}
               memory: {{ .Values.resources.scheduler.requests.memory }}
+          {{- if .Values.livenessProbes.enabled }}
+          livenessProbe:
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+            exec:
+              command: ["airflow", "jobs", "check", "--job-type", "SchedulerJob", "--local"]
+          {{- end }}
         - name: '{{ .Values.app.name }}-celery'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
@@ -108,6 +100,18 @@ spec:
             requests:
               cpu: {{ .Values.resources.celery.requests.cpu }}
               memory: {{ .Values.resources.celery.requests.memory }}
+          {{- if .Values.livenessProbes.enabled }}
+          livenessProbe:
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+            exec:
+              command:
+                - sh
+                - -c
+                - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$HOSTNAME"'
+          {{- end }}
         - name: '{{ .Values.app.name }}-webserver'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
           imagePullPolicy: {{ default "IfNotPresent" .Values.images.pullPolicy }}
