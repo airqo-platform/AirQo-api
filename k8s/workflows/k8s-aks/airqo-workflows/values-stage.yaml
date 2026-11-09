@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-d6b26b9f-1793863559
+  tag: stage-893eaa04-1794232421
 inPodRedis:
   enabled: true
 checkMigrations:
@@ -28,7 +28,7 @@ livenessProbes:
   enabled: true
 dbClean:
   enabled: true
-  schedule: '30 0 * * 0'
+  schedule: 30 0 * * 0
   retentionDays: 30
   activeDeadlineSeconds: 3600
   tables:
