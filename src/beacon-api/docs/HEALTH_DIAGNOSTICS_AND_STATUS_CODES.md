@@ -66,6 +66,27 @@ A 37-device cohort over 14 days of hourly data goes from about 4 MB to 8 KB, bef
 GET /cohorts/synced/{cohort_id}?includePerformance=true&includeSeries=false&startDateTime=2026-10-01T00:00:00Z&endDateTime=2026-10-08T00:00:00Z
 ```
 
+### Summaries for lists: `includeSeries=false` and `includeDevices=false`
+
+`GET /cohorts/synced`, `GET /grids/synced` and `GET /sites/`; both default to `true`. With `includePerformance=true`, `includeSeries=false` leaves out `data` and `averages` on every entity and device and adds these per entity, without loading the readings:
+
+| Field | Meaning |
+|---|---|
+| `uptime`, `data_completeness` | The same as with the series, on the entity and its devices |
+| `daily` | One entry per day of the window's length, ending on the last UTC day any of the entity's devices reported: `date`, `uptime` (the devices' hours that day out of 24 each), `error_margin`, `correlation` |
+| `error_margin`, `correlation` | PM2.5 sensor 1 against sensor 2, averaged over the days that produced a value. Each sensor is averaged across the entity's devices hour by hour, then the two averages are compared |
+| `offline_devices` | Devices with no reading yesterday (UTC) |
+
+It needs `frequency=hourly` and a window of at most 30 days, and answers 400 otherwise.
+
+`includeDevices=false` leaves out the device list after diagnostics have been rolled up, so `number_of_devices` and `diagnostics_summary` remain. On grids it leaves out `sites`, and adds `number_of_devices` and `country` to the grid.
+
+Five cohorts, one of them with 692 devices, over 14 days of hourly data go from 68 MB to 13 KB with both set to `false`.
+
+```
+GET /cohorts/synced?group=<title>&includePerformance=true&includeSeries=false&includeDevices=false&startDateTime=2026-10-01T00:00:00Z&endDateTime=2026-10-15T00:00:00Z
+```
+
 ---
 
 ## 3. Diagnostics in list responses: `includeDiagnostics=true`

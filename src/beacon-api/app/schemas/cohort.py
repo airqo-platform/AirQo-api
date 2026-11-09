@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any, Dict
-from app.schemas.device import MetaData
+from app.schemas.device import MetaData, PerformanceDay
 from app.schemas.diagnostics import DeviceDiagnostics, DiagnosticsSummary
 
 class CohortDevice(BaseModel):
@@ -127,6 +127,10 @@ class SyncedCohort(BaseModel):
     devices: List[SyncedCohortDevice] = []
     uptime: Optional[float] = None
     data_completeness: Optional[float] = None
+    error_margin: Optional[float] = None
+    correlation: Optional[float] = None
+    offline_devices: Optional[int] = None
+    daily: Optional[List[PerformanceDay]] = None
     averages: Optional[Dict[str, Any]] = None
     data: List[Dict[str, Any]] = []
     diagnostics_summary: Optional[DiagnosticsSummary] = None
