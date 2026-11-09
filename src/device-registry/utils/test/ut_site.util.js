@@ -935,26 +935,70 @@ describe("createSite Util Functions", () => {
           filter.$and.every((clause) =>
             clause.$or.some((cond) => {
               const [field] = Object.keys(cond);
-              return site[field] instanceof Date && site[field] >= cond[field].$gte;
+              return (
+                site[field] instanceof Date &&
+                site[field] >= cond[field].$gte &&
+                site[field] <= cond[field].$lte
+              );
             })
           );
+        const SKEW_MS = 5 * 60 * 1000;
 
         it("adds no activity condition when the parameter is absent (unchanged behaviour)", async () => {
           const filter = await callWith({});
           expect(filter).to.not.have.property("$and");
         });
 
-        it("filters on lastRawData OR lastActive >= now - N days", async () => {
+        it("filters on lastRawData OR lastActive between now - N days and now + 5 min", async () => {
           const filter = await callWith({ active_within_days: 7 });
-          const cutoff = new Date(NOW.getTime() - 7 * DAY_MS);
+          const window = {
+            $gte: new Date(NOW.getTime() - 7 * DAY_MS),
+            $lte: new Date(NOW.getTime() + SKEW_MS),
+          };
           expect(filter.$and).to.deep.equal([
             {
-              $or: [
-                { lastRawData: { $gte: cutoff } },
-                { lastActive: { $gte: cutoff } },
-              ],
+              $or: [{ lastRawData: window }, { lastActive: window }],
             },
           ]);
+        });
+
+        it("drops a site whose only recent timestamp is in the future (corrupted clock)", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(
+            matchesActivityWindow(filter, {
+              lastRawData: new Date(NOW.getTime() + 2 * DAY_MS),
+              lastActive: new Date(NOW.getTime() - 30 * DAY_MS),
+            })
+          ).to.equal(false);
+          expect(
+            matchesActivityWindow(filter, {
+              lastActive: new Date(NOW.getTime() + SKEW_MS + 1000),
+            })
+          ).to.equal(false);
+        });
+
+        it("keeps a site whose timestamp is within the 5-minute clock-skew allowance", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(
+            matchesActivityWindow(filter, {
+              lastRawData: new Date(NOW.getTime() + 2 * 60 * 1000),
+            })
+          ).to.equal(true);
+          expect(
+            matchesActivityWindow(filter, {
+              lastActive: new Date(NOW.getTime() + SKEW_MS),
+            })
+          ).to.equal(true);
+        });
+
+        it("keeps a site with one corrupted future field when the other is recent", async () => {
+          const filter = await callWith({ active_within_days: 7 });
+          expect(
+            matchesActivityWindow(filter, {
+              lastRawData: new Date(NOW.getTime() + 2 * DAY_MS),
+              lastActive: new Date(NOW.getTime() - 1 * DAY_MS),
+            })
+          ).to.equal(true);
         });
 
         it("keeps a site active inside the window on both fields", async () => {

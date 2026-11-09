@@ -29,6 +29,10 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- site-util`,
 );
 
+// Grace period for slightly-future timestamps (device clock skew); anything
+// later is treated as corrupted. Matches the 5-minute value used elsewhere.
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
 const geolib = require("geolib");
 const {
   generateDateFormatWithoutHrs,
@@ -2308,17 +2312,18 @@ const createSite = {
       // processing backlog alone never hides a site. Deliberately not based on
       // isOnline/rawOnlineStatus, which go false during such backlogs.
       // Appended via $and so it can't clobber an existing $or (e.g. `search`).
+      // Each timestamp is also capped at now + MAX_CLOCK_SKEW_MS so a corrupted
+      // future value (bad device clock) can't make a silent site look active.
       if (active_within_days) {
-        const cutoff = new Date(
-          Date.now() - Number(active_within_days) * 24 * 60 * 60 * 1000,
-        );
+        const now = Date.now();
+        const window = {
+          $gte: new Date(now - Number(active_within_days) * 24 * 60 * 60 * 1000),
+          $lte: new Date(now + MAX_CLOCK_SKEW_MS),
+        };
         filter.$and = [
           ...(filter.$and || []),
           {
-            $or: [
-              { lastRawData: { $gte: cutoff } },
-              { lastActive: { $gte: cutoff } },
-            ],
+            $or: [{ lastRawData: window }, { lastActive: window }],
           },
         ];
       }
