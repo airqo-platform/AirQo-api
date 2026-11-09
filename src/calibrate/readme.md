@@ -159,10 +159,13 @@ No input CSV file is required. Use `-RowCount 48` for more readings, or
 To target another server, pass `-BaseUrl http://localhost:4002`.
 
 CSV inference does not require MongoDB. V2 requires GCP credentials for model
-downloads. Docker uses Python 3.10. The numerical
-stack matches workflow development pins (scikit-learn 1.2.2, NumPy 1.24.4,
-SciPy 1.15.3, joblib 1.5.3). Saved model compatibility still needs verification
-against the actual artifacts and their training environment. Tests use fake predictors with real feature processing;
+downloads. Docker uses Python 3.13. The numerical
+stack uses scikit-learn 1.6.1, NumPy 2.1.3,
+SciPy 1.15.3, and joblib 1.5.3. Before deploying this runtime upgrade,
+load and predict with both shared `default_rf.pkl` and `default_lasso.pkl`
+artifacts using the new image. Models saved under the former scikit-learn 1.2.2
+environment may need to be retrained and exported with scikit-learn 1.6.1.
+Tests use fake predictors with real feature processing;
 they do not establish calibration accuracy with production models.
 
 ## V2 reference training jobs

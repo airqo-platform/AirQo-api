@@ -1,4 +1,4 @@
-FROM python:3.10-slim as builder
+FROM python:3.13-slim as builder
 COPY . /app/
 WORKDIR /app/
 # RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
