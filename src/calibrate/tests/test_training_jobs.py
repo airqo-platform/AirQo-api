@@ -96,6 +96,10 @@ class TrainingJobTests(unittest.TestCase):
         self.assertIn("no-store", artifact.headers["Cache-Control"])
         lcs = pd.read_csv(io.BytesIO(sample_csv())).drop(columns=["reference_pm2_5", "reference_pm10"])
         calibration_url = status.json["calibrate_url"]
+        oversized = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(b"x" * (MAX_CSV_BYTES + 1)), "large.csv")})
+        self.assertEqual(oversized.status_code, 413)
+        self.assertIn("bigger than the 20 MB limit", oversized.json["message"])
         calibrated = self.client.post(calibration_url, headers=self.auth(), data={
             "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
         self.assertEqual(calibrated.status_code, 200, calibrated.get_data(as_text=True))

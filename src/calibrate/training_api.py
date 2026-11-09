@@ -7,7 +7,6 @@ import joblib
 import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, g, jsonify, request, send_file, url_for
-from werkzeug.exceptions import RequestEntityTooLarge
 
 from routes import route
 from training_auth import login_required
@@ -33,11 +32,6 @@ def submit_training():
     upload = request.files.get("file")
     if upload is None or not upload.filename:
         return error("Upload paired sensor and reference measurements using the 'file' field.", 400)
-    upload.stream.seek(0, 2)
-    size = upload.stream.tell()
-    upload.stream.seek(0)
-    if size > current_app.config["MAX_CSV_BYTES"]:
-        raise RequestEntityTooLarge()
     try:
         header = pd.read_csv(upload, nrows=0).columns
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError):
