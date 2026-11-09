@@ -3,13 +3,15 @@
 import io
 import uuid
 
+import joblib
+import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, g, jsonify, request, send_file, url_for
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from routes import route
 from training_auth import login_required
-from training_core import REQUIRED, SECONDARY
+from training_core import REQUIRED, SECONDARY, FEATURES, build_features
 from training_store import TrainingStore
 
 training_bp = Blueprint("training_bp", __name__)
@@ -108,6 +110,7 @@ def training_status(job_id):
             payload.update(job["summary"])
             payload["result_url"] = url_for("training_bp.training_result", job_id=job_id)
             payload["model_url"] = url_for("training_bp.training_model", job_id=job_id)
+            payload["calibrate_url"] = url_for("training_bp.calibrate_with_trained_model", job_id=job_id)
         elif job["status"] == "failed":
             payload["message"] = job["message"]
         return jsonify(payload)
@@ -151,3 +154,50 @@ def training_result(job_id):
 @login_required
 def training_model(job_id):
     return download(job_id, "model")
+
+
+@training_bp.route(route["trained_model_calibrate_v2"], methods=["POST"])
+@login_required
+def calibrate_with_trained_model(job_id):
+    """Apply an owner's evaluated training artifact to a new LCS upload."""
+    from calibrate_v2 import csv_response, validated_lcs_upload
+
+    try:
+        data = validated_lcs_upload()
+    except ValueError as exc:
+        return error(str(exc), 400)
+
+    store = None
+    try:
+        store = TrainingStore()
+        job = get_owned_job(store, job_id)
+        if job is None:
+            return error("Training job not found.", 404)
+        if job["status"] != "completed":
+            return error("Training results are not ready.", 409)
+        with store.files.get(job["model_id"]) as source:
+            artifact = joblib.load(io.BytesIO(source.read()))
+        if (artifact.get("kind") != "user_reference_calibration"
+                or artifact.get("version") != 1 or artifact.get("features") != FEATURES
+                or not artifact.get("models")):
+            raise ValueError("Invalid training artifact")
+        features = build_features(data)
+        result = pd.DataFrame({
+            "avg_pm2_5": features["avg_pm2_5"],
+            "avg_pm10": features["avg_pm10"],
+            "datetime": data["datetime"],
+        })
+        for pollutant, model in artifact["models"].items():
+            if pollutant not in {"pm2_5", "pm10"} or not callable(getattr(model, "predict", None)):
+                raise ValueError("Invalid training artifact model")
+            prediction = np.asarray(model.predict(features))
+            if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
+                raise ValueError("Invalid model predictions")
+            result["calibrated_" + pollutant] = prediction.round(2)
+        return csv_response(result)
+    except Exception:
+        current_app.logger.exception("Trained model calibration failed")
+        return error("Calibration with the trained model is unavailable.", 503)
+    finally:
+        if store:
+            store.close()

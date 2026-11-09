@@ -19,8 +19,5 @@ FROM builder as dev
 ENV FLASK_ENV=development
 CMD ["flask", "run", "--host=0.0.0.0"]
 
-FROM builder as pickle-file
-CMD ["python", "jobs/regression.py"]
-
 FROM builder as training-worker
 CMD ["python", "training_worker.py"]

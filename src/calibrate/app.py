@@ -1,4 +1,3 @@
-from calibrate import calibrate_bp
 from calibrate_v2 import calibrate_v2_bp
 from training_api import training_bp
 from flask import Flask
@@ -20,6 +19,5 @@ configure_upload_limits(app)
 CORS(app)
 
 # register blueprints
-app.register_blueprint(calibrate_bp)
 app.register_blueprint(calibrate_v2_bp)
 app.register_blueprint(training_bp)

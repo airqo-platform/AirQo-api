@@ -12,7 +12,6 @@ def upload_too_large(error):
 
 def limit_csv_size():
     if request.endpoint not in {
-        "calibrate_bp.calibrate_tool", "calibrate_bp.train_calibrate_tool",
         "calibrate_v2_bp.calibrate_tool",
     }:
         return

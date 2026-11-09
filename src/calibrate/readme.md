@@ -47,7 +47,7 @@ reading (zero sensor difference). Invalid nonblank secondary values are rejected
 This fallback enables single-sensor input but its calibration accuracy still
 needs validation against reference measurements.
 
-CSV files must not exceed 20 MB (20 MiB / 20,971,520 bytes), on both V1 and V2.
+CSV files must not exceed 20 MB (20 MiB / 20,971,520 bytes).
 Oversized uploads return HTTP 413 with a JSON error. The total multipart request
 is capped at 21 MiB to allow up to 1 MiB of form fields and upload overhead.
 
@@ -92,10 +92,8 @@ upload is rejected rather than silently dropping rows. Unavailable models return
 V2 `/tool` inference reuses the existing saved models and feature order. That
 endpoint does not retrain or save models. The potential PM10 training/inference feature-order discrepancy
 must be checked against the actual model artifacts before changing that order.
-V1 remains available at `/api/v1/calibrate/tool` and
-`/api/v1/calibrate/tool/train`. V2 adds the validated calibration tool alongside
-those existing endpoints. V2 reference training uses the separate job endpoints
-described below.
+The former V1 endpoints have been removed. V2 reference training uses the
+separate job endpoints described below.
 
 ### V2 model storage
 
@@ -105,7 +103,7 @@ It uses the same joblib loader and ratio feature as workflow calibration
 inference. These are legacy prediction models, not the newer training artifact
 dictionaries in the `calibration/` folder. Each API worker caches one loaded pair
 in memory. Concurrent requests in a worker share the models and a lock prevents
-duplicate cold-start downloads. V1 local model loading is unchanged.
+duplicate cold-start downloads.
 
 On the first request after `MODEL_REFRESH_INTERVAL_SECONDS` (default 3600), the
 worker checks both GCS object generations. Unchanged objects are not downloaded
@@ -129,16 +127,15 @@ The API needs Google Application Default Credentials with read access to these
 objects. For local development, configure `gcloud auth application-default login`
 or set `GOOGLE_APPLICATION_CREDENTIALS` to your existing service-account JSON.
 `google-cloud-storage` is already in the service requirements; `gcsfs` is not
-needed. V1 still uses local model paths.
+needed.
 
-### Local setup (V1 model paths)
+### Local setup
 
 From `src/calibrate`, use an environment with the service dependencies installed.
-Obtain trusted existing model files and configure their absolute paths in `.env`:
+Configure the model bucket in `.env`:
 
 ```dotenv
-RF_REG_MODEL=D:/models/rf_reg_model.pkl
-LASSO_MODEL=D:/models/lasso_model.pkl
+FORECAST_MODELS_BUCKET=airqo_prediction_bucket_dev
 ```
 
 Then run:
@@ -162,7 +159,7 @@ No input CSV file is required. Use `-RowCount 48` for more readings, or
 To target another server, pass `-BaseUrl http://localhost:4002`.
 
 CSV inference does not require MongoDB. V2 requires GCP credentials for model
-downloads; V1 local inference does not. Docker uses Python 3.10. The numerical
+downloads. Docker uses Python 3.10. The numerical
 stack matches workflow development pins (scikit-learn 1.2.2, NumPy 1.24.4,
 SciPy 1.15.3, joblib 1.5.3). Saved model compatibility still needs verification
 against the actual artifacts and their training environment. Tests use fake predictors with real feature processing;
@@ -217,6 +214,12 @@ Compare calibrated MAE to raw MAE; improvement is not guaranteed. The downloadab
 artifact contains the evaluated model(s), feature ordering, preprocessing metadata,
 and library versions. It is not refit using holdout data. Its format is separate
 from shared default models and is not automatically loaded by `/tool`.
+To use the user's trained model on a new LCS-only CSV, POST the file to the
+completed job's `calibrate_url` with the same login token. This applies the
+same CSV validation as `/tool` and returns calibrated values for the pollutants
+trained in that job. The training upload is deleted after processing. The model,
+validation CSV, and metrics remain until the job expires (24 hours by default).
+Download the model before expiry for use outside this service.
 
 ### Run the API and worker
 
@@ -256,7 +259,8 @@ Native CSV headers require no mappings. A successful submission returns HTTP 202
 
 Poll `status_url` with the same login token. Status progresses from `queued` to
 `running`, then `completed` or `failed`. Completed jobs include metrics,
-`result_url` (held-out predictions CSV), and `model_url` (joblib artifact).
+`result_url` (held-out predictions CSV), `model_url` (joblib artifact), and
+`calibrate_url` (POST a new LCS-only CSV using the trained model).
 Both downloads require that user's login token. Pending downloads return 409;
 missing, expired, or other-user jobs return 404. Missing/invalid tokens return 401;
 missing authentication configuration or an unavailable queue returns 503.

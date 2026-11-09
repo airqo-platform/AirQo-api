@@ -12,6 +12,7 @@ import mongomock
 import mongomock.gridfs
 import numpy as np
 import pandas as pd
+import sklearn
 
 from app import app
 from upload_limits import MAX_CSV_BYTES
@@ -91,8 +92,24 @@ class TrainingJobTests(unittest.TestCase):
         artifact = self.client.get(status.json["model_url"], headers=self.auth())
         model = joblib.load(io.BytesIO(artifact.data))
         self.assertEqual(set(model["models"]), {"pm2_5", "pm10"})
-        self.assertEqual(model["versions"]["sklearn"], "1.2.2")
+        self.assertEqual(model["versions"]["sklearn"], sklearn.__version__)
         self.assertIn("no-store", artifact.headers["Cache-Control"])
+        lcs = pd.read_csv(io.BytesIO(sample_csv())).drop(columns=["reference_pm2_5", "reference_pm10"])
+        calibration_url = status.json["calibrate_url"]
+        calibrated = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(calibrated.status_code, 200, calibrated.get_data(as_text=True))
+        predictions = pd.read_csv(io.BytesIO(calibrated.data))
+        self.assertEqual(len(predictions), len(lcs))
+        self.assertIn("calibrated_pm2_5", predictions)
+        self.assertIn("calibrated_pm10", predictions)
+        self.assertEqual(self.client.post(calibration_url, headers=self.auth(USER_B), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")}).status_code, 404)
+        invalid = lcs.copy()
+        invalid.loc[0, "humidity"] = 101
+        rejected = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(invalid.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(rejected.status_code, 400)
         self.assertEqual(self.store.db.training_files.files.count_documents({"filename": "input.csv"}), 0)
         for suffix in ("", "/result", "/model"):
             self.assertEqual(self.client.get(url + suffix, headers=self.auth(USER_B)).status_code, 404)
@@ -108,7 +125,8 @@ class TrainingJobTests(unittest.TestCase):
         url = "/api/v2/calibrate/tool/train"
         for path, method in ((url, "post"), (url + "/" + str(uuid.uuid4()), "get"),
                              (url + "/" + str(uuid.uuid4()) + "/model", "get"),
-                             (url + "/" + str(uuid.uuid4()) + "/result", "get")):
+                             (url + "/" + str(uuid.uuid4()) + "/result", "get"),
+                             (url + "/" + str(uuid.uuid4()) + "/calibrate", "post")):
             self.assertEqual(getattr(self.client, method)(path).status_code, 401)
         expired = token(exp=utcnow() - timedelta(seconds=1))
         invalid = jwt.encode({"_id": USER_A, "exp": utcnow() + timedelta(hours=1)}, "wrong-key", algorithm="HS256")
@@ -139,6 +157,13 @@ class TrainingJobTests(unittest.TestCase):
         self.assertTrue(process_one(self.store))
         status = self.client.get(submitted.json["status_url"], headers=self.auth()).json
         self.assertEqual(set(status["metrics"]), {"pm2_5"})
+        lcs = frame.drop(columns=["reference_bam"])
+        response = self.client.post(status["calibrate_url"], headers=self.auth(), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(response.status_code, 200)
+        calibrated = pd.read_csv(io.BytesIO(response.data))
+        self.assertIn("calibrated_pm2_5", calibrated)
+        self.assertNotIn("calibrated_pm10", calibrated)
 
     def test_invalid_rows_fail_job_and_remove_upload(self):
         submitted = self.submit(sample_csv(5))
