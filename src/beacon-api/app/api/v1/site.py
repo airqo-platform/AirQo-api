@@ -10,7 +10,7 @@ from app.schemas.site import (
     SiteSyncResponse,
     SitesPerformanceSummaryResponse,
 )
-from app.services import site_service
+from app.services import performance_summary, site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_containers
 from app.db.session import get_db, SessionLocal
 
@@ -66,6 +66,8 @@ def get_sites(
     end_date_time: Annotated[Optional[str], Query(alias="endDateTime")] = None,
     frequency: Optional[str] = "hourly",
     include_diagnostics: Annotated[bool, Query(alias="includeDiagnostics")] = False,
+    include_series: Annotated[bool, Query(alias="includeSeries")] = True,
+    include_devices: Annotated[bool, Query(alias="includeDevices")] = True,
     db: Session = Depends(get_db),
 ):
     """List sites from the local sync table (source of truth).
@@ -75,12 +77,17 @@ def get_sites(
     When ``includePerformance=true`` and both date bounds are provided, only
     airqo-network devices are kept, and each site and its devices are
     enriched with locally-computed metrics.
+    ``includeSeries=false`` summarises those metrics without loading the
+    readings, see ``performance_summary.apply_performance_summary``.
     When ``includeDiagnostics=true``, each device carries its most recent
     stored daily diagnosis and each site a ``diagnostics_summary`` roll-up.
+    ``includeDevices=false`` leaves each site's device list out of the response.
     """
     freq = _validate_frequency(frequency)
     group_device_ids = _resolve_group_device_ids(db, group)
     with_performance = bool(include_performance and start_date_time and end_date_time)
+    if with_performance and not include_series:
+        performance_summary.validate_summary_request(start_date_time, end_date_time, freq)
 
     try:
         result = site_service.get_sites(
@@ -92,7 +99,11 @@ def get_sites(
             airqo_only=with_performance,
         )
 
-        if with_performance:
+        if with_performance and not include_series:
+            performance_summary.apply_performance_summary(
+                result.get("sites", []), db, start_date_time, end_date_time,
+            )
+        elif with_performance:
             site_service.apply_local_performance_synced_sites(
                 result.get("sites", []),
                 db,
@@ -103,6 +114,9 @@ def get_sites(
 
         if include_diagnostics:
             apply_diagnostics_to_containers(result.get("sites", []), db)
+
+        if not include_devices:
+            performance_summary.drop_device_lists(result.get("sites", []))
 
         return result
     except Exception as e:

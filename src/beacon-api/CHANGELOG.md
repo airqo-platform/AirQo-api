@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Feature: Performance summaries for cohort, grid and site lists
+
+`GET /cohorts/synced`, `GET /grids/synced` and `GET /sites/` take `includeSeries=false` and `includeDevices=false`. With `includePerformance=true`, the first replaces every device's hourly readings with `error_margin`, `correlation`, `offline_devices` and a `daily` breakdown per entity, counted by the database so no readings are loaded. The second leaves out the device list (on grids, the sites). Defaults are unchanged. See `docs/HEALTH_DIAGNOSTICS_AND_STATUS_CODES.md`.
+
 ### Feature: Devices from other sensor manufacturers
 
 Beacon no longer drops platform devices whose network is not `airqo`. Devices from every manufacturer the device registry holds (airgradient, iqair, metone, clarity/kcca, airbeam, ...) are mirrored with their manufacturer identity, and the networks list itself is mirrored so devices can be filtered and counted per manufacturer. See `docs/MULTI_MANUFACTURER_DEVICES.md` for the research behind this and the follow-up phases (readings for external devices).

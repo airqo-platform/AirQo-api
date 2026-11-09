@@ -60,6 +60,13 @@ class MetaData(BaseModel):
     onlineDevices: Optional[int] = None
     offlineDevices: Optional[int] = None
 
+class PerformanceDay(BaseModel):
+    """One UTC day of a cohort, site or grid, returned by lists with ``includeSeries=false``."""
+    date: str
+    uptime: float
+    error_margin: Optional[float] = None
+    correlation: Optional[float] = None
+
 class DeviceMetadataResponse(BaseModel):
     success: bool
     message: str
