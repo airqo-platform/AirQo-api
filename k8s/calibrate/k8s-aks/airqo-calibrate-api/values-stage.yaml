@@ -5,22 +5,14 @@ app:
 replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-calibrate-api
-  tag: stage-d6b26b9f-1793863559
-initContainer:
-  image:
-    repository: airqoacr.azurecr.io/airqo-stage-calibrate-pickle-file
-    tag: stage-d6b26b9f-1793863559
+  tag: stage-2a50b5b3-1794296923
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-  - name: shared-data
-    mountPath: /usr/pickle-files
 volumes:
   - name: config-volume
     configMap:
       name: stage-calibrate-api-config-files
-  - name: shared-data
-    emptyDir: {}
 ingress:
   enabled: false
 service:

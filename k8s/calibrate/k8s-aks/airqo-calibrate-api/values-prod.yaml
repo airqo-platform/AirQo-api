@@ -6,21 +6,13 @@ replicaCount: 3
 image:
   repository: airqoacr.azurecr.io/airqo-prod-calibrate-api
   tag: prod-081b9636-1793821100
-initContainer:
-  image:
-    repository: airqoacr.azurecr.io/airqo-prod-calibrate-pickle-file
-    tag: prod-081b9636-1793821100
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-  - name: shared-data
-    mountPath: /usr/pickle-files
 volumes:
   - name: config-volume
     configMap:
       name: prod-calibrate-api-config-files
-  - name: shared-data
-    emptyDir: {}
 ingress:
   enabled: false
 service:
