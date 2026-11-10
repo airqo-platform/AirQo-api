@@ -611,16 +611,6 @@ jobs:
             ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }}
             ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-api:latest
 
-      - name: Build and push calibrate pickle file
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/calibrate
-          target: pickle-file
-          tags: |
-            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }}
-            ${{ env.REGISTRY_URL }}/airqo-stage-calibrate-pickle-file:latest
-
       - name: Update helm values file
         uses: Wandalen/wretry.action@v1.2.0
         with:
@@ -632,8 +622,7 @@ jobs:
             message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
-                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
-                "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+                "image.tag": "${{ needs.image-tag.outputs.build_id }}"
               }
 
   #########################################
