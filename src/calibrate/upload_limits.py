@@ -7,13 +7,17 @@ MAX_CSV_BYTES = 20 * 1024 * 1024
 
 
 def upload_too_large(error):
-    return jsonify(success=False, message="CSV upload must not exceed 20 MB (20,971,520 bytes)."), 413
+    return jsonify(
+        success=False,
+        message="The uploaded file is bigger than the 20 MB limit (20,971,520 bytes). Please upload a smaller CSV file.",
+    ), 413
 
 
 def limit_csv_size():
     if request.endpoint not in {
-        "calibrate_bp.calibrate_tool", "calibrate_bp.train_calibrate_tool",
         "calibrate_v2_bp.calibrate_tool",
+        "training_bp.submit_training",
+        "training_bp.calibrate_with_trained_model",
     }:
         return
     for upload in request.files.getlist("file"):

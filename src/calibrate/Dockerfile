@@ -1,4 +1,4 @@
-FROM python:3.10-slim as builder
+FROM python:3.13-slim as builder
 COPY . /app/
 WORKDIR /app/
 # RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
@@ -18,9 +18,6 @@ CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
 FROM builder as dev
 ENV FLASK_ENV=development
 CMD ["flask", "run", "--host=0.0.0.0"]
-
-FROM builder as pickle-file
-CMD ["python", "jobs/regression.py"]
 
 FROM builder as training-worker
 CMD ["python", "training_worker.py"]
