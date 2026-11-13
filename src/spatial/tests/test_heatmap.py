@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 import joblib
 import numpy as np
+import redis
 from flask import Flask
 from PIL import Image
 from shapely.geometry import Point, Polygon
@@ -44,6 +45,30 @@ class FakeRedis:
             return False
         self.expirations[key] = seconds
         return True
+
+
+def test_cache_read_failure_continues_to_generate_both_heatmaps():
+    app = Flask(__name__)
+    cache = FakeRedis()
+    cache.get = Mock(side_effect=redis.ConnectionError("cache unavailable"))
+    predictor = Mock()
+    predictor.fetch_and_process_data.return_value = False
+
+    with (
+        app.app_context(),
+        patch.object(AQIImageGenerator, 'get_redis_client', return_value=cache),
+        patch('views.heatmapViews.AirQualityData'),
+        patch('views.heatmapViews.AirQualityGrids'),
+        patch('views.heatmapViews.AirQualityPredictor', return_value=predictor),
+    ):
+        for generate in (AQIImageGenerator.generate_aqi_image,
+                         lambda: AQIImageGenerator.generate_aqi_image_for_city('grid-123')):
+            response, status = generate()
+            assert status == 500
+            assert response.get_json() == {"error": "Failed to fetch or process input data"}
+
+    assert cache.get.call_count == 2
+    assert predictor.fetch_and_process_data.call_count == 2
 
 
 def _predictor(model_dir, bucket=None):

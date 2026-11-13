@@ -19,7 +19,7 @@ production.env
 
 # datafiles
 google_application_credentials.json
-
+*.json
 .vscode
 .vscode/
 
