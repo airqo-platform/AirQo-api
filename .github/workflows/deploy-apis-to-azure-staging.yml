@@ -568,7 +568,7 @@ jobs:
           action: fjogeleit/yaml-update-action@main
           with: |
             valueFile: "k8s/view/k8s-aks/airqo-view-api/values-stage.yaml"
-            propertyPath: "images.tag"
+            propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}

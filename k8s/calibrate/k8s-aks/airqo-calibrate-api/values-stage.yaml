@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-calibrate-api
-  label: calibrate-api
+  label: sta-calibrate
   secret: sta-env-calibrate-api
 replicaCount: 1
 image:

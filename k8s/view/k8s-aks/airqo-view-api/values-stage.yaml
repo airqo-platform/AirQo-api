@@ -6,7 +6,7 @@ api:
 replicaCount: 1
 image:
   repository: airqoacr.azurecr.io/airqo-stage-view-api
-  tag: latest
+  tag: stage-621e0075-1773066565
 resources:
   limits:
     cpu: 20m
@@ -25,8 +25,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 1
   targetCPUUtilizationPercentage: 80
-images:
-  tag: stage-621e0075-1773066565
 rollingUpdate:
   maxSurge: 1
   maxUnavailable: 0

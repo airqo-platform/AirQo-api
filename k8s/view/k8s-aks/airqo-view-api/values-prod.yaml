@@ -6,7 +6,7 @@ api:
 replicaCount: 2
 image:
   repository: airqoacr.azurecr.io/airqo-view-api
-  tag: latest
+  tag: prod-b1e15408-1773067011
 resources:
   limits:
     cpu: 20m
@@ -25,5 +25,3 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
-images:
-  tag: prod-b1e15408-1773067011
