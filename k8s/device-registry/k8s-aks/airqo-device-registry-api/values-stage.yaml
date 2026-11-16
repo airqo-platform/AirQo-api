@@ -10,10 +10,10 @@ image:
 resources:
   limits:
     cpu: 300m
-    memory: 500Mi
+    memory: 512Mi
   requests:
     cpu: 10m
-    memory: 180Mi
+    memory: 256Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -33,3 +33,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 80
+rollingUpdate:
+  maxSurge: 1
+  maxUnavailable: 0

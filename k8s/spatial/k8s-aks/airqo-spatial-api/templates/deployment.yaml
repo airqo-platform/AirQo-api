@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "airqo-spatial-api.labels" . | nindent 4 }}
 spec:
+  {{- $rollingUpdate := .Values.rollingUpdate | default dict }}
   selector:
     matchLabels:
       app: {{ .Values.app.label }}
@@ -13,8 +14,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
+      maxSurge: {{ if hasKey $rollingUpdate "maxSurge" }}{{ $rollingUpdate.maxSurge }}{{ else }}1{{ end }}
+      maxUnavailable: {{ if hasKey $rollingUpdate "maxUnavailable" }}{{ $rollingUpdate.maxUnavailable }}{{ else }}1{{ end }}
   minReadySeconds: 5
   template:
     metadata:

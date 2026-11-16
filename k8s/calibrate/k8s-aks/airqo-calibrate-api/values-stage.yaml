@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-calibrate-api
-  label: sta-calibrate
+  label: calibrate-api
   secret: sta-env-calibrate-api
 replicaCount: 1
 image:
@@ -31,3 +31,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 80
+rollingUpdate:
+  maxSurge: 1
+  maxUnavailable: 0
