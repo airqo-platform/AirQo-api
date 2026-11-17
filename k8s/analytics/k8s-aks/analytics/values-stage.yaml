@@ -3,7 +3,7 @@ fullnameOverride: ''
 images:
   repositories:
     api: airqoacr.azurecr.io/airqo-stage-analytics-api
-  tag: stage-74086743-1794195676
+  tag: stage-61888182-1794864423
 externalSecret:
   enabled: true
 api:
@@ -16,10 +16,10 @@ api:
     common:
       limits:
         cpu: 200m
-        memory: 1000Mi
+        memory: 1Gi
       requests:
         cpu: 10m
-        memory: 250Mi
+        memory: 256Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -41,3 +41,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 85
+rollingUpdate:
+  maxSurge: 1
+  maxUnavailable: 0
