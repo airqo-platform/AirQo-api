@@ -67,9 +67,8 @@ const isFutureOrInvalid = (value) => {
 
 /**
  * One-time cleanup: corrects `lastActive` on devices left with a
- * future/corrupted value by the (now-fixed) unvalidated write paths in
- * beta-store-readings-job.js, backup-store-readings-job.js and
- * update-raw-online-status-job.js. A bad lastActive surfaces downstream as
+ * future/corrupted value by the (now-fixed or since-removed) unvalidated
+ * write paths, e.g. update-raw-online-status-job.js. A bad lastActive surfaces downstream as
  * transmissionStatus "Invalid Date".
  *
  * Safe to run on every startup: it first counts affected devices and returns
