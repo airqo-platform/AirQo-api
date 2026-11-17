@@ -3,11 +3,6 @@ const express = require("express");
 const constants = require("@config/constants");
 const path = require("path");
 const cookieParser = require("cookie-parser");
-// const analyticsService = require("@services/analytics.service");
-// const {
-//   trackAPIRequest,
-//   attachUserId,
-// } = require("@middleware/analytics.middleware");
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
@@ -259,8 +254,6 @@ try {
 } catch (error) {
   console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
 }
-// app.use(attachUserId); // Attach user ID to all requests
-// app.use(trackAPIRequest); // Track all API requests
 
 app.use(
   fileUpload({
