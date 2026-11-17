@@ -144,7 +144,6 @@ global.jobMetrics = {
 };
 
 // Initialize all background jobs
-// require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
 if (isProd) {
   require("@bin/jobs/events-health-check-job");
@@ -424,7 +423,6 @@ app.use(
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
-// app.use("/api/v1/devices", require("@routes/v1"));
 app.use("/api/v2/devices", require("@routes/v2"));
 
 // default error handling
