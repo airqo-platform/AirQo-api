@@ -7,7 +7,7 @@ images:
     predictJob: airqoacr.azurecr.io/stage-airqo-predict-job
     trainJob: airqoacr.azurecr.io/stage-airqo-train-job
     predictPlaces: airqoacr.azurecr.io/stage-airqo-predict-places-air-quality
-  tag: stage-d6b26b9f-1793863559
+  tag: stage-61888182-1794864423
 api:
   name: airqo-stage-prediction-api
   label: predict-api
@@ -20,7 +20,7 @@ api:
       memory: 300Mi
     requests:
       cpu: 5m
-      memory: 150Mi
+      memory: 128Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -40,3 +40,6 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetMemoryUtilizationPercentage: 85
+rollingUpdate:
+  maxSurge: 1
+  maxUnavailable: 0

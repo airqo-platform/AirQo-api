@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-893eaa04-1794232421
+  tag: stage-f7d1f2e7-1794735372
 inPodRedis:
   enabled: true
 checkMigrations:
