@@ -122,7 +122,7 @@ class SyncSummary:
     direct_failed: int = 0
     groups: int = 0
     failed_groups: int = 0
-    # Segments read from hourly data because raw-data refused their month.
+    # Hourly fallback attempts for segments whose month raw-data refused.
     hourly_requests: int = 0
     raw_refused_months: List[str] = field(default_factory=list)
     records: int = 0
@@ -499,10 +499,12 @@ async def fetch_group_readings(
     summary: SyncSummary,
     raw_refused: Set[str],
     hourly_refused: Set[str],
-) -> Tuple[List[Dict[str, Any]], bool]:
+) -> Tuple[List[Dict[str, Any]], bool, bool]:
     """
     Readings for one group's segment: raw-data first, hourly data for a month
-    analytics will not scan at the raw frequency.
+    analytics will not scan at the raw frequency. Returns
+    ``(records, succeeded, hourly)``; ``hourly`` is True when the records are
+    hourly means rather than raw readings.
 
     Analytics refuses every raw window in a month that holds more raw data
     than its byte ceiling, however short the window (in November 2026 it
@@ -517,7 +519,8 @@ async def fetch_group_readings(
             group.network, group.category, group.device_names, group.start_date, group.end_date,
         )
         try:
-            return await fetch_raw_data(client, payload, params, headers)
+            records, ok = await fetch_raw_data(client, payload, params, headers)
+            return records, ok, False
         except AnalyticsWindowTooLarge:
             raw_refused.add(month)
             summary.raw_refused_months.append(month)
@@ -526,20 +529,21 @@ async def fetch_group_readings(
                 f"(too much data for its byte ceiling); reading {month} as hourly data instead"
             )
     if month in hourly_refused:
-        return [], False
+        return [], False, True
     payload = build_hourly_data_payload(
         group.network, group.category, group.device_names, group.start_date, group.end_date,
     )
     summary.hourly_requests += 1
     try:
-        return await fetch_hourly_data(client, payload, params, headers)
+        records, ok = await fetch_hourly_data(client, payload, params, headers)
+        return records, ok, True
     except AnalyticsWindowTooLarge as e:
         hourly_refused.add(month)
         logger.error(
             f"[External Sync] analytics refused both raw and hourly data for {month} as too large "
             f"to scan, so {month} cannot be backfilled from analytics: {e}"
         )
-        return [], False
+        return [], False, True
 
 
 # ── Source 2: direct manufacturer history ─────────────────────────────────────
@@ -811,8 +815,43 @@ def _slot_maps_for(db: Session, devices: List[SyncDevice]) -> Dict[str, Dict[str
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
+def _hour_start(ts: datetime) -> datetime:
+    return _as_utc(ts).replace(minute=0, second=0, microsecond=0)
+
+
+def _rows_for_empty_hours(db: Session, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    The rows of ``rows`` whose device-hour holds no stored reading yet.
+
+    An hourly fallback row is the mean of an hour's readings, stored at the
+    hour start. In an hour that already holds readings (live-feed samples, an
+    earlier raw fetch, the same row from an earlier run) it is left out:
+    under the same epoch second it would overwrite a reading, and next to
+    them it would be averaged in as one more sample of the readings it sums up.
+    """
+    if not rows:
+        return rows
+    hours = [_hour_start(r["created_at_ts"]) for r in rows]
+    stored = (
+        db.query(SyncRawDeviceData.channel_id, SyncRawDeviceData.created_at_ts)
+        .filter(
+            SyncRawDeviceData.channel_id.in_({r["channel_id"] for r in rows}),
+            SyncRawDeviceData.created_at_ts >= min(hours),
+            SyncRawDeviceData.created_at_ts < max(hours) + timedelta(hours=1),
+        )
+        .all()
+    )
+    covered = {(channel_id, _hour_start(ts)) for channel_id, ts in stored}
+    return [r for r, hour in zip(rows, hours) if (r["channel_id"], hour) not in covered]
+
+
 def _upsert_rows(
-    rows: List[Dict[str, Any]], now_utc: datetime, summary: Any, *, complete: bool = True,
+    rows: List[Dict[str, Any]],
+    now_utc: datetime,
+    summary: Any,
+    *,
+    complete: bool = True,
+    fill_gaps_only: bool = False,
 ) -> None:
     """
     Upsert raw rows, then rebuild the hourly and daily aggregates of every day
@@ -822,10 +861,17 @@ def _upsert_rows(
 
     ``complete=False`` is passed when the fetch that produced ``rows`` failed
     partway: the days stay incomplete so the next run fetches them again.
+
+    ``fill_gaps_only=True`` is passed for hourly means: only rows for
+    device-hours without a stored reading are written (see
+    ``_rows_for_empty_hours``). The days of every row are still rebuilt, so a
+    refetch whose rows were all stored before still completes its days.
     """
     db = SessionLocal()
     try:
-        summary.raw_records += crud_device_data.upsert_raw_data(db, rows)
+        stored = _rows_for_empty_hours(db, rows) if fill_gaps_only else rows
+        if stored:
+            summary.raw_records += crud_device_data.upsert_raw_data(db, stored)
     except Exception as e:
         logger.error(f"[External Sync] raw upsert failed: {e}")
     finally:
@@ -1180,7 +1226,7 @@ async def sync_external_device_data(
                 f"category={group.category} devices={len(group.device_names)} "
                 f"{group.start_date} → {group.end_date}"
             )
-            records, ok = await fetch_group_readings(
+            records, ok, hourly = await fetch_group_readings(
                 client, group, params, headers, summary, raw_refused, hourly_refused,
             )
             if not ok:
@@ -1190,15 +1236,17 @@ async def sync_external_device_data(
             if rows:
                 # Pages fetched before a failure are kept, but their days stay
                 # incomplete so the next run fetches the missing readings.
-                _upsert_rows(rows, now_utc, summary, complete=ok)
+                # Hourly means only fill hours that hold no reading yet.
+                _upsert_rows(rows, now_utc, summary, complete=ok, fill_gaps_only=hourly)
 
     message = (
         f"Synced {summary.raw_records} raw, {summary.hourly_records} hourly, "
         f"{summary.daily_records} daily records for {summary.devices} external devices "
         f"({summary.direct_requests} direct requests, {summary.direct_failed} failed; "
-        f"{summary.failed_groups}/{summary.groups} analytics requests failed"
+        f"{summary.failed_groups}/{summary.groups} analytics groups failed"
         + (
-            f"; {summary.hourly_requests} read as hourly data for "
+            f"; {summary.hourly_requests} hourly fallback "
+            f"attempt{'' if summary.hourly_requests == 1 else 's'} for "
             f"{', '.join(summary.raw_refused_months)}"
             if summary.raw_refused_months else ""
         )

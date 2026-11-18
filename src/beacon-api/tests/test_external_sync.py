@@ -910,7 +910,7 @@ class TestRawRefusedForSize(_DbTestCase):
         self.assertEqual(summary["failed_groups"], 0)
         self.assertEqual(summary["hourly_requests"], 2)
         self.assertEqual(summary["raw_refused_months"], ["2026-10"])
-        self.assertIn("2 read as hourly data for 2026-10", summary["message"])
+        self.assertIn("0/3 analytics groups failed; 2 hourly fallback attempts for 2026-10", summary["message"])
         self.assertFalse([r for r in logs.records if r.levelno >= logging.ERROR])   # nothing for Slack
 
         days = {d["data_date"]: d for d in self.captured["daily"] if d["channel_id"] == "ag_1"}
@@ -932,6 +932,49 @@ class TestRawRefusedForSize(_DbTestCase):
         errors = [r for r in logs.records if r.levelno >= logging.ERROR]
         self.assertEqual(len(errors), 1)
         self.assertIn("2026-10", errors[0].getMessage())
+
+    def test_hourly_means_only_fill_hours_without_readings(self):
+        # A live-feed sample stored at exactly 10:00, the epoch second an hourly mean for 10:00 would take
+        ten = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+        self.db.add(SyncRawDeviceData(id=uuid.uuid4(), channel_id="ag_1", device_id="ag_1",
+                                      entry_id=int(ten.timestamp()), created_at_ts=ten, field1=8.0))
+        self.db.commit()
+
+        def fake_post(url, json=None, params=None, headers=None):
+            if url.endswith("/raw-data"):
+                return _response(400, TOO_WIDE)
+            return _response(200, {"data": [
+                {"device_name": "ag_201560", "datetime": "2026-10-20 10:00:00Z", "pm2_5": 21.0},
+                {"device_name": "ag_201560", "datetime": "2026-10-20 11:00:00Z", "pm2_5": 30.0},
+            ], "metadata": {"has_more": False}})
+
+        summary, _ = self._sync(fake_post, "2026-10-20", "2026-10-20")
+
+        self.assertTrue(summary["success"], summary)
+        self.assertEqual(summary["raw_records"], 1)          # only the 11:00 mean was stored
+        stored = self.db.query(SyncRawDeviceData).filter_by(channel_id="ag_1", entry_id=int(ten.timestamp())).one()
+        self.assertEqual(stored.field1, 8.0)                 # the sample was not overwritten
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 8.0)      # not averaged with the mean of its own hour
+        self.assertEqual(hours[ten]["record_count"], 1)
+        self.assertEqual(hours[ten + timedelta(hours=1)]["field1_avg"], 30.0)
+
+    def test_refetched_hourly_rows_still_complete_their_day(self):
+        hour = datetime(2026, 10, 20, 11, 0, tzinfo=timezone.utc)
+        row = {"channel_id": "ag_1", "device_id": "ag_1", "entry_id": int(hour.timestamp()), "created_at_ts": hour}
+        row.update({f"field{i}": None for i in range(1, 21)})
+        row["field1"] = 30.0
+        now = datetime(2026, 10, 22, tzinfo=timezone.utc)
+
+        first = ext.SyncSummary()
+        ext._upsert_rows([dict(row)], now, first, complete=False, fill_gaps_only=True)
+        second = ext.SyncSummary()
+        ext._upsert_rows([dict(row)], now, second, complete=True, fill_gaps_only=True)
+
+        self.assertEqual((first.raw_records, second.raw_records), (1, 0))   # stored once
+        self.assertFalse(self.captured["daily"][0]["complete"])
+        self.assertTrue(self.captured["daily"][-1]["complete"])             # the refetch completes the day
+        self.assertEqual(self.captured["daily"][-1]["field1_avg"], 30.0)
 
 
 if __name__ == "__main__":
