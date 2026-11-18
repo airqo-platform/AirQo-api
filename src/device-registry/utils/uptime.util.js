@@ -648,9 +648,9 @@ const createUptime = {
 
   // Rolls the same uptime data up to partner-network level, so an external
   // manufacturer's network can be ranked/compared the same way an individual
-  // device can. Only networks that the uptime jobs actually poll will show up
-  // here — today that is "airqo" only; a network only appears once devices on
-  // it start being sampled by device-uptime-job / network-analysis-uptime-job.
+  // device can. A network only shows up here once its devices have uptime
+  // samples, which update-raw-online-status-job records hourly for every
+  // device it checks, across all networks.
   getNetworkUptimeLeaderboard: async (params, next) => {
     try {
       const { tenant, startDate, endDate, limit, skip } = params;
