@@ -649,8 +649,11 @@ const createUptime = {
   // Rolls the same uptime data up to partner-network level, so an external
   // manufacturer's network can be ranked/compared the same way an individual
   // device can. A network only shows up here once its devices have uptime
-  // samples, which update-raw-online-status-job records hourly for every
-  // device it checks, across all networks.
+  // samples. update-raw-online-status-job records these hourly, across all
+  // networks, on a best-effort basis: sampling can be turned off via
+  // ENABLE_ONLINE_STATUS_UPTIME_SAMPLING, devices without a name or a defined
+  // raw status are skipped, and a failed insert is only logged. So the job
+  // checking a device does not guarantee a sample was recorded for it.
   getNetworkUptimeLeaderboard: async (params, next) => {
     try {
       const { tenant, startDate, endDate, limit, skip } = params;
