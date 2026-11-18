@@ -244,3 +244,27 @@ def test_missing_data_window_excludes_current_hour_at_midnight():
         DateUtils.format_datetime_by_unit_str(window_start, "hours_start")
         == "2026-05-13T00:00:00Z"
     )
+
+
+def test_extract_raw_device_data_returns_plain_datetime_bounds(monkeypatch):
+    """The window bounds are plain datetimes, the type the XCom serializer accepts."""
+    devices = pd.DataFrame(
+        {
+            "device_id": ["aq_g5_01", "aq_g5_02"],
+            "timestamp": ["2026-11-17 10:00:00+00:00", "2026-11-17 14:00:00+00:00"],
+        }
+    )
+    raw_data = pd.DataFrame(
+        {"device_id": ["aq_g5_01"], "timestamp": ["2026-11-17T10:05:00Z"]}
+    )
+    monkeypatch.setattr(
+        airqo_utils_module.DataUtils, "extract_devices_data", lambda **kwargs: raw_data
+    )
+
+    data, start_date, end_date = AirQoDataUtils.extract_raw_device_data(devices=devices)
+
+    assert data is raw_data
+    assert type(start_date) is datetime
+    assert type(end_date) is datetime
+    assert start_date == datetime(2026, 11, 17, 10, 0, 0, tzinfo=timezone.utc)
+    assert end_date == datetime(2026, 11, 17, 14, 0, 0, tzinfo=timezone.utc)

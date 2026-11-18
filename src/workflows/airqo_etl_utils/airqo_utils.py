@@ -1178,7 +1178,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_raw_device_data(
         devices: pd.DataFrame, data_source: Optional[DataSource] = DataSource.THINGSPEAK
-    ) -> Tuple[pd.DataFrame, Optional[pd.Timestamp], Optional[pd.Timestamp]]:
+    ) -> Tuple[pd.DataFrame, Optional[datetime], Optional[datetime]]:
         """
         Extract raw device data.
 
@@ -1223,7 +1223,11 @@ class AirQoDataUtils:
             if raw_device_data.empty:
                 return pd.DataFrame()
 
-            return raw_device_data, start_date, end_date
+            return (
+                raw_device_data,
+                start_date.to_pydatetime(),
+                end_date.to_pydatetime(),
+            )
 
         except Exception as e:
             logger.exception(f"Error in extracting data: {e}")
