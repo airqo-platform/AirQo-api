@@ -958,6 +958,37 @@ class TestRawRefusedForSize(_DbTestCase):
         self.assertEqual(hours[ten]["field1_avg"], 8.0)      # not averaged with the mean of its own hour
         self.assertEqual(hours[ten]["record_count"], 1)
         self.assertEqual(hours[ten + timedelta(hours=1)]["field1_avg"], 30.0)
+        mean = self.db.query(SyncRawDeviceData).filter(SyncRawDeviceData.entry_id < 0).one()
+        self.assertEqual(mean.entry_id, -int((ten + timedelta(hours=1)).timestamp()))   # marked as a mean
+
+    def test_reading_after_a_stored_mean_replaces_it_in_the_aggregate(self):
+        """CodeRabbit on #7203: a mean stored first must not be averaged with a reading that lands later."""
+        ten = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+
+        def fake_post(url, json=None, params=None, headers=None):
+            if url.endswith("/raw-data"):
+                return _response(400, TOO_WIDE)
+            return _response(200, {"data": [
+                {"device_name": "ag_201560", "datetime": "2026-10-20 10:00:00Z", "pm2_5": 20.0},
+                {"device_name": "ag_201560", "datetime": "2026-10-20 11:00:00Z", "pm2_5": 30.0},
+            ], "metadata": {"has_more": False}})
+
+        self._sync(fake_post, "2026-10-20", "2026-10-20")
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 20.0)     # the mean fills the hour on its own
+
+        # A live-feed reading for 10:30 arrives afterwards
+        sample = {"channel_id": "ag_1", "device_id": "ag_1", "created_at_ts": ten + timedelta(minutes=30),
+                  "entry_id": int((ten + timedelta(minutes=30)).timestamp())}
+        sample.update({f"field{i}": None for i in range(1, 21)})
+        sample["field1"] = 8.0
+        self.captured["hourly"].clear()
+        ext.store_device_rows(self.db, [sample], "ag_1", datetime(2026, 10, 22, tzinfo=timezone.utc))
+
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 8.0)      # the reading alone, not (20 + 8) / 2
+        self.assertEqual(hours[ten]["record_count"], 1)
+        self.assertEqual(hours[ten + timedelta(hours=1)]["field1_avg"], 30.0)   # an hour without readings keeps its mean
 
     def test_refetched_hourly_rows_still_complete_their_day(self):
         hour = datetime(2026, 10, 20, 11, 0, tzinfo=timezone.utc)
@@ -967,9 +998,9 @@ class TestRawRefusedForSize(_DbTestCase):
         now = datetime(2026, 10, 22, tzinfo=timezone.utc)
 
         first = ext.SyncSummary()
-        ext._upsert_rows([dict(row)], now, first, complete=False, fill_gaps_only=True)
+        ext._upsert_rows(ext.mark_hourly_means([dict(row)]), now, first, complete=False, fill_gaps_only=True)
         second = ext.SyncSummary()
-        ext._upsert_rows([dict(row)], now, second, complete=True, fill_gaps_only=True)
+        ext._upsert_rows(ext.mark_hourly_means([dict(row)]), now, second, complete=True, fill_gaps_only=True)
 
         self.assertEqual((first.raw_records, second.raw_records), (1, 0))   # stored once
         self.assertFalse(self.captured["daily"][0]["complete"])

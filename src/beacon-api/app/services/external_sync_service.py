@@ -819,15 +819,33 @@ def _hour_start(ts: datetime) -> datetime:
     return _as_utc(ts).replace(minute=0, second=0, microsecond=0)
 
 
+def mark_hourly_means(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Mark rows built from hourly means: each ``entry_id`` becomes the negated
+    epoch second of its hour start. A reading always carries a positive
+    ``entry_id`` (a ThingSpeak entry number or its epoch second), so a mean
+    never shares a key with a reading, and ``recompute_aggregates_from_db``
+    can tell the two apart in whichever order they were written.
+    """
+    for row in rows:
+        row["entry_id"] = -abs(int(row["entry_id"]))
+    return rows
+
+
+def _is_hourly_mean(entry_id: Optional[int]) -> bool:
+    return entry_id is not None and entry_id < 0
+
+
 def _rows_for_empty_hours(db: Session, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    The rows of ``rows`` whose device-hour holds no stored reading yet.
+    The rows of ``rows`` whose device-hour holds no stored row yet.
 
     An hourly fallback row is the mean of an hour's readings, stored at the
-    hour start. In an hour that already holds readings (live-feed samples, an
-    earlier raw fetch, the same row from an earlier run) it is left out:
-    under the same epoch second it would overwrite a reading, and next to
-    them it would be averaged in as one more sample of the readings it sums up.
+    hour start. In an hour that already holds a row (live-feed samples, an
+    earlier raw fetch, the same mean from an earlier run) it adds nothing:
+    the hour's aggregate comes from its readings alone (see
+    ``recompute_aggregates_from_db``), and the mean would only sit beside
+    them in the raw rows.
     """
     if not rows:
         return rows
@@ -862,8 +880,8 @@ def _upsert_rows(
     ``complete=False`` is passed when the fetch that produced ``rows`` failed
     partway: the days stay incomplete so the next run fetches them again.
 
-    ``fill_gaps_only=True`` is passed for hourly means: only rows for
-    device-hours without a stored reading are written (see
+    ``fill_gaps_only=True`` is passed for hourly means (``mark_hourly_means``):
+    only rows for device-hours without a stored row are written (see
     ``_rows_for_empty_hours``). The days of every row are still rebuilt, so a
     refetch whose rows were all stored before still completes its days.
     """
@@ -921,7 +939,8 @@ def recompute_aggregates_from_db(
     Rebuild the hourly and daily aggregates of every UTC day touched by
     ``timestamps`` from all stored raw rows of those days, in one query, so
     readings from every source are averaged together (a single live-feed
-    sample is averaged in with the samples already stored).
+    sample is averaged in with the samples already stored). An hourly mean
+    (``mark_hourly_means``) counts only in an hour that holds no reading.
 
     ``mark_complete=False`` keeps the rebuilt days incomplete, for data from
     a fetch that failed partway.
@@ -942,11 +961,17 @@ def recompute_aggregates_from_db(
         )
         .all()
     )
-    records = []
-    for r in rows:
-        ts = _as_utc(r.created_at_ts)
-        if ts.date() in touched:
-            records.append({**_row_dict(r), "created_at_ts": ts})
+    in_days = [r for r in rows if _as_utc(r.created_at_ts).date() in touched]
+    # An hour that holds readings is aggregated from them alone. Its hourly
+    # mean, written before or after them, would count as one more sample of
+    # the readings it sums up, so a mean only stands in for an hour without
+    # readings.
+    read_hours = {_hour_start(r.created_at_ts) for r in in_days if not _is_hourly_mean(r.entry_id)}
+    records = [
+        {**_row_dict(r), "created_at_ts": _as_utc(r.created_at_ts)}
+        for r in in_days
+        if not (_is_hourly_mean(r.entry_id) and _hour_start(r.created_at_ts) in read_hours)
+    ]
     if not records:
         return 0, 0
 
@@ -1233,6 +1258,8 @@ async def sync_external_device_data(
                 summary.failed_groups += 1
             summary.records += len(records)
             rows = build_raw_rows(records, devices_by_name, slot_maps)
+            if hourly:
+                mark_hourly_means(rows)
             if rows:
                 # Pages fetched before a failure are kept, but their days stay
                 # incomplete so the next run fetches the missing readings.
