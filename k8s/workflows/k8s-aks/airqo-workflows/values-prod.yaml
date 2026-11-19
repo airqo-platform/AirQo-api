@@ -23,12 +23,12 @@ migrationJob:
     - migrate
   activeDeadlineSeconds: 1800
 dagProcessor:
-  enabled: false
+  enabled: true
 livenessProbes:
-  enabled: false
+  enabled: true
 dbClean:
-  enabled: false
-  schedule: 30 0 * * 0
+  enabled: true
+  schedule: '30 0 * * 0'
   retentionDays: 30
   activeDeadlineSeconds: 3600
   tables:
