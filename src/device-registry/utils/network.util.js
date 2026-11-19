@@ -308,8 +308,8 @@ const getNetwork = async (request, next) => {
 // window meets the threshold AND there is enough sample data to trust the
 // number. Networks with too little uptime history come back as
 // "insufficient_uptime_data" rather than silently reading as unverified —
-// today that is every network except "airqo", since that is the only network
-// the uptime jobs currently poll (see bin/jobs/device-uptime-job.js).
+// e.g. a network whose devices have not yet accumulated enough hourly samples
+// from update-raw-online-status-job.
 const VERIFICATION_WINDOW_DAYS = 30;
 const VERIFICATION_MIN_UPTIME_PERCENTAGE = 90;
 const VERIFICATION_MIN_SAMPLE_RECORDS = 7;
