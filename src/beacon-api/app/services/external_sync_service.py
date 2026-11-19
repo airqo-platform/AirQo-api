@@ -19,7 +19,9 @@ three complementary sources, closest to the device first:
    raw endpoint).
 3. **Analytics raw-data** (fallback): the platform's ``/analytics/raw-data``
    endpoint, backed by the ETL pipelines' BigQuery raw table. Used for
-   devices without a direct source and when a direct fetch fails.
+   devices without a direct source and when a direct fetch fails. For a
+   month analytics refuses to scan at the raw frequency, the same readings
+   come hourly from ``/analytics/data-download`` instead.
 
 All three land in the same ``sync_*_device_data`` tables airqo devices use,
 keyed by the registry device id (``device_source_key``) and laid out through
@@ -66,10 +68,16 @@ from app.utils.networks import (
 logger = logging.getLogger(__name__)
 
 RAW_DATA_PATH = "/analytics/raw-data"
+# Hourly averages of the same raw readings, read from a much smaller table.
+HOURLY_DATA_PATH = "/analytics/data-download"
 FEED_PATH = "/devices/feeds/transform/recent"
 # Device names per raw-data request (matches the cohort performance path).
 CHUNK_SIZE = 50
-# The analytics API caps raw windows to a few days per request.
+# The analytics API caps raw windows to a few days per request. A segment
+# also never crosses a month boundary: analytics refuses a raw window in a
+# month that holds more raw data than its byte ceiling, however short the
+# window, so a segment that crossed into such a month would take the days of
+# the other month down with it.
 SEGMENT_DAYS = 7
 MAX_RETRIES = 3
 # Transient transport errors and 5xx: short backoff.
@@ -96,6 +104,15 @@ class FetchGroup:
     end_date: date
     missing_days: int = 0
 
+    @property
+    def month(self) -> str:
+        """``YYYY-MM`` of the segment; segments never cross a month boundary."""
+        return self.start_date.strftime("%Y-%m")
+
+
+class AnalyticsWindowTooLarge(Exception):
+    """Analytics refused a query because it would scan more than its byte ceiling."""
+
 
 @dataclass
 class SyncSummary:
@@ -105,6 +122,9 @@ class SyncSummary:
     direct_failed: int = 0
     groups: int = 0
     failed_groups: int = 0
+    # Hourly fallback attempts for segments whose month raw-data refused.
+    hourly_requests: int = 0
+    raw_refused_months: List[str] = field(default_factory=list)
     records: int = 0
     raw_records: int = 0
     hourly_records: int = 0
@@ -208,11 +228,16 @@ def _date_range(start: date, end: date) -> List[date]:
     return days
 
 
+def _month_end(d: date) -> date:
+    return (d.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+
 def _split_segments(start: date, end: date, segment_days: int) -> List[Tuple[date, date]]:
+    """Split ``start..end`` into segments of at most ``segment_days`` days within one month."""
     segments = []
     seg_start = start
     while seg_start <= end:
-        seg_end = min(seg_start + timedelta(days=segment_days - 1), end)
+        seg_end = min(seg_start + timedelta(days=segment_days - 1), end, _month_end(seg_start))
         segments.append((seg_start, seg_end))
         seg_start = seg_end + timedelta(days=1)
     return segments
@@ -237,7 +262,7 @@ def plan_fetch_groups(
     """
     Work out which (network, category) groups still have days without a
     complete daily record and split them into raw-data requests of at most
-    ``CHUNK_SIZE`` devices and ``SEGMENT_DAYS`` days.
+    ``CHUNK_SIZE`` devices and ``SEGMENT_DAYS`` days, none crossing a month.
     """
     missing_by_group: Dict[Tuple[str, str], Dict[str, Set[date]]] = defaultdict(dict)
 
@@ -289,6 +314,24 @@ def build_raw_data_payload(
         "metaDataFields": ["latitude", "longitude"],
         "weatherFields": ["temperature", "humidity"],
     }
+
+
+def build_hourly_data_payload(
+    network: str,
+    category: str,
+    device_names: List[str],
+    start_date: date,
+    end_date: date,
+) -> Dict[str, Any]:
+    """
+    Body for ``POST /analytics/data-download`` asking for the hourly averages
+    of the raw readings of one group and date segment. The records have the
+    raw-data shape (``device_name``, ``datetime``, named readings), one per
+    device-hour, so ``build_raw_rows`` reads them unchanged.
+    """
+    payload = build_raw_data_payload(network, category, device_names, start_date, end_date)
+    payload["frequency"] = "hourly"
+    return payload
 
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -357,19 +400,39 @@ async def _post_with_retries(
 
 # ── Source 3: analytics raw-data ──────────────────────────────────────────────
 
-async def fetch_raw_data(
+def _refused_for_size(response: httpx.Response) -> bool:
+    """
+    True when analytics refused the query because it would scan more than
+    its BigQuery byte ceiling. Analytics answers that with HTTP 400 and
+    "The requested date range is too wide ...".
+    """
+    if response.status_code != 400:
+        return False
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    message = data.get("message") if isinstance(data, dict) else response.text
+    return "too wide" in str(message or "").lower()
+
+
+async def _fetch_analytics(
     client: httpx.AsyncClient,
+    path: str,
+    label: str,
     payload: Dict[str, Any],
     params: Dict[str, str],
     headers: Dict[str, str],
-    max_retries: int = MAX_RETRIES,
+    max_retries: int,
 ) -> Tuple[List[Dict[str, Any]], bool]:
     """
-    POST ``payload`` to raw-data and follow its cursor pagination.
-    Returns ``(records, succeeded)``; a partial page set still returns the
-    records collected so far.
+    POST ``payload`` to an analytics export route and follow its cursor
+    pagination. Returns ``(records, succeeded)``; a partial page set still
+    returns the records collected so far. Raises ``AnalyticsWindowTooLarge``
+    when analytics refuses the query for its size, which the caller answers
+    with a cheaper source rather than as a failure.
     """
-    url = f"{settings.PLATFORM_BASE_URL}{RAW_DATA_PATH}"
+    url = f"{settings.PLATFORM_BASE_URL}{path}"
     body = dict(payload)
     records: List[Dict[str, Any]] = []
     while True:
@@ -383,9 +446,11 @@ async def fetch_raw_data(
             )
             body["network"] = FALLBACK_NETWORK
             continue
+        if _refused_for_size(response):
+            raise AnalyticsWindowTooLarge(response.text[:300])
         if response.status_code != 200:
             logger.error(
-                f"[External Sync] raw-data HTTP {response.status_code} for "
+                f"[External Sync] {label} HTTP {response.status_code} for "
                 f"{len(body.get('device_names', []))} devices "
                 f"({body.get('startDateTime')} → {body.get('endDateTime')}): {response.text[:300]}"
             )
@@ -393,7 +458,7 @@ async def fetch_raw_data(
         try:
             data = response.json()
         except ValueError as e:
-            logger.error(f"[External Sync] could not parse raw-data response: {e}")
+            logger.error(f"[External Sync] could not parse {label} response: {e}")
             return records, False
         records.extend(data.get("data") or [])
         metadata = data.get("metadata") or {}
@@ -402,6 +467,83 @@ async def fetch_raw_data(
             body["cursor"] = cursor
             continue
         return records, True
+
+
+async def fetch_raw_data(
+    client: httpx.AsyncClient,
+    payload: Dict[str, Any],
+    params: Dict[str, str],
+    headers: Dict[str, str],
+    max_retries: int = MAX_RETRIES,
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Raw readings from ``/analytics/raw-data`` (see ``_fetch_analytics``)."""
+    return await _fetch_analytics(client, RAW_DATA_PATH, "raw-data", payload, params, headers, max_retries)
+
+
+async def fetch_hourly_data(
+    client: httpx.AsyncClient,
+    payload: Dict[str, Any],
+    params: Dict[str, str],
+    headers: Dict[str, str],
+    max_retries: int = MAX_RETRIES,
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Hourly readings from ``/analytics/data-download`` (see ``_fetch_analytics``)."""
+    return await _fetch_analytics(client, HOURLY_DATA_PATH, "data-download", payload, params, headers, max_retries)
+
+
+async def fetch_group_readings(
+    client: httpx.AsyncClient,
+    group: FetchGroup,
+    params: Dict[str, str],
+    headers: Dict[str, str],
+    summary: SyncSummary,
+    raw_refused: Set[str],
+    hourly_refused: Set[str],
+) -> Tuple[List[Dict[str, Any]], bool, bool]:
+    """
+    Readings for one group's segment: raw-data first, hourly data for a month
+    analytics will not scan at the raw frequency. Returns
+    ``(records, succeeded, hourly)``; ``hourly`` is True when the records are
+    hourly means rather than raw readings.
+
+    Analytics refuses every raw window in a month that holds more raw data
+    than its byte ceiling, however short the window (in November 2026 it
+    refused one hour of October and served sixteen days of November). So the
+    first refusal marks the whole month in ``raw_refused`` and the month's
+    later segments in this run go straight to hourly data, which reads a much
+    smaller table. ``hourly_refused`` does the same for the hourly route.
+    """
+    month = group.month
+    if month not in raw_refused:
+        payload = build_raw_data_payload(
+            group.network, group.category, group.device_names, group.start_date, group.end_date,
+        )
+        try:
+            records, ok = await fetch_raw_data(client, payload, params, headers)
+            return records, ok, False
+        except AnalyticsWindowTooLarge:
+            raw_refused.add(month)
+            summary.raw_refused_months.append(month)
+            logger.warning(
+                f"[External Sync] analytics will not scan {month} at the raw frequency "
+                f"(too much data for its byte ceiling); reading {month} as hourly data instead"
+            )
+    if month in hourly_refused:
+        return [], False, True
+    payload = build_hourly_data_payload(
+        group.network, group.category, group.device_names, group.start_date, group.end_date,
+    )
+    summary.hourly_requests += 1
+    try:
+        records, ok = await fetch_hourly_data(client, payload, params, headers)
+        return records, ok, True
+    except AnalyticsWindowTooLarge as e:
+        hourly_refused.add(month)
+        logger.error(
+            f"[External Sync] analytics refused both raw and hourly data for {month} as too large "
+            f"to scan, so {month} cannot be backfilled from analytics: {e}"
+        )
+        return [], False, True
 
 
 # ── Source 2: direct manufacturer history ─────────────────────────────────────
@@ -673,8 +815,61 @@ def _slot_maps_for(db: Session, devices: List[SyncDevice]) -> Dict[str, Dict[str
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
+def _hour_start(ts: datetime) -> datetime:
+    return _as_utc(ts).replace(minute=0, second=0, microsecond=0)
+
+
+def mark_hourly_means(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Mark rows built from hourly means: each ``entry_id`` becomes the negated
+    epoch second of its hour start. A reading always carries a positive
+    ``entry_id`` (a ThingSpeak entry number or its epoch second), so a mean
+    never shares a key with a reading, and ``recompute_aggregates_from_db``
+    can tell the two apart in whichever order they were written.
+    """
+    for row in rows:
+        row["entry_id"] = -abs(int(row["entry_id"]))
+    return rows
+
+
+def _is_hourly_mean(entry_id: Optional[int]) -> bool:
+    return entry_id is not None and entry_id < 0
+
+
+def _rows_for_empty_hours(db: Session, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    The rows of ``rows`` whose device-hour holds no stored row yet.
+
+    An hourly fallback row is the mean of an hour's readings, stored at the
+    hour start. In an hour that already holds a row (live-feed samples, an
+    earlier raw fetch, the same mean from an earlier run) it adds nothing:
+    the hour's aggregate comes from its readings alone (see
+    ``recompute_aggregates_from_db``), and the mean would only sit beside
+    them in the raw rows.
+    """
+    if not rows:
+        return rows
+    hours = [_hour_start(r["created_at_ts"]) for r in rows]
+    stored = (
+        db.query(SyncRawDeviceData.channel_id, SyncRawDeviceData.created_at_ts)
+        .filter(
+            SyncRawDeviceData.channel_id.in_({r["channel_id"] for r in rows}),
+            SyncRawDeviceData.created_at_ts >= min(hours),
+            SyncRawDeviceData.created_at_ts < max(hours) + timedelta(hours=1),
+        )
+        .all()
+    )
+    covered = {(channel_id, _hour_start(ts)) for channel_id, ts in stored}
+    return [r for r, hour in zip(rows, hours) if (r["channel_id"], hour) not in covered]
+
+
 def _upsert_rows(
-    rows: List[Dict[str, Any]], now_utc: datetime, summary: Any, *, complete: bool = True,
+    rows: List[Dict[str, Any]],
+    now_utc: datetime,
+    summary: Any,
+    *,
+    complete: bool = True,
+    fill_gaps_only: bool = False,
 ) -> None:
     """
     Upsert raw rows, then rebuild the hourly and daily aggregates of every day
@@ -684,10 +879,17 @@ def _upsert_rows(
 
     ``complete=False`` is passed when the fetch that produced ``rows`` failed
     partway: the days stay incomplete so the next run fetches them again.
+
+    ``fill_gaps_only=True`` is passed for hourly means (``mark_hourly_means``):
+    only rows for device-hours without a stored row are written (see
+    ``_rows_for_empty_hours``). The days of every row are still rebuilt, so a
+    refetch whose rows were all stored before still completes its days.
     """
     db = SessionLocal()
     try:
-        summary.raw_records += crud_device_data.upsert_raw_data(db, rows)
+        stored = _rows_for_empty_hours(db, rows) if fill_gaps_only else rows
+        if stored:
+            summary.raw_records += crud_device_data.upsert_raw_data(db, stored)
     except Exception as e:
         logger.error(f"[External Sync] raw upsert failed: {e}")
     finally:
@@ -737,7 +939,8 @@ def recompute_aggregates_from_db(
     Rebuild the hourly and daily aggregates of every UTC day touched by
     ``timestamps`` from all stored raw rows of those days, in one query, so
     readings from every source are averaged together (a single live-feed
-    sample is averaged in with the samples already stored).
+    sample is averaged in with the samples already stored). An hourly mean
+    (``mark_hourly_means``) counts only in an hour that holds no reading.
 
     ``mark_complete=False`` keeps the rebuilt days incomplete, for data from
     a fetch that failed partway.
@@ -758,11 +961,17 @@ def recompute_aggregates_from_db(
         )
         .all()
     )
-    records = []
-    for r in rows:
-        ts = _as_utc(r.created_at_ts)
-        if ts.date() in touched:
-            records.append({**_row_dict(r), "created_at_ts": ts})
+    in_days = [r for r in rows if _as_utc(r.created_at_ts).date() in touched]
+    # An hour that holds readings is aggregated from them alone. Its hourly
+    # mean, written before or after them, would count as one more sample of
+    # the readings it sums up, so a mean only stands in for an hour without
+    # readings.
+    read_hours = {_hour_start(r.created_at_ts) for r in in_days if not _is_hourly_mean(r.entry_id)}
+    records = [
+        {**_row_dict(r), "created_at_ts": _as_utc(r.created_at_ts)}
+        for r in in_days
+        if not (_is_hourly_mean(r.entry_id) and _hour_start(r.created_at_ts) in read_hours)
+    ]
     if not records:
         return 0, 0
 
@@ -1034,30 +1243,41 @@ async def sync_external_device_data(
             f"{len(groups)} raw-data requests ({range_start} → {range_end})"
         )
 
+        raw_refused: Set[str] = set()
+        hourly_refused: Set[str] = set()
         for idx, group in enumerate(groups, start=1):
-            payload = build_raw_data_payload(
-                group.network, group.category, group.device_names, group.start_date, group.end_date,
-            )
             logger.info(
                 f"[External Sync] Request {idx}/{len(groups)}: network={group.network} "
                 f"category={group.category} devices={len(group.device_names)} "
                 f"{group.start_date} → {group.end_date}"
             )
-            records, ok = await fetch_raw_data(client, payload, params, headers)
+            records, ok, hourly = await fetch_group_readings(
+                client, group, params, headers, summary, raw_refused, hourly_refused,
+            )
             if not ok:
                 summary.failed_groups += 1
             summary.records += len(records)
             rows = build_raw_rows(records, devices_by_name, slot_maps)
+            if hourly:
+                mark_hourly_means(rows)
             if rows:
                 # Pages fetched before a failure are kept, but their days stay
                 # incomplete so the next run fetches the missing readings.
-                _upsert_rows(rows, now_utc, summary, complete=ok)
+                # Hourly means only fill hours that hold no reading yet.
+                _upsert_rows(rows, now_utc, summary, complete=ok, fill_gaps_only=hourly)
 
     message = (
         f"Synced {summary.raw_records} raw, {summary.hourly_records} hourly, "
         f"{summary.daily_records} daily records for {summary.devices} external devices "
         f"({summary.direct_requests} direct requests, {summary.direct_failed} failed; "
-        f"{summary.failed_groups}/{summary.groups} analytics requests failed)"
+        f"{summary.failed_groups}/{summary.groups} analytics groups failed"
+        + (
+            f"; {summary.hourly_requests} hourly fallback "
+            f"attempt{'' if summary.hourly_requests == 1 else 's'} for "
+            f"{', '.join(summary.raw_refused_months)}"
+            if summary.raw_refused_months else ""
+        )
+        + ")"
     )
     logger.info(f"[External Sync] Complete: {message}")
     return {
