@@ -3,6 +3,7 @@ Phase 2: readings for devices from other sensor manufacturers, backfilled
 from the platform's analytics raw-data endpoint into the local sync tables.
 """
 import asyncio
+import logging
 import unittest
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -804,6 +805,207 @@ class TestAggregatesAcrossSources(_DbTestCase):
         self.assertEqual(len(day), 1)
         self.assertFalse(day[0]["complete"])                      # refetched on the next run
         self.assertEqual(day[0]["record_count"], 2)
+
+
+TOO_WIDE = {"message": "The requested date range is too wide for raw data. Shorten the date range.",
+            "status": "error", "data": None, "metadata": None}
+
+
+class TestRawRefusedForSize(_DbTestCase):
+    """
+    Analytics refuses every raw window in a month whose raw data is over its
+    byte ceiling, however short the window; beacon reads that month hourly.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.db.add(SyncDevice(**AIRGRADIENT))
+        self.db.commit()
+        self.captured = {"hourly": [], "daily": []}
+
+        def fake_upsert_raw(db, records, batch_size=2000):
+            for r in records:
+                db.add(SyncRawDeviceData(id=uuid.uuid4(), **r))
+            db.commit()
+            return len(records)
+
+        for target, value in (
+            ("upsert_raw_data", fake_upsert_raw),
+            ("upsert_hourly_data", lambda db, r, batch_size=2000: self.captured["hourly"].extend(r) or len(r)),
+            ("upsert_daily_data", lambda db, r, batch_size=2000: self.captured["daily"].extend(r) or len(r)),
+        ):
+            patcher = patch.object(ext.crud_device_data, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(ext, "SessionLocal", self.Session)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _sync(self, fake_post, start, end):
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=fake_post)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        with patch.object(ext.httpx, "AsyncClient", return_value=client):
+            summary = asyncio.run(ext.sync_external_device_data(start_date=start, end_date=end))
+        calls = [(c.args[0].rsplit("/", 1)[-1], c.kwargs["json"]["startDateTime"][:10])
+                 for c in client.post.call_args_list]
+        return summary, calls
+
+    def test_segments_never_cross_a_month(self):
+        self.assertEqual(
+            ext._split_segments(date(2026, 10, 27), date(2026, 11, 9), 7),
+            [(date(2026, 10, 27), date(2026, 10, 31)),
+             (date(2026, 11, 1), date(2026, 11, 7)),
+             (date(2026, 11, 8), date(2026, 11, 9))],
+        )
+        self.assertEqual(ext._split_segments(date(2028, 2, 27), date(2028, 3, 1), 7),
+                         [(date(2028, 2, 27), date(2028, 2, 29)), (date(2028, 3, 1), date(2028, 3, 1))])
+        self.assertEqual(ext._split_segments(date(2026, 12, 30), date(2027, 1, 2), 7),
+                         [(date(2026, 12, 30), date(2026, 12, 31)), (date(2027, 1, 1), date(2027, 1, 2))])
+
+    def test_hourly_payload_asks_for_hourly_raw_readings(self):
+        payload = ext.build_hourly_data_payload("metone", "bam", ["dos-addis-centr"], date(2026, 10, 1), date(2026, 10, 7))
+        self.assertEqual(payload["frequency"], "hourly")
+        self.assertEqual(payload["datatype"], "raw")
+        self.assertEqual(payload["device_category"], "bam")
+        self.assertEqual(payload["pollutants"], ["pm2_5"])
+        self.assertEqual(payload["device_names"], ["dos-addis-centr"])
+        self.assertEqual((payload["startDateTime"], payload["endDateTime"]),
+                         ("2026-10-01T00:00:00Z", "2026-10-07T23:59:59Z"))
+
+    def test_refusal_for_size_raises_and_other_400s_fail_normally(self):
+        client = MagicMock()
+        client.post = AsyncMock(return_value=_response(400, TOO_WIDE, text="too wide"))
+        with self.assertRaises(ext.AnalyticsWindowTooLarge):
+            asyncio.run(ext.fetch_raw_data(client, {"network": "airqo"}, {}, {}, max_retries=1))
+
+        timed_out = {"message": "The query took too long. Request fewer sites or devices or shorten the date range."}
+        client.post = AsyncMock(return_value=_response(400, timed_out))
+        records, ok = asyncio.run(ext.fetch_raw_data(client, {"network": "airqo"}, {}, {}, max_retries=1))
+        self.assertEqual((records, ok), ([], False))
+
+    def test_refused_month_is_read_hourly_and_later_months_stay_raw(self):
+        def fake_post(url, json=None, params=None, headers=None):
+            day = json["startDateTime"][:10]
+            if url.endswith("/raw-data"):
+                if day.startswith("2026-10"):
+                    return _response(400, TOO_WIDE)
+                return _response(200, {"data": [
+                    {"device_name": "ag_201560", "datetime": f"{day} 10:02:00Z", "pm2_5": 7.0},
+                ], "metadata": {"has_more": False}})
+            self.assertTrue(url.endswith("/data-download"))
+            self.assertEqual(json["frequency"], "hourly")
+            return _response(200, {"data": [
+                {"device_name": "ag_201560", "datetime": f"{day} 10:00:00Z", "pm2_5": 21.0, "frequency": "hourly"},
+            ], "metadata": {"has_more": False}})
+
+        with self.assertLogs(ext.logger, level="INFO") as logs:
+            summary, calls = self._sync(fake_post, "2026-10-20", "2026-11-02")
+
+        # October is tried raw once; its second segment goes straight to hourly; November stays raw
+        self.assertEqual(calls, [("raw-data", "2026-10-20"), ("data-download", "2026-10-20"),
+                                 ("data-download", "2026-10-27"), ("raw-data", "2026-11-01")])
+        self.assertTrue(summary["success"], summary)
+        self.assertEqual(summary["failed_groups"], 0)
+        self.assertEqual(summary["hourly_requests"], 2)
+        self.assertEqual(summary["raw_refused_months"], ["2026-10"])
+        self.assertIn("0/3 analytics groups failed; 2 hourly fallback attempts for 2026-10", summary["message"])
+        self.assertFalse([r for r in logs.records if r.levelno >= logging.ERROR])   # nothing for Slack
+
+        days = {d["data_date"]: d for d in self.captured["daily"] if d["channel_id"] == "ag_1"}
+        self.assertTrue(days[date(2026, 10, 20)]["complete"])
+        self.assertEqual(days[date(2026, 10, 20)]["field1_avg"], 21.0)
+        self.assertTrue(days[date(2026, 11, 1)]["complete"])
+        self.assertEqual(days[date(2026, 11, 1)]["field1_avg"], 7.0)
+
+    def test_month_refused_hourly_too_fails_once_and_stops_asking(self):
+        async def fake_post(url, json=None, params=None, headers=None):
+            return _response(400, TOO_WIDE)
+
+        with self.assertLogs(ext.logger, level="WARNING") as logs:
+            summary, calls = self._sync(fake_post, "2026-10-20", "2026-10-31")
+
+        self.assertEqual(calls, [("raw-data", "2026-10-20"), ("data-download", "2026-10-20")])
+        self.assertFalse(summary["success"])
+        self.assertEqual(summary["failed_groups"], 2)
+        errors = [r for r in logs.records if r.levelno >= logging.ERROR]
+        self.assertEqual(len(errors), 1)
+        self.assertIn("2026-10", errors[0].getMessage())
+
+    def test_hourly_means_only_fill_hours_without_readings(self):
+        # A live-feed sample stored at exactly 10:00, the epoch second an hourly mean for 10:00 would take
+        ten = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+        self.db.add(SyncRawDeviceData(id=uuid.uuid4(), channel_id="ag_1", device_id="ag_1",
+                                      entry_id=int(ten.timestamp()), created_at_ts=ten, field1=8.0))
+        self.db.commit()
+
+        def fake_post(url, json=None, params=None, headers=None):
+            if url.endswith("/raw-data"):
+                return _response(400, TOO_WIDE)
+            return _response(200, {"data": [
+                {"device_name": "ag_201560", "datetime": "2026-10-20 10:00:00Z", "pm2_5": 21.0},
+                {"device_name": "ag_201560", "datetime": "2026-10-20 11:00:00Z", "pm2_5": 30.0},
+            ], "metadata": {"has_more": False}})
+
+        summary, _ = self._sync(fake_post, "2026-10-20", "2026-10-20")
+
+        self.assertTrue(summary["success"], summary)
+        self.assertEqual(summary["raw_records"], 1)          # only the 11:00 mean was stored
+        stored = self.db.query(SyncRawDeviceData).filter_by(channel_id="ag_1", entry_id=int(ten.timestamp())).one()
+        self.assertEqual(stored.field1, 8.0)                 # the sample was not overwritten
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 8.0)      # not averaged with the mean of its own hour
+        self.assertEqual(hours[ten]["record_count"], 1)
+        self.assertEqual(hours[ten + timedelta(hours=1)]["field1_avg"], 30.0)
+        mean = self.db.query(SyncRawDeviceData).filter(SyncRawDeviceData.entry_id < 0).one()
+        self.assertEqual(mean.entry_id, -int((ten + timedelta(hours=1)).timestamp()))   # marked as a mean
+
+    def test_reading_after_a_stored_mean_replaces_it_in_the_aggregate(self):
+        """CodeRabbit on #7203: a mean stored first must not be averaged with a reading that lands later."""
+        ten = datetime(2026, 10, 20, 10, 0, tzinfo=timezone.utc)
+
+        def fake_post(url, json=None, params=None, headers=None):
+            if url.endswith("/raw-data"):
+                return _response(400, TOO_WIDE)
+            return _response(200, {"data": [
+                {"device_name": "ag_201560", "datetime": "2026-10-20 10:00:00Z", "pm2_5": 20.0},
+                {"device_name": "ag_201560", "datetime": "2026-10-20 11:00:00Z", "pm2_5": 30.0},
+            ], "metadata": {"has_more": False}})
+
+        self._sync(fake_post, "2026-10-20", "2026-10-20")
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 20.0)     # the mean fills the hour on its own
+
+        # A live-feed reading for 10:30 arrives afterwards
+        sample = {"channel_id": "ag_1", "device_id": "ag_1", "created_at_ts": ten + timedelta(minutes=30),
+                  "entry_id": int((ten + timedelta(minutes=30)).timestamp())}
+        sample.update({f"field{i}": None for i in range(1, 21)})
+        sample["field1"] = 8.0
+        self.captured["hourly"].clear()
+        ext.store_device_rows(self.db, [sample], "ag_1", datetime(2026, 10, 22, tzinfo=timezone.utc))
+
+        hours = {h["hour_start"]: h for h in self.captured["hourly"] if h["channel_id"] == "ag_1"}
+        self.assertEqual(hours[ten]["field1_avg"], 8.0)      # the reading alone, not (20 + 8) / 2
+        self.assertEqual(hours[ten]["record_count"], 1)
+        self.assertEqual(hours[ten + timedelta(hours=1)]["field1_avg"], 30.0)   # an hour without readings keeps its mean
+
+    def test_refetched_hourly_rows_still_complete_their_day(self):
+        hour = datetime(2026, 10, 20, 11, 0, tzinfo=timezone.utc)
+        row = {"channel_id": "ag_1", "device_id": "ag_1", "entry_id": int(hour.timestamp()), "created_at_ts": hour}
+        row.update({f"field{i}": None for i in range(1, 21)})
+        row["field1"] = 30.0
+        now = datetime(2026, 10, 22, tzinfo=timezone.utc)
+
+        first = ext.SyncSummary()
+        ext._upsert_rows(ext.mark_hourly_means([dict(row)]), now, first, complete=False, fill_gaps_only=True)
+        second = ext.SyncSummary()
+        ext._upsert_rows(ext.mark_hourly_means([dict(row)]), now, second, complete=True, fill_gaps_only=True)
+
+        self.assertEqual((first.raw_records, second.raw_records), (1, 0))   # stored once
+        self.assertFalse(self.captured["daily"][0]["complete"])
+        self.assertTrue(self.captured["daily"][-1]["complete"])             # the refetch completes the day
+        self.assertEqual(self.captured["daily"][-1]["field1_avg"], 30.0)
 
 
 if __name__ == "__main__":
