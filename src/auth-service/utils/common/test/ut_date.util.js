@@ -265,6 +265,15 @@ describe("monthsInfront", () => {
   });
 });
 describe("addDays", () => {
+  // Freeze "now" so the test and the function read the same instant.
+  let clock;
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+  });
+  afterEach(() => {
+    clock.restore();
+  });
+
   it("should return a new date with the specified number of days added to the current date", () => {
     const number = 5;
     const currentDate = new Date();
@@ -287,6 +296,15 @@ describe("addDays", () => {
 });
 
 describe("addHours", () => {
+  // Freeze "now" so the test and the function read the same instant.
+  let clock;
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+  });
+  afterEach(() => {
+    clock.restore();
+  });
+
   it("should return a new date with the specified number of hours added to the current date", () => {
     const number = 3;
     const currentTime = new Date();
@@ -311,6 +329,15 @@ describe("addHours", () => {
 });
 
 describe("addMinutes", () => {
+  // Freeze "now" so the test and the function read the same instant.
+  let clock;
+  beforeEach(() => {
+    clock = sinon.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+  });
+  afterEach(() => {
+    clock.restore();
+  });
+
   it("should return a new date with the specified number of minutes added to the current date", () => {
     const number = 30;
     const currentTime = new Date();
