@@ -29,20 +29,19 @@ class CalibrationTests(unittest.TestCase):
     def test_routes_registered(self):
         paths = {rule.rule for rule in app.url_map.iter_rules()}
         self.assertIn("/api/v2/calibrate/tool", paths)
-        self.assertIn("/api/v1/calibrate/tool", paths)
-        self.assertIn("/api/v1/calibrate/tool/train", paths)
+        self.assertNotIn("/api/v1/calibrate/tool", paths)
+        self.assertNotIn("/api/v1/calibrate/tool/train", paths)
 
-    def test_v1_routes_available(self):
+    def test_v1_routes_removed(self):
         for path in ("/api/v1/calibrate/tool", "/api/v1/calibrate/tool/train"):
             with self.subTest(path=path):
-                self.assertEqual(self.client.post(path).status_code, 400)
+                self.assertEqual(self.client.post(path).status_code, 404)
 
     def test_missing_file(self):
         self.assertEqual(self.client.post("/api/v2/calibrate/tool").status_code, 400)
 
     def test_upload_size_limit(self):
-        for path in ("/api/v1/calibrate/tool", "/api/v1/calibrate/tool/train",
-                     "/api/v2/calibrate/tool"):
+        for path in ("/api/v2/calibrate/tool",):
             with self.subTest(path=path), patch("calibrate_v2.Regression") as model:
                 response = self.client.post(path, data={
                     "file": (io.BytesIO(b"x" * (MAX_CSV_BYTES + 1)), "large.csv")})
@@ -146,7 +145,6 @@ class CalibrationTests(unittest.TestCase):
 
         with patch.object(Regression, "__init__", return_value=None):
             model = Regression()
-        model.workflow_features = True
         model.rf_regressor = MagicMock()
         model.lasso_regressor = MagicMock()
         model.rf_regressor.predict.return_value = np.array([10.0])
