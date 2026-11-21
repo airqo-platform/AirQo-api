@@ -1,0 +1,15 @@
+{
+  "_comment": "Division-level rollup for all 5 Kampala divisions — this table was published complete in the same 2026-09-13 UBOS email (unlike the parish-level detail table, which only covers 22 of 101 parishes so far). Source: UBOS National Population and Housing Census 2024, dataset boawfff (opendataforafrica.org, published 2025-06-16).",
+  "district": "KAMPALA",
+  "year": 2024,
+  "source": "UBOS — National Population and Housing Census 2024 (opendataforafrica.org)",
+  "dataset_id": "boawfff",
+  "rows": [
+    { "division": "KAMPALA CENTRAL DIVISION", "parish_count": 20, "male": 48204, "female": 33454 },
+    { "division": "KAWEMPE DIVISION", "parish_count": 22, "male": 230649, "female": 159521 },
+    { "division": "MAKINDYE DIVISION", "parish_count": 23, "male": 264968, "female": 221794 },
+    { "division": "NAKAWA DIVISION", "parish_count": 23, "male": 227129, "female": 201603 },
+    { "division": "RUBAGA DIVISION", "parish_count": 13, "male": 233934, "female": 176466 }
+  ],
+  "kampala_total_reference": { "male": 1004884, "female": 792838, "total": 1797722 }
+}
