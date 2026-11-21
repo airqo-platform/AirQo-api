@@ -46,6 +46,9 @@ spec:
                   exec airflow db clean
                   --clean-before-timestamp "$(date -u -d '-{{ .Values.dbClean.retentionDays }} days' +%Y-%m-%dT%H:%M:%S+00:00)"
                   --tables "{{ join "," .Values.dbClean.tables }}"
+                  {{- with .Values.dbClean.batchSize }}
+                  --batch-size {{ . }}
+                  {{- end }}
                   --skip-archive --yes
               {{- with .Values.volumeMounts }}
               volumeMounts:

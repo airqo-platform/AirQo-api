@@ -101,7 +101,7 @@ docker compose -f docker-compose.yaml up --build
 
 `run-workflows-only.sh` starts the core Airflow services (including `redis` + `airflow-worker` for `CeleryExecutor`) but does not start Kafka.
 
-Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui at <http://localhost:8080/home>. Use `airflow` for username and password.
+Wait for the API server to be available by checking its status at <http://localhost:8080/api/v2/monitor/health>. Visit the admin web ui at <http://localhost:8080>. Use `airflow` for username and password.
 
 ### Interacting with kafka
 

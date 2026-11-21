@@ -10,14 +10,14 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-6facc377-1795089909
+  tag: stage-360cf54f-1795260183
 inPodRedis:
   enabled: true
 checkMigrations:
   enabled: true
   waitTimeoutSeconds: 600
 migrationJob:
-  enabled: false
+  enabled: true
   args:
     - db
     - migrate
@@ -26,23 +26,26 @@ dagProcessor:
   enabled: true
 livenessProbes:
   enabled: true
+apiServer:
+  enabled: true
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
   retentionDays: 30
   activeDeadlineSeconds: 3600
+  batchSize: 10000
   tables:
-    - callback_request
+    - _xcom_archive
+    - callback
     - celery_taskmeta
     - celery_tasksetmeta
     - dag_run
-    - dataset_event
+    - dag_version
     - import_error
     - job
     - log
+    - revoked_token
     - session
-    - sla_miss
-    - task_fail
     - task_instance
     - task_instance_history
     - task_reschedule

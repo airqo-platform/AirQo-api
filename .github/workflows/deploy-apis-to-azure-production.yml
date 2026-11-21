@@ -131,6 +131,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
+      - name: Check that the production chart runs the Airflow major version of the image
+        run: |
+          dockerfile=src/workflows/Dockerfile
+          values=k8s/workflows/k8s-aks/airqo-workflows/values-prod.yaml
+          airflow_major=$(sed -n -E 's/^ARG AIRFLOW_BASE_IMAGE=apache\/airflow:(slim-)?([0-9]+)\.[0-9]+\.[0-9]+.*$/\2/p' "$dockerfile")
+          api_server=$(awk '/^apiServer:/ {found = 1; next} found && /^[^ #]/ {exit} found && $1 == "enabled:" {print $2; exit}' "$values")
+          case "$airflow_major" in
+            ''|*[!0-9]*) echo "::error::Cannot read the Airflow version from $dockerfile"; exit 1 ;;
+          esac
+          if [ "$airflow_major" -ge 3 ] && [ "$api_server" != "true" ]; then
+            echo "::error::The Dockerfile builds Airflow $airflow_major while apiServer.enabled is not true in $values"
+            exit 1
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2.2.0
 
