@@ -26,6 +26,8 @@ dagProcessor:
   enabled: true
 livenessProbes:
   enabled: true
+apiServer:
+  enabled: false
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
