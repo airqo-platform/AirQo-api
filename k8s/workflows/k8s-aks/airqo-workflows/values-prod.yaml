@@ -149,6 +149,6 @@ service:
       nodePort: 30079
       protocol: TCP
 autoscaling:
-  minReplicas: 1
+  minReplicas: 2
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
