@@ -123,7 +123,11 @@ spec:
             - secretRef:
                 name: {{ .Values.app.secret }}
           command: ["airflow"]
+          {{- if .Values.apiServer.enabled }}
+          args: ["api-server", "--proxy-headers"]
+          {{- else }}
           args: ["webserver"]
+          {{- end }}
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
@@ -139,7 +143,7 @@ spec:
             initialDelaySeconds: 120
             timeoutSeconds: 120
             httpGet:
-              path: /workflows/health
+              path: {{ ternary "/workflows/api/v2/version" "/workflows/health" .Values.apiServer.enabled }}
               port: {{ $webTargetPort }}
         {{- if .Values.inPodRedis.enabled }}
         - name: '{{ .Values.app.name }}-redis'

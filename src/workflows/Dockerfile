@@ -1,5 +1,5 @@
 # The Airflow base image of every stage below; each Airflow upgrade changes only this default.
-ARG AIRFLOW_BASE_IMAGE=apache/airflow:slim-2.11.2-python3.10
+ARG AIRFLOW_BASE_IMAGE=apache/airflow:slim-3.3.2-python3.10
 
 # Build the airqo_etl_utils wheel (tiny throwaway image)
 FROM python:3.10.14-slim-bullseye AS wheel-builder
@@ -13,7 +13,6 @@ RUN python airqo_etl_utils/setup.py bdist_wheel
 # Runtime image: the slim Airflow base image with the service's packages installed in place.
 # lightgbm needs the OpenMP runtime, which the slim image leaves out.
 FROM ${AIRFLOW_BASE_IMAGE} AS base
-ENV AIRFLOW__CORE__ENABLE_XCOM_PICKLING=true
 USER root
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends libgomp1 && \
@@ -27,9 +26,9 @@ COPY --chown=airflow:root --from=wheel-builder /build/dist/airqo_etl_utils-1.0.0
 # version Airflow was tested with. The ruamel.yaml entry is removed as well: great_expectations 0.18.18
 # needs a release below 0.17.18, and pip check confirms that the packages of the Airflow set accept
 # it. The first install adds the executor with its broker client (celery),
-# the metadata database driver (postgres), Sentry, the Slack provider the code imports and the Google
-# provider of the remote task-log handler. The second install adds the service wheel. Every pin ships
-# a binary wheel, so the install needs no compiler.
+# the metadata database driver (postgres), Sentry, the Slack provider the code imports, the Google
+# provider of the remote task-log handler and the FAB provider of the login. The second install adds
+# the service wheel. Every pin ships a binary wheel, so the install needs no compiler.
 # pip check runs before the Jupyter strip because great-expectations declares notebook and nbformat.
 # The Jupyter/notebook ecosystem dragged in by great_expectations 0.18.x serves its Data Docs UI;
 # the strip shares this layer with the install, so the removed files never reach the image.
@@ -42,7 +41,8 @@ RUN PYTHON_MAJOR_MINOR="$(python -c 'import sys; print(sys.version_info[0], sys.
     pip install --no-cache-dir --constraint /tmp/constraints.txt \
         "apache-airflow[celery,postgres,sentry]==${AIRFLOW_VERSION}" \
         apache-airflow-providers-slack \
-        apache-airflow-providers-google && \
+        apache-airflow-providers-google \
+        apache-airflow-providers-fab && \
     pip install --no-cache-dir --constraint /tmp/constraints.txt /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl && \
     pip check && \
     { pip uninstall -y \
@@ -68,11 +68,11 @@ FROM base AS scheduler
 USER airflow
 CMD ["airflow", "scheduler"]
 
-FROM base AS webserver
+FROM base AS api-server
 USER airflow
-CMD ["airflow", "webserver"]
+CMD ["airflow", "api-server"]
 
-# Parses the DAG folder in place of the scheduler; needs AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR=True.
+# Parses the DAG folder.
 FROM base AS dag-processor
 USER airflow
 CMD ["airflow", "dag-processor"]
