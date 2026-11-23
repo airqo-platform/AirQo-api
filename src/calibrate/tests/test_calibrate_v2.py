@@ -1,9 +1,11 @@
 import io
 import os
 import unittest
+import warnings
 from unittest.mock import patch, MagicMock
 
 import numpy as np
+from sklearn.linear_model import Lasso
 from app import app
 from upload_limits import MAX_CSV_BYTES
 from calibrate_v2 import FIELDS
@@ -18,6 +20,10 @@ class Predictor:
 class CalibrationTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+
+    def test_shared_calibration_does_not_require_login(self):
+        response = app.test_client().post("/api/v2/calibrate/tool")
+        self.assertEqual(response.status_code, 400)
 
     def upload(self, row="2026-10-28T10:00:00Z,25,27,40,42,65,24", **mappings):
         payload = {field: field for field in FIELDS}
@@ -97,6 +103,18 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertIn("26.0,41.0", lines[1])
         self.assertTrue(lines[1].endswith(",12.35,12.35"))
+
+    def test_array_fitted_lasso_predicts_without_feature_name_warning(self):
+        model = Lasso().fit(np.tile(np.arange(9, dtype=float), (4, 1)),
+                            np.array([10., 11., 12., 13.]))
+        with patch.object(Regression, "__init__", return_value=None), \
+                patch.object(Regression, "rf_regressor", Predictor(), create=True), \
+                patch.object(Regression, "lasso_regressor", model, create=True):
+            with warnings.catch_warnings(record=True) as seen:
+                warnings.simplefilter("always")
+                response = self.upload()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(any("feature names" in str(item.message) for item in seen))
 
     def test_mixed_timestamp_formats(self):
         csv = ("datetime,pm2_5,pm10,humidity,temperature\n"

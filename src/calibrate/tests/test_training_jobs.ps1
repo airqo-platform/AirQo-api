@@ -9,7 +9,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($AirQoToken)) {
-    throw "Set AIRQO_LOGIN_TOKEN to your existing AirQo login JWT before running this test."
+    throw "Pass -AirQoToken or set AIRQO_LOGIN_TOKEN to a user's login JWT. Calibration sends it to auth-service for verification."
+}
+if ($AirQoToken -notmatch '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$') {
+    throw "AirQoToken must be a three-part login JWT. Copy the token from the login response."
 }
 
 # Generate paired reference measurements without creating an input CSV file.

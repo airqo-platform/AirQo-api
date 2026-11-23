@@ -9,5 +9,4 @@ joblib==1.5.3
 python-dotenv==1.0.0
 google-cloud-storage==2.10.0
 gunicorn==23.0.0
-PyJWT==2.10.1
 pymongo==4.9.2

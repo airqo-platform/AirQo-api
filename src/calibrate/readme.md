@@ -46,6 +46,9 @@ secondary columns or blank secondary readings use the corresponding primary
 reading (zero sensor difference). Invalid nonblank secondary values are rejected.
 This fallback enables single-sensor input but its calibration accuracy still
 needs validation against reference measurements.
+The shared-model `/tool` endpoint does not require login. Training jobs belong
+to the signed-in user. The owner can publish validation outputs and use of a
+trained model independently; downloading the model file always requires the owner.
 
 CSV files must not exceed 20 MB (20 MiB / 20,971,520 bytes).
 Oversized uploads return HTTP 413 with a JSON error. The total multipart request
@@ -172,12 +175,14 @@ they do not establish calibration accuracy with production models.
 
 Submit paired, collocated sensor/reference measurements to
 `POST /api/v2/calibrate/tool/train`. Each submission creates its own UUID.
-All training endpoints require the existing AirQo login JWT in
+Submission, visibility changes, deletion, and model downloads require the existing AirQo login JWT in
 `Authorization: Bearer <token>` (the `JWT` scheme is also supported).
-The API verifies HS256 signatures using the auth-service's `JWT_SECRET`, expiry,
-and the signed user `_id`. Owner IDs in form fields or headers are never trusted.
-Another user's job ID returns 404. JWT validation is local; account revocation
-and other gateway access policies remain the auth-service/gateway's responsibility.
+Calibration forwards the JWT to auth-service's `/api/v2/users/verify` endpoint
+using its `JWT` scheme and uses the verified `X-Auth-User-Id` response header.
+The auth-service handles signature, expiry, and account checks. Calibration
+requires `AUTH_SERVICE_URL`, not the auth service's signing key;
+owner IDs in form fields or request headers are never trusted. Another user's
+job ID returns 404. If auth-service is unavailable, protected requests fail closed.
 
 Required sensor CSV headers: `datetime`, `pm2_5`, `pm10`, `humidity`,
 `temperature`. Secondary sensor columns are optional as in V2 inference.
@@ -220,8 +225,9 @@ from shared default models and is not automatically loaded by `/tool`.
 To use the user's trained model on a new LCS-only CSV, POST the file to the
 completed job's `calibrate_url` with the same login token. This applies the
 same CSV validation as `/tool` and returns calibrated values for the pollutants
-trained in that job. The training upload is deleted after processing. The model,
-validation CSV, and metrics remain until the job expires (24 hours by default).
+trained in that job. The training upload is deleted after processing. Validation
+metrics and job status are stored in MongoDB; the validation CSV and model are
+stored in MongoDB GridFS. They remain until the job expires (24 hours by default).
 Download the model before expiry for use outside this service.
 
 ### Run the API and worker
@@ -229,13 +235,16 @@ Download the model before expiry for use outside this service.
 Install runtime requirements, then configure `.env`:
 
 ```dotenv
-# Use the auth-service's existing secret, obtained securely from your deployment.
-JWT_SECRET=<same-secret-as-auth-service>
+# Base URL of auth-service; use its internal service URL in deployments.
+AUTH_SERVICE_URL=http://127.0.0.1:3000
 MONGO_URI=mongodb://localhost:27017
 CALIBRATION_JOB_DATABASE=calibration_jobs
 CALIBRATION_JOB_RETENTION_HOURS=24
 CALIBRATION_TRAIN_MAX_ROWS=50000
 ```
+
+For deployed calibration services, configure `AUTH_SERVICE_URL` to reach the
+auth-service directly. The calibration service does not need `JWT_SECRET`.
 
 Start MongoDB, then run these in separate PowerShell terminals from `src/calibrate`:
 
@@ -264,17 +273,34 @@ Poll `status_url` with the same login token. Status progresses from `queued` to
 `running`, then `completed` or `failed`. Completed jobs include metrics,
 `result_url` (held-out predictions CSV), `model_url` (joblib artifact), and
 `calibrate_url` (POST a new LCS-only CSV using the trained model).
-Both downloads require that user's login token. Pending downloads return 409;
+The model download always requires that user's login token. Validation status and
+CSV are private by default. The owner can change visibility with
+`PATCH /api/v2/calibrate/tool/train/<job_id>/visibility` and JSON such as
+`{"model_public": true, "validations_public": true}`. Either field can be
+changed independently or set back to `false`. When `validations_public` is true,
+anyone with the job URL can read the metrics (R², MAE, RMSE) and validation CSV
+containing calibrated PM2.5/PM10. When `model_public` is true, anyone with the
+job URL can submit sensor CSV data to its `/calibrate` endpoint, but cannot
+download the model artifact. Public access ends at job expiry or owner deletion.
+Pending downloads return 409;
 missing, expired, or other-user jobs return 404. Missing/invalid tokens return 401;
 missing authentication configuration or an unavailable queue returns 503.
 CSV content validation happens in the worker; invalid rows produce a failed job
 with an explanatory message in its status response.
+The job owner can send `DELETE` to the same `status_url` after the job completes
+or fails. This removes the stored metrics, validation CSV, model, and job record.
+It returns 204 on success, 409 while a job is still running or queued, and 404
+for a missing job or another user's job. Deletion also removes access to the
+job-specific calibration endpoint; download the model first if it is needed.
 
 To generate 72 paired readings and submit/poll a job from PowerShell without an
-input CSV file, set `AIRQO_LOGIN_TOKEN` securely in your terminal environment and run:
+input CSV file, use the same login JWT you put in Postman's Bearer Token field.
+`AIRQO_LOGIN_TOKEN` is only a local variable read by the test script; it is not
+the auth-service's signing secret. For an API running on port 5000:
 
 ```powershell
-.\tests\test_training_jobs.ps1
+$env:AIRQO_LOGIN_TOKEN = "<login JWT from your login response>"
+.\tests\test_training_jobs.ps1 -BaseUrl http://127.0.0.1:5000
 ```
 
 The script prints the job ID, progress, metrics, and private download URLs. It

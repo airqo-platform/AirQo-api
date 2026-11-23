@@ -50,6 +50,7 @@ class TrainingStore:
         document = {
             "_id": job_id, "owner_id": owner_id, "status": "uploading", "options": options,
             "created_at": now, "expires_at": now + timedelta(hours=retention), "attempts": 0,
+            "model_public": False, "validations_public": False,
         }
         self.jobs.insert_one(document)
         try:
@@ -63,6 +64,16 @@ class TrainingStore:
 
     def owned_job(self, job_id, owner_id):
         return self.jobs.find_one({"_id": job_id, "owner_id": owner_id, "expires_at": {"$gt": utcnow()}})
+
+    def visible_job(self, job_id, owner_id, visibility):
+        query = {"_id": job_id, "expires_at": {"$gt": utcnow()},
+                 "$or": [{"owner_id": owner_id}, {visibility: True, "status": "completed"}]}
+        return self.jobs.find_one(query)
+
+    def set_visibility(self, job_id, owner_id, changes):
+        return self.jobs.find_one_and_update(
+            {"_id": job_id, "owner_id": owner_id, "expires_at": {"$gt": utcnow()}},
+            {"$set": changes}, return_document=ReturnDocument.AFTER)
 
     def claim(self):
         now = utcnow()
@@ -112,6 +123,17 @@ class TrainingStore:
     def delete_files(self, job_id):
         for item in self.db.training_files.files.find({"metadata.job_id": job_id}, {"_id": 1}):
             self.files.delete(item["_id"])
+
+    def delete_finished(self, job_id, owner_id):
+        """Remove a finished owner's validation data, model, and job record."""
+        query = {"_id": job_id, "owner_id": owner_id,
+                 "status": {"$in": ["completed", "failed"]},
+                 "expires_at": {"$gt": utcnow()}}
+        if not self.jobs.find_one(query, {"_id": 1}):
+            return False
+        # Keep the job record if file deletion fails so the owner can retry.
+        self.delete_files(job_id)
+        return self.jobs.delete_one(query).deleted_count == 1
 
     def cleanup(self):
         now = utcnow()

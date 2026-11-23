@@ -50,8 +50,12 @@ class Regression:
             ]
         ]
 
-        calibrated_pm2_5 = self.rf_regressor.predict(df)
-        calibrated_pm10 = self.lasso_regressor.predict(df)
+        # Older shared artifacts were fitted on arrays. Preserve the feature
+        # order while matching the input type used at fit time.
+        rf_input = df if hasattr(self.rf_regressor, "feature_names_in_") else df.to_numpy()
+        lasso_input = df if hasattr(self.lasso_regressor, "feature_names_in_") else df.to_numpy()
+        calibrated_pm2_5 = self.rf_regressor.predict(rf_input)
+        calibrated_pm10 = self.lasso_regressor.predict(lasso_input)
 
         calibrated_data = df_copy[["avg_pm2_5", "avg_pm10", "datetime"]].copy()
         calibrated_data["calibrated_pm2_5"] = calibrated_pm2_5.round(2)
