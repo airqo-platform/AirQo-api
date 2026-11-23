@@ -69,20 +69,20 @@ resources:
   webserver:
     requests:
       cpu: 125m
-      memory: 512Mi
+      memory: 600Mi
     limits:
-      cpu: 500m
-      memory: 2000Mi
+      cpu: 1000m
+      memory: 1024Mi
   scheduler:
     requests:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 200m
+      memory: 400Mi
     limits:
-      cpu: 1500m
-      memory: 1800Mi
+      cpu: 1000m
+      memory: 1024Mi
   celery:
     requests:
-      cpu: 1000m
+      cpu: 300m
       memory: 512Mi
     limits:
       cpu: 2000m
@@ -149,6 +149,6 @@ service:
       nodePort: 30079
       protocol: TCP
 autoscaling:
-  minReplicas: 1
+  minReplicas: 2
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
