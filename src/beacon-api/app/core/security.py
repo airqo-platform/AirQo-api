@@ -28,7 +28,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 import jwt
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Header, HTTPException, status
+from starlette.requests import HTTPConnection
 
 from app.core.config import settings
 
@@ -197,12 +198,18 @@ def get_current_user_id(authorization: str = Header(...)) -> str:
     return user.user_id
 
 
-def enforce_jwt_on_writes(request: Request, authorization: Optional[str] = Header(None)) -> None:
+def enforce_jwt_on_writes(connection: HTTPConnection, authorization: Optional[str] = Header(None)) -> None:
     """
     Router-level dependency: every POST, PUT, PATCH or DELETE needs a verified
     token. Reads keep their own per-route rules. A no-op when verification is
     turned off, so local development keeps working without tokens.
+
+    It also runs for the WebSocket routes on the same router (WebRTC
+    signaling), which FastAPI can't give a ``Request``; those authenticate in
+    their own handler, so only HTTP writes are checked here.
     """
-    if not verification_enabled() or request.method.upper() not in WRITE_METHODS:
+    if not verification_enabled() or connection.scope.get("type") != "http":
+        return
+    if str(connection.scope.get("method", "")).upper() not in WRITE_METHODS:
         return
     verify_token(parse_authorization_header(authorization))

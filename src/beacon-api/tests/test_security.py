@@ -9,7 +9,7 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import jwt
-from fastapi import HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import JSONB
@@ -132,6 +132,36 @@ class TestDependenciesAndWebsocketHelper(unittest.TestCase):
         self.assertIsNone(security.verify_ws_token(make_token(secret="forged")))
         self.assertIsNone(security.verify_ws_token(None))
         self.assertIsNone(security.verify_ws_token(""))
+
+
+class TestWriteGuardOnWebsocketRoutes(unittest.TestCase):
+    """The router-wide write guard also wraps WebSocket routes (WebRTC signaling sits under /api/v1)."""
+
+    def setUp(self):
+        enable_jwt_verification(self)
+        router = APIRouter(dependencies=[Depends(security.enforce_jwt_on_writes)])
+
+        @router.websocket("/ws")
+        async def echo(websocket: WebSocket):
+            await websocket.accept()
+            await websocket.send_text("connected")
+            await websocket.close()
+
+        @router.post("/write")
+        def write():
+            return {"ok": True}
+
+        guarded = FastAPI()
+        guarded.include_router(router)
+        self.client = TestClient(guarded)
+
+    def test_websocket_route_is_left_to_its_own_handler(self):
+        with self.client.websocket_connect("/ws") as ws:
+            self.assertEqual(ws.receive_text(), "connected")
+
+    def test_http_write_on_the_same_router_still_needs_a_token(self):
+        self.assertEqual(self.client.post("/write").status_code, 401)
+        self.assertEqual(self.client.post("/write", headers=auth_headers()).status_code, 200)
 
 
 class TestRouteEnforcement(unittest.TestCase):
