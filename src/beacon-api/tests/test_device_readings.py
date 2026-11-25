@@ -5,8 +5,6 @@ device_readings_refresh claim per device. GET /devices/{id} and single-device pe
 same refresh.
 """
 import asyncio
-import base64
-import json
 import unittest
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -26,6 +24,7 @@ from app.models.sync import SyncDevice
 from app.services import device_readings_service as drs
 from app.services import device_service
 from app.services import external_sync_service as ext
+from tests.auth_helpers import auth_headers, enable_jwt_verification, make_token
 from app.services import thingspeak_sync_service as ts
 from main import app
 
@@ -40,12 +39,7 @@ CLAIM = NOW + timedelta(seconds=drs._RUNNING_TTL_SECONDS)   # a claim taken at N
 CHANNEL = "2866794"
 
 
-def _jwt(payload):
-    seg = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).rstrip(b"=").decode()
-    return f"{seg({'alg': 'HS256', 'typ': 'JWT'})}.{seg(payload)}.sig"
-
-
-AUTH = {"Authorization": f"JWT {_jwt({'_id': 'user_1'})}"}
+AUTH = auth_headers(make_token("user_1"))
 
 AIRQO = dict(device_id="aq_1", device_name="airqo_g5433", network_id="airqo", category="lowcost",
              device_number=2866794, readKey="k", status="deployed")
@@ -346,6 +340,7 @@ class TestBackgroundRefresh(_Base):
 class TestDeviceEndpoints(_Base):
     def setUp(self):
         super().setUp()
+        enable_jwt_verification(self)
         self.db.add_all([
             _raw(CHANNEL, 2, datetime(2026, 10, 28, 8, 30, tzinfo=timezone.utc), 20.0),
             _raw(CHANNEL, 1, datetime(2026, 10, 28, 8, 0, tzinfo=timezone.utc), 10.0),
@@ -412,7 +407,8 @@ class TestDeviceEndpoints(_Base):
 
     def test_bad_frequency_or_auth(self):
         self.assertEqual(self.client.get("/api/v1/devices/aq_1/readings?frequency=daily", headers=AUTH).status_code, 400)
-        for header in ("Bearer x", "JWT not-a-jwt", f"JWT {_jwt({'sub': 'no-id'})}"):
+        forged = make_token("user_1", secret="not-the-platform-secret")
+        for header in ("Bearer x", "JWT not-a-jwt", f"JWT {forged}", f"JWT {make_token('')}"):
             self.assertEqual(
                 self.client.get("/api/v1/devices/aq_1/readings", headers={"Authorization": header}).status_code, 401,
             )

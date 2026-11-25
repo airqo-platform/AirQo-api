@@ -3,7 +3,7 @@ import logging
 from datetime import date
 from sqlalchemy.orm import Session
 from typing import Annotated, List, Optional
-from app.api.v1.operations import get_current_user_id
+from app.core.security import extract_verified_token, get_current_user_id
 from app.db.session import get_db, SessionLocal
 from app.schemas.data_sync import DeviceReadingsResponse
 from app.schemas.device import (
@@ -20,7 +20,6 @@ from app.schemas.device import (
 from app.services import device_readings_service, device_service, site_service
 from app.services.diagnostics.summaries import apply_diagnostics_to_devices
 from app.utils.networks import is_network_enabled
-from app.core.security import extract_verified_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -312,9 +311,7 @@ def get_synced_devices(
     "/{device_id}/readings",
     response_model=DeviceReadingsResponse,
     # Answers from local tables without calling the platform, so the platform
-    # never sees the token. get_current_user_id only parses it for a user id and
-    # does not verify its signature; that needs the platform's signing key,
-    # which this service does not hold.
+    # never sees the token: get_current_user_id verifies it here instead.
     dependencies=[Depends(get_current_user_id)],
 )
 def get_device_readings(
