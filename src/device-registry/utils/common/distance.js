@@ -180,9 +180,22 @@ const distance = {
       throw new Error("Number of decimal places must be at least 1.");
     }
 
-    // Decimals: half-open range [min, max), rounded to `places`.
-    const value = Math.random() * (maxValue - minValue) + minValue;
-    return Number(value.toFixed(places));
+    // Decimals: pick uniformly from the `places`-precision grid points that lie
+    // in [min, max), so rounding can never step outside the range.
+    // toPrecision(12) strips float noise (e.g. 1.1 * 100 = 110.00000000000001).
+    const scale = Math.pow(10, places);
+    const toGrid = (v) => Number((v * scale).toPrecision(12));
+    const lowestStep = Math.ceil(toGrid(minValue));
+    const highestStep = Math.ceil(toGrid(maxValue)) - 1; // largest step < max
+    if (highestStep < lowestStep) {
+      throw new Error(
+        `No value with ${places} decimal place(s) exists in [${minValue}, ${maxValue}).`,
+      );
+    }
+    const step =
+      lowestStep +
+      Math.floor(Math.random() * (highestStep - lowestStep + 1));
+    return Number((step / scale).toFixed(places));
   },
   createApproximateCoordinates: (
     {

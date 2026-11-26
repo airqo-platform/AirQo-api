@@ -124,8 +124,12 @@ describe("date", () => {
   });
 
   describe("threeMonthsFromNow", () => {
+    // The helper works on the local calendar; pin UTC so the fixed UTC
+    // expectations hold on any host (e.g. UTC-5 shifts these by a day).
     it("should return a date three months from the provided date", () => {
-      const result = date.threeMonthsFromNow("2023-01-15");
+      const result = withTimezone("UTC", () =>
+        date.threeMonthsFromNow("2023-01-15"),
+      );
 
       expect(result.toISOString()).to.equal(
         new Date("2023-04-15").toISOString(),
@@ -133,7 +137,9 @@ describe("date", () => {
     });
 
     it("should handle leap years and return a valid date", () => {
-      const result = date.threeMonthsFromNow("2024-01-29");
+      const result = withTimezone("UTC", () =>
+        date.threeMonthsFromNow("2024-01-29"),
+      );
 
       expect(result.toISOString()).to.equal(
         new Date("2024-04-29").toISOString(),
@@ -142,7 +148,9 @@ describe("date", () => {
 
     it("should clamp to the last day of the target month", () => {
       // Nov 30 + 3 months has no Feb 30, so it clamps to Feb 29 (leap year).
-      const result = date.threeMonthsFromNow("2023-11-30");
+      const result = withTimezone("UTC", () =>
+        date.threeMonthsFromNow("2023-11-30"),
+      );
 
       expect(result.toISOString()).to.equal(
         new Date("2024-02-29").toISOString(),

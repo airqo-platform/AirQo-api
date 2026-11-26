@@ -188,6 +188,57 @@ describe("distance", () => {
       }
     });
 
+    it("should respect the lower bound even when min is off the precision grid", () => {
+      sinon.stub(Math, "random").returns(0);
+
+      // 1.505 is not representable at 2 places; the lowest valid value is 1.51.
+      const result = distance.generateRandomNumbers({
+        min: 1.505,
+        max: 5.5,
+        places: 2,
+      });
+
+      expect(result).to.equal(1.51);
+    });
+
+    it("should never return the exclusive maximum", () => {
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.5,
+        max: 5.5,
+        places: 2,
+      });
+
+      expect(result).to.equal(5.49);
+    });
+
+    it("should stay below an off-grid maximum", () => {
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      // Default bearing range: max 6.28319 at 3 places -> highest value 6.283.
+      expect(distance.generateRandomNumbers()).to.equal(6.283);
+    });
+
+    it("should handle float noise at grid points (1.1 * 100)", () => {
+      sinon.stub(Math, "random").returns(0);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.1,
+        max: 1.2,
+        places: 2,
+      });
+
+      expect(result).to.equal(1.1);
+    });
+
+    it("should throw when no value at the requested precision fits the range", () => {
+      // [1.501, 1.509) contains no 2-decimal value.
+      expect(() =>
+        distance.generateRandomNumbers({ min: 1.501, max: 1.509, places: 2 }),
+      ).to.throw("No value with 2 decimal place(s) exists in [1.501, 1.509).");
+    });
+
     it("should throw if min is not a number", () => {
       expect(() =>
         distance.generateRandomNumbers({ min: "abc", max: 5.5 }),

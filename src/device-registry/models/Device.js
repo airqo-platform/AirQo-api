@@ -567,6 +567,29 @@ deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
 // to stay an index scan (not a full collection scan) as the fleet grows.
 deviceSchema.index({ isActive: 1, site_id: 1 });
 
+/**
+ * mongoose-unique-validator resolves a failed countDocuments as "not unique",
+ * so a DB outage surfaces as a "must be unique!" ValidationError. Re-run each
+ * unique check (with the same exclusion of the documents being updated) to
+ * confirm the conflict is real. Throws if a re-check fails; returns false if
+ * any reported duplicate does not actually exist.
+ */
+const confirmUniqueConflicts = async (model, error, filter = {}) => {
+  const uniqueErrors = Object.values(error.errors || {}).filter(
+    (e) => e && e.kind === "unique",
+  );
+  for (const { path, value } of uniqueErrors) {
+    const exclusions = Object.entries(filter).map(([key, val]) => ({
+      [key]: { $ne: val },
+    }));
+    const count = await model.countDocuments({
+      $and: [{ [path]: value }, ...exclusions],
+    });
+    if (count === 0) return false;
+  }
+  return true;
+};
+
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
     (value, index, self) => self.indexOf(value) !== index,
@@ -1898,9 +1921,19 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      let isGenuineConflict = false;
       if (error.name === "ValidationError") {
-        // Mongoose unique/validation constraint — an expected business conflict,
-        // not an internal failure. Log at WARN so Slack stays clean.
+        try {
+          isGenuineConflict = await confirmUniqueConflicts(this, error, filter);
+        } catch (recheckError) {
+          logger.error(
+            `🐛🐛 Device update uniqueness re-check failed -- ${recheckError.message}`,
+          );
+        }
+      }
+      if (isGenuineConflict) {
+        // Confirmed unique/validation constraint — an expected business
+        // conflict, not an internal failure. Log at WARN so Slack stays clean.
         logger.warn(`🐛 Device update validation conflict -- ${error.message}`);
         const details = { message: error.message };
         if (error.errors) {

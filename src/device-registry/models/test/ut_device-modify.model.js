@@ -9,6 +9,7 @@ describe("Device Model - modify error handling", () => {
   let Device;
   let fakeLogger;
   let findOneAndUpdateStub;
+  let countDocumentsStub;
 
   before(() => {
     fakeLogger = {
@@ -31,6 +32,8 @@ describe("Device Model - modify error handling", () => {
   beforeEach(() => {
     Object.values(fakeLogger).forEach((s) => s.resetHistory());
     findOneAndUpdateStub = sinon.stub(Device, "findOneAndUpdate");
+    // Uniqueness re-check: by default the conflicting device really exists.
+    countDocumentsStub = sinon.stub(Device, "countDocuments").resolves(1);
   });
 
   afterEach(() => {
@@ -44,6 +47,8 @@ describe("Device Model - modify error handling", () => {
       new mongoose.Error.ValidatorError({
         message: "667bfca289c0b362dc80aad3 must be unique!",
         path: "serial_number",
+        type: "unique",
+        value: "667bfca289c0b362dc80aad3",
       }),
     );
     error.addError(
@@ -52,6 +57,8 @@ describe("Device Model - modify error handling", () => {
         message:
           "https://device.iqair.com/v2/667bfca289c0b362dc80aad3 must be unique!",
         path: "api_code",
+        type: "unique",
+        value: "https://device.iqair.com/v2/667bfca289c0b362dc80aad3",
       }),
     );
     return error;
@@ -110,5 +117,79 @@ describe("Device Model - modify error handling", () => {
     expect(err.errors).to.deep.equal({ message: "connection reset" });
     expect(fakeLogger.error.calledOnce).to.be.true;
     expect(fakeLogger.warn.called).to.be.false;
+  });
+  it("re-checks each duplicate excluding the device being updated", async () => {
+    findOneAndUpdateStub.rejects(buildUniqueValidationError());
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      sinon.spy(),
+    );
+
+    expect(countDocumentsStub.firstCall.args[0]).to.deep.equal({
+      $and: [
+        { serial_number: "667bfca289c0b362dc80aad3" },
+        { _id: { $ne: "64b7f0c2a1b2c3d4e5f60718" } },
+      ],
+    });
+  });
+
+  it("returns 500 and logs ERROR when the uniqueness re-check fails", async () => {
+    // e.g. DB outage: the plugin reports "must be unique!" and the re-check throws.
+    findOneAndUpdateStub.rejects(buildUniqueValidationError());
+    countDocumentsStub.rejects(new Error("connection refused"));
+    const next = sinon.spy();
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      next,
+    );
+
+    const err = next.firstCall.args[0];
+    expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+    expect(err.message).to.equal("Internal Server Error");
+    expect(fakeLogger.error.called).to.be.true;
+    expect(fakeLogger.warn.called).to.be.false;
+  });
+
+  it("returns 500 when the reported duplicate does not actually exist", async () => {
+    // Plugin swallowed a transient count error; the conflict is not real.
+    findOneAndUpdateStub.rejects(buildUniqueValidationError());
+    countDocumentsStub.resolves(0);
+    const next = sinon.spy();
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      next,
+    );
+
+    expect(next.firstCall.args[0].statusCode).to.equal(
+      httpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(fakeLogger.warn.called).to.be.false;
+  });
+
+  it("still returns 409 for non-unique validation errors without a re-check", async () => {
+    const error = new mongoose.Error.ValidationError();
+    error.addError(
+      "category",
+      new mongoose.Error.ValidatorError({
+        message: "invalid category",
+        path: "category",
+        type: "enum",
+        value: "drone",
+      }),
+    );
+    findOneAndUpdateStub.rejects(error);
+    const next = sinon.spy();
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      next,
+    );
+
+    expect(next.firstCall.args[0].statusCode).to.equal(httpStatus.CONFLICT);
+    expect(next.firstCall.args[0].errors.category).to.equal("invalid category");
+    expect(countDocumentsStub.called).to.be.false;
   });
 });
