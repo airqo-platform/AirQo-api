@@ -42,7 +42,7 @@ const checkActiveStatuses = async () => {
 
     const activeMissingStatusCount = await DeviceModel("airqo").countDocuments({
       isActive: true,
-      status: { $exists: false } || { $eq: null } || { $eq: "" },
+      status: { $in: [null, ""] }, // matches missing, null and empty status
     });
 
     // Check again if we should stop (long-running operations)
@@ -68,7 +68,7 @@ const checkActiveStatuses = async () => {
       {
         $match: {
           isActive: true,
-          status: { $exists: false } || { $eq: null } || { $eq: "" },
+          status: { $in: [null, ""] }, // matches missing, null and empty status
         },
       },
       {

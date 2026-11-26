@@ -50,10 +50,10 @@ const ConvertDates = {
 function generateDateFormat(ISODate, next) {
   try {
     let date = new Date(ISODate);
-    let year = date.getFullYear();
-    let month = date.getMonth() + 1;
+    let year = date.getUTCFullYear();
+    let month = date.getUTCMonth() + 1;
     let day = date.getUTCDate();
-    let hrs = date.getHours();
+    let hrs = date.getUTCHours();
 
     if (day < 10) {
       day = "0" + day;
@@ -131,8 +131,8 @@ const isDate = (date) => {
 function generateDateFormatWithoutHrs(ISODate, next) {
   try {
     let date = new Date(ISODate);
-    let year = date.getFullYear();
-    let month = date.getMonth() + 1;
+    let year = date.getUTCFullYear();
+    let month = date.getUTCMonth() + 1;
     let day = date.getUTCDate();
 
     if (day < 10) {

@@ -1898,6 +1898,24 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      if (error.name === "ValidationError") {
+        // Mongoose unique/validation constraint — an expected business conflict,
+        // not an internal failure. Log at WARN so Slack stays clean.
+        logger.warn(`🐛 Device update validation conflict -- ${error.message}`);
+        const details = { message: error.message };
+        if (error.errors) {
+          Object.entries(error.errors).forEach(([key, value]) => {
+            details[key] = value.message;
+          });
+        }
+        return next(
+          new HttpError(
+            "Validation errors for some of the provided fields",
+            httpStatus.CONFLICT,
+            details,
+          ),
+        );
+      }
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(

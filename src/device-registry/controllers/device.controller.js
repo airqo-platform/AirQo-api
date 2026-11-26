@@ -1187,9 +1187,10 @@ const deviceController = {
   },
   listAllByNearestCoordinates: async (req, res, next) => {
     try {
-      const { tenant, latitude, longitude, radius, chid } = req.query;
+      const { latitude, longitude, radius, chid, device } = req.query;
       logText("list all devices by coordinates...");
-      if (!(tenant && latitude && longitude && radius)) {
+      // tenant is optional: it defaults to DEFAULT_TENANT below.
+      if (!(latitude && longitude && radius)) {
         return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message: "missing query params, please check documentation",
@@ -1210,8 +1211,8 @@ const deviceController = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.name = device;
-      request.query.device_number = chid;
+      if (device) request.query.name = device;
+      if (chid) request.query.device_number = chid;
 
       const result = await createDeviceUtil.list(request, next);
 

@@ -9,7 +9,6 @@ const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 chai.use(sinonChai);
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
-const client = new Client({});
 const distanceUtil = require("@utils/common/distance");
 const httpStatus = require("http-status");
 
@@ -313,22 +312,38 @@ describe("createSite Util Functions", () => {
 
   describe("generateMetadata", () => {
     it("should generate metadata successfully", async () => {
-      const getAltitudeStub = sinon.stub(createSite, "getAltitude").resolves({
-        success: true,
-        data: 123.456,
+      // site.util.js exports a spread copy of its internal object, so stubbing
+      // createSite.getAltitude / reverseGeoCode here would not reach the calls
+      // generateMetadata makes. Stub the HTTP layer instead so no real Google
+      // request is made.
+      sinon
+        .stub(Client.prototype, "elevation")
+        .resolves({ data: { results: [{ elevation: 1189.5 }] } });
+      sinon.stub(axios, "get").resolves({
+        data: {
+          status: "OK",
+          results: [
+            {
+              formatted_address: "Kampala Road, Kampala, Uganda",
+              place_id: "samplePlaceId",
+              types: ["route"],
+              address_components: [
+                { long_name: "Kampala Road", types: ["route"] },
+                { long_name: "Kampala", types: ["locality"] },
+                { long_name: "Uganda", types: ["country"] },
+              ],
+            },
+          ],
+        },
       });
-      const reverseGeoCodeStub = sinon
-        .stub(createSite, "reverseGeoCode")
-        .resolves({
-          success: true,
-          data: { site_tags: ["tag1", "tag2"] },
-        });
 
+      // No site id: exercises the new-site path, which skips the
+      // data_provider DB lookup (a module-private helper that can't be stubbed).
       const req = {
-        query: { tenant: "sampleTenant", id: "sampleId" },
+        query: { tenant: "sampleTenant" },
         body: {
-          latitude: 123.456,
-          longitude: -45.678,
+          latitude: 0.3136,
+          longitude: 32.5811,
           network: "sampleNetwork",
         },
       };
@@ -336,22 +351,26 @@ describe("createSite Util Functions", () => {
 
       const result = await createSite.generateMetadata(req, next);
 
-      expect(result !== undefined || next.called).to.be.true;
+      expect(next.called).to.be.false;
+      expect(result.success).to.be.true;
+      expect(result.data.altitude).to.equal(1189.5);
+      expect(result.data.country).to.equal("Uganda");
+      expect(result.data.network).to.equal("sampleNetwork");
     });
 
-    it("should handle errors gracefully", async () => {
+    it("should return a failure when every geocoding provider fails", async () => {
+      // Altitude and geocoding both fail at the HTTP layer (Google + Nominatim
+      // fallback share axios.get).
       sinon
-        .stub(createSite, "getAltitude")
+        .stub(Client.prototype, "elevation")
         .rejects(new Error("Sample error"));
-      sinon
-        .stub(createSite, "reverseGeoCode")
-        .rejects(new Error("Sample error"));
+      sinon.stub(axios, "get").rejects(new Error("Sample error"));
 
       const req = {
-        query: { tenant: "sampleTenant", id: "sampleId" },
+        query: { tenant: "sampleTenant" },
         body: {
-          latitude: 123.456,
-          longitude: -45.678,
+          latitude: 0.3136,
+          longitude: 32.5811,
           network: "sampleNetwork",
         },
       };
@@ -359,7 +378,8 @@ describe("createSite Util Functions", () => {
 
       const result = await createSite.generateMetadata(req, next);
 
-      expect(result !== undefined || next.called).to.be.true;
+      expect(next.called).to.be.false;
+      expect(result.success).to.be.false;
     });
   });
 
@@ -685,42 +705,40 @@ describe("createSite Util Functions", () => {
       sandbox.restore();
     });
 
+    // site.util.js creates its own Client instance, so stub the prototype to
+    // keep these tests off the real Google Elevation API.
     it("should get altitude correctly", async () => {
-      const lat = 123.456;
-      const long = 456.789;
+      sandbox
+        .stub(Client.prototype, "elevation")
+        .resolves({ data: { results: [{ elevation: 1189.5 }] } });
       const next = sinon.stub();
 
-      // site.util.js creates its own Client instance — we cannot stub it from here.
-      // The real HTTP call will fail in a test environment (no API key).
-      const response = await createSite.getAltitude(lat, long, next);
+      const response = await createSite.getAltitude(0.3136, 32.5811, next);
 
-      // Either returns a response object or calls next — either outcome is acceptable
-      expect(response !== undefined || next.called).to.be.true;
+      expect(next.called).to.be.false;
+      expect(response.success).to.be.true;
+      expect(response.data).to.equal(1189.5);
+      expect(response.status).to.equal(httpStatus.OK);
     });
 
-    it("should handle elevation error", async () => {
-      const lat = 123.456;
-      const long = 456.789;
+    it("should return success:false when the elevation request fails", async () => {
+      sandbox
+        .stub(Client.prototype, "elevation")
+        .rejects(new Error("Elevation error"));
       const next = sinon.stub();
 
-      // Real HTTP call fails in test env; the .catch() handler returns success:false
-      const response = await createSite.getAltitude(lat, long, next);
+      const response = await createSite.getAltitude(0.3136, 32.5811, next);
 
-      // The catch handler always returns an object with success:false on HTTP error
-      expect(response !== undefined || next.called).to.be.true;
-      if (response) {
-        expect(response.success).to.be.false;
-      }
+      expect(response.success).to.be.false;
     });
 
-    it("should handle unexpected error", async () => {
-      const lat = 123.456;
-      const long = 456.789;
+    it("should return success:false when the response has no results", async () => {
+      sandbox
+        .stub(Client.prototype, "elevation")
+        .resolves({ data: { results: [] } });
       const next = sinon.stub();
 
-      sandbox.stub(client, "elevation").rejects(new Error("Elevation error"));
-
-      const response = await createSite.getAltitude(lat, long, next);
+      const response = await createSite.getAltitude(0.3136, 32.5811, next);
 
       expect(response.success).to.be.false;
     });
