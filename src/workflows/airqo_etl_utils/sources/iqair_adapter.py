@@ -51,9 +51,8 @@ class IQAirAdapter(DataSourceAdapter):
         meta: Dict[str, Any] = {}
         try:
             base_url = (device.get("api_code") or "").rstrip("/")
-            device_id = device.get("serial_number")
-            if base_url and device_id and not pd.isna(base_url):
-                url = f"{base_url}/{device_id}"
+            if base_url and not pd.isna(base_url):
+                url = base_url
                 response = self.client.get_json(url)
                 # legacy API nests historical resolutions under 'historical'
                 api_resolution = (
