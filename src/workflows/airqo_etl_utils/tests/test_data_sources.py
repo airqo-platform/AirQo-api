@@ -211,7 +211,7 @@ class TestIQAirMethod:
         """Setup for each test method."""
         self.adapter = IQAirAdapter()
         self.valid_device = {
-            "api_code": "https://api.example.com/iqair",
+            "api_code": "https://api.example.com/iqair/ABC123",
             "serial_number": "ABC123",
         }
 
@@ -345,18 +345,22 @@ class TestIQAirMethod:
         mock_get.assert_not_called()
 
     @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
-    @patch("requests.get")
-    def test_iqair_missing_serial_number(self, mock_get, mock_config):
-        """Test IQAir API with missing serial number in device."""
+    def test_iqair_device_without_serial_number(self, mock_config):
+        """Test IQAir API request for a device that carries only an API code."""
         mock_config.DATA_RESOLUTION_MAPPING = {
             "iqair": {"instant": "instant", "hourly": "hourly"}
         }
 
-        invalid_device = {"api_code": "https://api.example.com/iqair"}
+        device = {"api_code": "https://api.example.com/iqair/ABC123"}
 
-        res = self.adapter.fetch(invalid_device, resolution="instant")
-        assert res.data.get("records") == []
-        mock_get.assert_not_called()
+        with patch(
+            "airqo_etl_utils.sources.iqair_adapter.HttpClient.get_json",
+            return_value={},
+        ) as mock_get_json:
+            self.adapter.fetch(device, resolution="instant")
+            mock_get_json.assert_called_once_with(
+                "https://api.example.com/iqair/ABC123"
+            )
 
     @patch("airqo_etl_utils.sources.iqair_adapter.configuration")
     @patch("requests.get")
