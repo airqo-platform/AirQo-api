@@ -15,7 +15,7 @@ const distance = {
           device["isActive"] == true &&
           device["isPrimaryInLocation"] == true
         ) {
-          distanceBetweenDevices = distance.calculateDistance(
+          const distanceBetweenDevices = distance.calculateDistance(
             {
               latitude1: latitude,
               longitude1: longitude,
@@ -26,7 +26,7 @@ const distance = {
           );
 
           if (distanceBetweenDevices < radius) {
-            device["distance"] = distance;
+            device["distance"] = distanceBetweenDevices; // in km
             nearest_devices.push(device);
           }
         }
@@ -159,30 +159,46 @@ const distance = {
     { min = 0, max = 6.28319, places = 3 } = {},
     next
   ) => {
+    // Integers: inclusive range [min, max]. `places` is ignored here (it has a
+    // default, so it is always "specified").
     if (Number.isInteger(min) && Number.isInteger(max)) {
-      if (places !== undefined) {
-        new Error("Cannot specify decimal places with integers.");
-      }
       return Math.floor(Math.random() * (max - min + 1)) + min;
-    } else {
-      if (Number.isNaN(Number.parseFloat(min))) {
-        new Error("Minimum value is not a number.");
-      }
-
-      if (Number.isNaN(Number.parseFloat(max))) {
-        new Error("Maximum value is not a number.");
-      }
-
-      if (Number.isInteger(places) === false) {
-        new Error("Number of decimal places is not a number.");
-      }
-
-      if (places <= 0) {
-        new Error("Number of decimal places must be at least 1.");
-      }
-      let value = Math.random() * (max - min + 1) + min;
-      return Number.parseFloat(value).toFixed(places);
     }
+
+    const minValue = Number.parseFloat(min);
+    const maxValue = Number.parseFloat(max);
+    if (Number.isNaN(minValue)) {
+      throw new Error("Minimum value is not a number.");
+    }
+    if (Number.isNaN(maxValue)) {
+      throw new Error("Maximum value is not a number.");
+    }
+    if (!Number.isInteger(places)) {
+      throw new Error("Number of decimal places is not a number.");
+    }
+    if (places <= 0) {
+      throw new Error("Number of decimal places must be at least 1.");
+    }
+
+    // Decimals: pick uniformly from the `places`-precision grid points that lie
+    // in [min, max), so rounding can never step outside the range. Candidate
+    // steps are checked against the original bounds, which absorbs float noise
+    // (e.g. 1.1 * 100 = 110.00000000000001) without merging narrow intervals.
+    const scale = Math.pow(10, places);
+    const valueAt = (step) => Number((step / scale).toFixed(places));
+    let lowestStep = Math.floor(minValue * scale);
+    while (valueAt(lowestStep) < minValue) lowestStep++;
+    let highestStep = Math.ceil(maxValue * scale);
+    while (valueAt(highestStep) >= maxValue) highestStep--; // largest step < max
+    if (highestStep < lowestStep) {
+      throw new Error(
+        `No value with ${places} decimal place(s) exists in [${minValue}, ${maxValue}).`,
+      );
+    }
+    const step =
+      lowestStep +
+      Math.floor(Math.random() * (highestStep - lowestStep + 1));
+    return valueAt(step);
   },
   createApproximateCoordinates: (
     {

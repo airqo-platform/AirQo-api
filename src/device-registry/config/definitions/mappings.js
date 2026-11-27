@@ -4,8 +4,8 @@ const envs = require("./envs");
 function generateDateFormatWithoutHrs(ISODate) {
   try {
     let date = new Date(ISODate);
-    let year = date.getFullYear();
-    let month = date.getMonth() + 1;
+    let year = date.getUTCFullYear();
+    let month = date.getUTCMonth() + 1;
     let day = date.getUTCDate();
 
     if (day < 10) {
