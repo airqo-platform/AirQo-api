@@ -129,9 +129,61 @@ describe("Device Model - modify error handling", () => {
     expect(countDocumentsStub.firstCall.args[0]).to.deep.equal({
       $and: [
         { serial_number: "667bfca289c0b362dc80aad3" },
-        { _id: { $ne: "64b7f0c2a1b2c3d4e5f60718" } },
+        { $nor: [{ _id: "64b7f0c2a1b2c3d4e5f60718" }] },
       ],
     });
+  });
+
+  it("excludes only documents matching the full filter, not each key", async () => {
+    // Per-key $ne would drop every other iqair device from the re-check.
+    findOneAndUpdateStub.rejects(buildUniqueValidationError());
+    const filter = { _id: { $in: ["64b7f0c2a1b2c3d4e5f60718"] }, network: "iqair" };
+
+    await Device.modify({ filter, update: {} }, sinon.spy());
+
+    expect(countDocumentsStub.firstCall.args[0]).to.deep.equal({
+      $and: [{ serial_number: "667bfca289c0b362dc80aad3" }, { $nor: [filter] }],
+    });
+  });
+
+  it("returns 409 with field details for a duplicate-key (E11000) error", async () => {
+    const dupKey = new Error(
+      "E11000 duplicate key error collection: devices index: serial_number_1",
+    );
+    dupKey.code = 11000;
+    dupKey.keyValue = { serial_number: "667bfca289c0b362dc80aad3" };
+    findOneAndUpdateStub.rejects(dupKey);
+    const next = sinon.spy();
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      next,
+    );
+
+    const err = next.firstCall.args[0];
+    expect(err.statusCode).to.equal(httpStatus.CONFLICT);
+    expect(err.errors.serial_number).to.equal(
+      "667bfca289c0b362dc80aad3 must be unique!",
+    );
+    expect(fakeLogger.warn.calledOnce).to.be.true;
+    expect(fakeLogger.error.called).to.be.false;
+  });
+
+  it("keeps database connection failures on the 500 path", async () => {
+    const connErr = new Error("connection timed out");
+    connErr.name = "MongoNetworkError";
+    findOneAndUpdateStub.rejects(connErr);
+    const next = sinon.spy();
+
+    await Device.modify(
+      { filter: { _id: "64b7f0c2a1b2c3d4e5f60718" }, update: {} },
+      next,
+    );
+
+    expect(next.firstCall.args[0].statusCode).to.equal(
+      httpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(fakeLogger.error.called).to.be.true;
   });
 
   it("returns 500 and logs ERROR when the uniqueness re-check fails", async () => {

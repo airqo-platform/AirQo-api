@@ -181,12 +181,15 @@ const distance = {
     }
 
     // Decimals: pick uniformly from the `places`-precision grid points that lie
-    // in [min, max), so rounding can never step outside the range.
-    // toPrecision(12) strips float noise (e.g. 1.1 * 100 = 110.00000000000001).
+    // in [min, max), so rounding can never step outside the range. Candidate
+    // steps are checked against the original bounds, which absorbs float noise
+    // (e.g. 1.1 * 100 = 110.00000000000001) without merging narrow intervals.
     const scale = Math.pow(10, places);
-    const toGrid = (v) => Number((v * scale).toPrecision(12));
-    const lowestStep = Math.ceil(toGrid(minValue));
-    const highestStep = Math.ceil(toGrid(maxValue)) - 1; // largest step < max
+    const valueAt = (step) => Number((step / scale).toFixed(places));
+    let lowestStep = Math.floor(minValue * scale);
+    while (valueAt(lowestStep) < minValue) lowestStep++;
+    let highestStep = Math.ceil(maxValue * scale);
+    while (valueAt(highestStep) >= maxValue) highestStep--; // largest step < max
     if (highestStep < lowestStep) {
       throw new Error(
         `No value with ${places} decimal place(s) exists in [${minValue}, ${maxValue}).`,
@@ -195,7 +198,7 @@ const distance = {
     const step =
       lowestStep +
       Math.floor(Math.random() * (highestStep - lowestStep + 1));
-    return Number((step / scale).toFixed(places));
+    return valueAt(step);
   },
   createApproximateCoordinates: (
     {

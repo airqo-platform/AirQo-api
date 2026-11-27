@@ -570,20 +570,18 @@ deviceSchema.index({ isActive: 1, site_id: 1 });
 /**
  * mongoose-unique-validator resolves a failed countDocuments as "not unique",
  * so a DB outage surfaces as a "must be unique!" ValidationError. Re-run each
- * unique check (with the same exclusion of the documents being updated) to
- * confirm the conflict is real. Throws if a re-check fails; returns false if
- * any reported duplicate does not actually exist.
+ * unique check, excluding only the documents matched by the full update filter
+ * ($nor), to confirm the conflict is real. Throws if a re-check fails; returns
+ * false if any reported duplicate does not actually exist.
  */
 const confirmUniqueConflicts = async (model, error, filter = {}) => {
   const uniqueErrors = Object.values(error.errors || {}).filter(
     (e) => e && e.kind === "unique",
   );
+  const hasFilter = filter && Object.keys(filter).length > 0;
   for (const { path, value } of uniqueErrors) {
-    const exclusions = Object.entries(filter).map(([key, val]) => ({
-      [key]: { $ne: val },
-    }));
     const count = await model.countDocuments({
-      $and: [{ [path]: value }, ...exclusions],
+      $and: [{ [path]: value }, ...(hasFilter ? [{ $nor: [filter] }] : [])],
     });
     if (count === 0) return false;
   }
@@ -1945,6 +1943,23 @@ deviceSchema.statics = {
             `🐛🐛 Device update uniqueness re-check failed -- ${recheckError.message}`,
           );
         }
+      }
+      if (error.code === 11000) {
+        // Duplicate-key error from the unique index itself (e.g. two updates
+        // racing past the validator) — a real conflict, not an outage.
+        const fields = error.keyValue || error.keyPattern || {};
+        logger.warn(`🐛 Device update duplicate key -- ${error.message}`);
+        const details = { message: error.message };
+        Object.entries(fields).forEach(([key, value]) => {
+          details[key] = `${value} must be unique!`;
+        });
+        return next(
+          new HttpError(
+            "Validation errors for some of the provided fields",
+            httpStatus.CONFLICT,
+            details,
+          ),
+        );
       }
       if (isGenuineConflict) {
         // Confirmed unique/validation constraint — an expected business

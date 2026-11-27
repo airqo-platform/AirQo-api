@@ -232,6 +232,19 @@ describe("distance", () => {
       expect(result).to.equal(1.1);
     });
 
+    it("should keep distinct endpoints for narrow intervals at high precision", () => {
+      // [1.0000000000001, 1.0000000000002) at 13 places contains exactly one value.
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.0000000000001,
+        max: 1.0000000000002,
+        places: 13,
+      });
+
+      expect(result).to.equal(1.0000000000001);
+    });
+
     it("should throw when no value at the requested precision fits the range", () => {
       // [1.501, 1.509) contains no 2-decimal value.
       expect(() =>
