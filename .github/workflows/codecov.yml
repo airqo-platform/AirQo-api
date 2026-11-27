@@ -24,7 +24,8 @@ jobs:
         run: npm install
 
       - name: Run tests and collect coverage
-        continue-on-error: true
+        # No continue-on-error: fail the step when tests fail, so a crashed run
+        # is visible and load-only coverage is not uploaded as if tests ran.
         run: npm run test
 
       - name: Upload coverage reports to Codecov
