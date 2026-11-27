@@ -28,6 +28,8 @@ livenessProbes:
   enabled: true
 apiServer:
   enabled: true
+celeryWorker:
+  autoscale: '6,2'
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
