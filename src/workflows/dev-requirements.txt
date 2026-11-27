@@ -29,7 +29,7 @@ pytest-cov==7.1.0
 firebase-admin==6.9.0
 db_dtypes==1.5.0
 tweepy==4.16.0
-great_expectations===0.18.18
+great_expectations==1.25.0
 sqlalchemy-bigquery==1.11.0
 confluent-kafka==2.5.0
 lz4==4.3.3

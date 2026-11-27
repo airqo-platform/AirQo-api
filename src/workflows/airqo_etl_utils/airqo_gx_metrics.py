@@ -1,4 +1,6 @@
-from great_expectations.core.expectation_configuration import ExpectationConfiguration
+from great_expectations.expectations.expectation_configuration import (
+    ExpectationConfiguration,
+)
 
 
 class AirQoGxExpectations:
@@ -24,7 +26,7 @@ class AirQoGxExpectations:
             ExpectationConfiguration: The configuration of the added expectation.
         """
         expectation_config = ExpectationConfiguration(
-            expectation_type=expectation_type, kwargs=kwargs
+            type=expectation_type, kwargs=kwargs
         )
         return expectation_config
 

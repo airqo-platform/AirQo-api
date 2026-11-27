@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 import types
@@ -25,27 +26,19 @@ def apply_common_import_stubs() -> None:
     cdsapi.Client = object
     sys.modules.setdefault("cdsapi", cdsapi)
 
+    # The installed Great Expectations package is used when it is available.
+    if (
+        "great_expectations" in sys.modules
+        or importlib.util.find_spec("great_expectations") is not None
+    ):
+        return
+
     great_expectations = types.ModuleType("great_expectations")
     great_expectations.get_context = lambda *args, **kwargs: object()
     sys.modules.setdefault("great_expectations", great_expectations)
 
-    great_expectations_exceptions = types.ModuleType("great_expectations.exceptions")
-    great_expectations_exceptions.DataContextError = Exception
-    sys.modules.setdefault(
-        "great_expectations.exceptions", great_expectations_exceptions
-    )
-
-    great_expectations_data_context = types.ModuleType(
-        "great_expectations.data_context.types.base"
-    )
-    great_expectations_data_context.DataContextConfig = object
-    sys.modules.setdefault(
-        "great_expectations.data_context.types.base",
-        great_expectations_data_context,
-    )
-
-    great_expectations_core = types.ModuleType(
-        "great_expectations.core.expectation_configuration"
+    great_expectations_configuration = types.ModuleType(
+        "great_expectations.expectations.expectation_configuration"
     )
 
     class _ExpectationConfiguration:
@@ -53,10 +46,12 @@ def apply_common_import_stubs() -> None:
             self.args = args
             self.kwargs = kwargs
 
-    great_expectations_core.ExpectationConfiguration = _ExpectationConfiguration
+    great_expectations_configuration.ExpectationConfiguration = (
+        _ExpectationConfiguration
+    )
     sys.modules.setdefault(
-        "great_expectations.core.expectation_configuration",
-        great_expectations_core,
+        "great_expectations.expectations.expectation_configuration",
+        great_expectations_configuration,
     )
 
 

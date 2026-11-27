@@ -46,13 +46,11 @@ class AirQoGxExpectations:
         self.expectation_suite_name = None
         self.checkpoint_name = None
         self.expectations = None
-        self.data_connector_name = None
         valid_engines = ["sql", "pandas"]
         if execution_engine not in valid_engines:
             raise ValueError("Unsupported execution engine")
         self.execution_engine = execution_engine
         self.dataframe = None
-        self.cloud_mode = False
 
     def run_checks(self):
         """
@@ -74,7 +72,7 @@ class AirQoGxExpectations:
             - All results (pass/fail) are persisted to BigQuery
 
         Side Effects:
-            - Creates/updates Great Expectations configuration files
+            - Creates/updates Great Expectations configuration files in the development environment
             - Inserts validation results into BigQuery monitoring tables
             - May create temporary data assets for validation
 
@@ -88,10 +86,8 @@ class AirQoGxExpectations:
             self.expectation_suite_name,
             self.checkpoint_name,
             self.expectations,
-            data_connector_name=self.data_connector_name,
             execution_engine=self.execution_engine,
             dataframe=self.dataframe,
-            cloud_mode=self.cloud_mode,
         )
 
         gx_checks.setup()
