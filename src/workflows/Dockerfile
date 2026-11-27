@@ -20,6 +20,7 @@ RUN apt-get update -y && \
 USER airflow
 
 COPY --chown=airflow:root --from=wheel-builder /build/dist/airqo_etl_utils-1.0.0-py3-none-any.whl /home/airflow/
+COPY --chown=airflow:root google_provider_only_packages.py /home/airflow/
 # The slim base image ships Airflow without providers. The constraints file of the base image's Airflow
 # release and Python version pins both installs below, with the entries for the packages the service
 # wheel pins itself removed, so the service's versions apply and every other package stays at the
@@ -28,6 +29,9 @@ COPY --chown=airflow:root --from=wheel-builder /build/dist/airqo_etl_utils-1.0.0
 # provider of the remote task-log handler and the FAB provider of the login. The second install adds
 # the service wheel. Every pin ships a binary wheel, so the install needs no compiler.
 # After pip check, the Great Expectations modules the service uses are imported.
+# The Google provider is installed for the Cloud Storage task-log handler only. The packages that
+# only the provider requires are then removed in this layer, apart from the clients the handler
+# imports, and the handler is built to confirm that it still loads.
 RUN PYTHON_MAJOR_MINOR="$(python -c 'import sys; print(sys.version_info[0], sys.version_info[1], sep=chr(46))')" && \
     curl -fsSL "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_MAJOR_MINOR}.txt" -o /tmp/constraints-airflow.txt && \
     python -c 'import re, sys, zipfile; wheel = zipfile.ZipFile(sys.argv[1]); metadata = wheel.read(next(name for name in wheel.namelist() if name.endswith("/METADATA"))).decode(); normalise = lambda name: re.sub(r"[-_.]+", "-", name).lower(); pinned = {normalise(name) for name in re.findall(r"^Requires-Dist: *([A-Za-z0-9][A-Za-z0-9._-]*)", metadata, re.M)}; sys.stdout.writelines(line for line in open(sys.argv[2]) if normalise(line.split("==")[0]) not in pinned)' \
@@ -40,7 +44,14 @@ RUN PYTHON_MAJOR_MINOR="$(python -c 'import sys; print(sys.version_info[0], sys.
     pip install --no-cache-dir --constraint /tmp/constraints.txt /home/airflow/airqo_etl_utils-1.0.0-py3-none-any.whl && \
     pip check && \
     python -B -c "import great_expectations.checkpoint, great_expectations.datasource.fluent, great_expectations.expectations.expectation_configuration" && \
-    rm -f /home/airflow/*.whl
+    GOOGLE_PROVIDER_ONLY="$(python -B /home/airflow/google_provider_only_packages.py \
+        --requested "apache-airflow[celery,postgres,sentry]" apache-airflow-providers-slack \
+            apache-airflow-providers-fab airqo-etl-utils pip \
+        --keep gcloud-aio-auth gcloud-aio-bigquery gcloud-aio-storage \
+            google-cloud-secret-manager google-cloud-storage)" && \
+    pip uninstall -y ${GOOGLE_PROVIDER_ONLY} && \
+    python -B -c "from airflow.providers.google.cloud.log.gcs_task_handler import GCSTaskHandler; GCSTaskHandler(base_log_folder='/tmp/gcs-task-handler-check', gcs_log_folder='gs://bucket/logs')" && \
+    rm -rf /home/airflow/*.whl /home/airflow/google_provider_only_packages.py /tmp/gcs-task-handler-check
 
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
