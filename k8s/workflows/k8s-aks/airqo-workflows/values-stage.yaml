@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-c58097b0-1795463999
+  tag: stage-4bc00b7e-1795748161
 inPodRedis:
   enabled: true
 checkMigrations:
@@ -29,7 +29,7 @@ livenessProbes:
 apiServer:
   enabled: true
 celeryWorker:
-  autoscale: '6,2'
+  autoscale: 6,2
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
