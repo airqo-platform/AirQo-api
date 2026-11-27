@@ -1042,13 +1042,26 @@ deviceSchema.statics = {
       let response = {};
       let message = "Validation errors for some of the provided fields";
 
+      // Confirm "must be unique!" errors are real (see confirmUniqueConflicts).
+      // A new document has nothing to exclude, so no filter is passed.
+      let isGenuineConflict = false;
+      if (error.name === "ValidationError") {
+        try {
+          isGenuineConflict = await confirmUniqueConflicts(this, error);
+        } catch (recheckError) {
+          logger.error(
+            `🐛🐛 Device create uniqueness re-check failed -- ${recheckError.message}`,
+          );
+        }
+      }
+
       if (error instanceof HttpError) {
         logger.error(
           `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
         response.message = error.message;
         response.details = error.details || {};
-      } else if (error.name === "ValidationError") {
+      } else if (isGenuineConflict) {
         // Mongoose unique/validation constraint — an expected business conflict,
         // not an internal failure. Log at WARN so Slack stays clean.
         logger.warn(`🐛 Device validation conflict -- ${stringify(error)}`);
@@ -1057,12 +1070,14 @@ deviceSchema.statics = {
             response[key] = value.message;
           });
         }
-      } else if (error.errors) {
+      } else if (error.errors && error.name !== "ValidationError") {
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
         });
       } else {
+        // Includes unconfirmed "must be unique!" errors (e.g. DB outage
+        // during the uniqueness check): don't report them as duplicates.
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         response.message = "An unexpected error occurred.";
       }
