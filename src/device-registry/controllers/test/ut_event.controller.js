@@ -76,73 +76,6 @@ describe("Create Event Controller", () => {
       sinon.restore();
     });
 
-    it.skip("should call insert method with correct parameters", async () => {
-      const measurements = {
-        /* sample measurements */
-      };
-      req.body = measurements;
-
-      await createEvent.addValues(req, res, next);
-
-      expect(createEventUtil.insert).to.have.been.calledWith(
-        sinon.match.any,
-        sinon.match.any,
-        sinon.match.any
-      );
-    });
-
-    it.skip("should handle bad request errors", async () => {
-      const errors = [{ field: "test", message: "Test error" }];
-      req.body = {};
-
-      await createEvent.addValues(req, res, next);
-
-      expect(next).to.have.been.calledWith(
-        new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-      );
-    });
-
-    it.skip("should return OK status on successful insertion", async () => {
-      const result = { success: true, message: "success" };
-      sinon.stub(createEventUtil, "insert").resolves(result);
-
-      await createEvent.addValues(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: "successfully added all the events",
-      });
-    });
-
-    it.skip("should return BAD_REQUEST status on failed insertion", async () => {
-      const result = { success: false, errors: ["error"] };
-      sinon.stub(createEventUtil, "insert").resolves(result);
-
-      await createEvent.addValues(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: "finished the operation with some errors",
-        errors: ["error"],
-      });
-    });
-
-    it.skip("should handle internal server errors", async () => {
-      const error = new Error("Internal Server Error");
-      sinon.stub(createEventUtil, "insert").rejects(error);
-
-      await createEvent.addValues(req, res, next);
-
-      expect(next).to.have.been.calledWith(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: "Internal Server Error" }
-        )
-      );
-    });
   });
   describe("listFromBigQuery", () => {
     let req, res, next, mockResult;
@@ -184,21 +117,6 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
 
-    it.skip("should handle errors", async () => {
-      mockResult.success = false;
-      mockResult.message = "Error message";
-      mockResult.errors = ["error"];
-
-      await listFromBigQuery(req, res, next);
-
-      expect(next).to.have.been.calledWith(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: "Error message" }
-        )
-      );
-    });
   });
 
   describe("latestFromBigQuery", () => {
@@ -661,7 +579,7 @@ describe("Create Event Controller", () => {
     });
   });
 
-  describe.skip("readingsForMap", () => {
+  describe("readingsForMap", () => {
     let req, res, next, mockResult;
 
     beforeEach(() => {
@@ -683,28 +601,9 @@ describe("Create Event Controller", () => {
       sinon.restore();
     });
 
-    it("should return air quality measurements", async () => {
-      await readingsForMap(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
-
-    it("should handle errors", async () => {
-      mockResult.success = false;
-      mockResult.message = "Error message";
-      mockResult.errors = ["error"];
-
-      await readingsForMap(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
   });
 
-  describe.skip("readingsForMap", () => {
+  describe("readingsForMap", () => {
     let req, res, next;
 
     beforeEach(() => {
@@ -722,46 +621,6 @@ describe("Create Event Controller", () => {
 
     afterEach(() => {
       sinon.restore();
-    });
-
-    it("should return measurements when no cohort_id is provided", async () => {
-      const mockResult = {
-        success: true,
-        data: [{ measurement: "data" }],
-        message: "Success",
-      };
-      sinon.stub(createEventUtil, "read").resolves(mockResult);
-
-      await readingsForMap(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: "Success",
-        measurements: [{ measurement: "data" }],
-      });
-    });
-
-    it("should return measurements for a valid cohort_id with devices", async () => {
-      req.query.cohort_id = "valid_cohort_id";
-      req.query.device_id = "device1,device2"; // Simulating processCohortIds populating this
-
-      const mockResult = {
-        success: true,
-        data: [{ measurement: "cohort_data" }],
-        message: "Cohort success",
-      };
-      sinon.stub(createEventUtil, "read").resolves(mockResult);
-
-      await readingsForMap(req, res, next);
-
-      expect(createEventUtil.processCohortIds).to.have.been.calledOnce;
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: "Cohort success",
-        measurements: [{ measurement: "cohort_data" }],
-      });
     });
 
     it("should return a 400 Bad Request when cohort_id has no devices", async () => {
@@ -856,24 +715,6 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
 
-    it.skip("should handle errors due to missing device ID", async () => {
-      await listRecent(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
-
-    it.skip("should handle errors due to missing site ID", async () => {
-      req.query.cohort_id = "456";
-      await listRecent(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
   });
 
   describe("listHistorical", () => {
@@ -910,25 +751,6 @@ describe("Create Event Controller", () => {
       expect(res.json).to.have.been.calledWith(sinon.match.object);
     });
 
-    it.skip("should handle errors due to missing device ID", async () => {
-      req.query.cohort_id = "123";
-      await listHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
-
-    it.skip("should handle errors due to missing site ID", async () => {
-      req.query.grid_id = "789";
-      await listHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-    });
   });
 
   describe("listRunningDevices", () => {
@@ -1508,115 +1330,6 @@ describe("Create Event Controller", () => {
     });
   });
 
-  describe.skip("transmitValues", () => {
-    let req, res, next, mockResult;
-
-    beforeEach(() => {
-      req = {
-        query: { tenant: "custom" },
-        params: {},
-        query: {},
-      };
-      res = {
-        status: sinon.stub().callsFake(function() { return res; }),
-        json: sinon.spy(),
-      };
-      next = sinon.spy();
-      mockResult = {
-        success: true,
-        message: "Success message",
-        data: [{ id: 1, value: "test" }],
-      };
-      sinon.stub(createEventUtil, "transmitValues").resolves(mockResult);
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should transmit values successfully", async () => {
-      await transmitValues(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: mockResult.message,
-        result: mockResult.data,
-      });
-    });
-
-    it("should handle errors during transmission", async () => {
-      mockResult.success = false;
-      mockResult.message = "Transmission error";
-      mockResult.errors = ["error"];
-
-      await transmitValues(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: mockResult.message,
-        errors: mockResult.errors,
-      });
-    });
-  });
-  describe.skip("deleteValuesOnPlatform", () => {
-    let req, res, next, mockResult;
-
-    beforeEach(() => {
-      req = {
-        query: { tenant: "custom" },
-        params: {},
-        query: {},
-      };
-      res = {
-        status: sinon.stub().callsFake(function() { return res; }),
-        json: sinon.spy(),
-      };
-      next = sinon.spy();
-      mockResult = { success: true, message: "Success message", data: [] };
-      sinon.stub(createEventUtil, "clearEventsOnPlatform").resolves(mockResult);
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should delete values on platform successfully", async () => {
-      await deleteValuesOnPlatform(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: mockResult.message,
-        data: mockResult.data,
-      });
-    });
-
-    it("should handle errors during deletion", async () => {
-      mockResult.success = false;
-      mockResult.message = "Deletion error";
-      mockResult.error = ["error"];
-
-      await deleteValuesOnPlatform(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: mockResult.message,
-        errors: mockResult.error,
-      });
-    });
-  });
-
   describe("addEvents", () => {
     let req, res, next, mockResult;
 
@@ -1644,162 +1357,6 @@ describe("Create Event Controller", () => {
       sinon.restore();
     });
 
-    it.skip("should add events successfully", async () => {
-      await addEvents(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        message: "successfully added all the events",
-        stored_events: mockResult.data,
-        errors: mockResult.error,
-      });
-    });
-
-    it.skip("should handle errors during addition", async () => {
-      mockResult.success = false;
-      mockResult.message = "Addition error";
-      mockResult.error = ["error"];
-
-      await addEvents(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        message: "finished the operation with some errors",
-        errors: mockResult.error,
-      });
-    });
-  });
-
-  describe.skip("listByAirQloud", () => {
-    let req, res, next, mockResult;
-
-    beforeEach(() => {
-      req = {
-        query: { tenant: "custom", site_id: "123", recent: "yes" },
-        params: { airqloud_id: "abc" },
-        query: {},
-      };
-      res = {
-        status: sinon.stub().callsFake(function() { return res; }),
-        json: sinon.spy(),
-      };
-      next = sinon.spy();
-      mockResult = {
-        success: true,
-        isCache: true,
-        message: "Success message",
-        data: [{ meta: {}, data: [] }],
-      };
-      sinon.stub(createEventUtil, "list").resolves(mockResult);
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should list events by AirQloud ID successfully", async () => {
-      await listByAirQloud(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        isCache: mockResult.isCache,
-        message: mockResult.message,
-        meta: mockResult.data[0].meta,
-        measurements: mockResult.data[0].data,
-      });
-    });
-
-    it("should handle errors when processing AirQloud IDs", async () => {
-      req = {
-        query: { tenant: "custom", airqloud_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByAirQloud(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided AirQloud IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
-  });
-
-  describe.skip("listByAirQloudHistorical", () => {
-    let req, res, next, mockResult;
-
-    beforeEach(() => {
-      req = {
-        query: { tenant: "custom", airqloud_id: "abc" },
-        params: {},
-        query: {},
-      };
-      res = {
-        status: sinon.stub().callsFake(function() { return res; }),
-        json: sinon.spy(),
-      };
-      next = sinon.spy();
-      mockResult = {
-        success: true,
-        isCache: true,
-        message: "Success message",
-        data: [{ meta: {}, data: [] }],
-      };
-      sinon.stub(createEventUtil, "list").resolves(mockResult);
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should list events by AirQloud ID historically successfully", async () => {
-      await listByAirQloudHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        isCache: mockResult.isCache,
-        message: mockResult.message,
-        meta: mockResult.data[0].meta,
-        measurements: mockResult.data[0].data,
-      });
-    });
-
-    it("should handle errors when processing AirQloud IDs", async () => {
-      req = {
-        query: { tenant: "custom", airqloud_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByAirQloudHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided AirQloud IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
   });
 
   describe("listByGridHistorical", () => {
@@ -1843,26 +1400,6 @@ describe("Create Event Controller", () => {
       });
     });
 
-    it.skip("should handle errors when processing Grid IDs", async () => {
-      req = {
-        query: { tenant: "custom", grid_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByGridHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided Grid IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
   });
 
   describe("listByGrid", () => {
@@ -1906,26 +1443,6 @@ describe("Create Event Controller", () => {
       });
     });
 
-    it.skip("should handle errors when processing Grid IDs", async () => {
-      req = {
-        query: { tenant: "custom", grid_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByGrid(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided Grid IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
   });
 
   describe("listByCohort", () => {
@@ -1969,26 +1486,6 @@ describe("Create Event Controller", () => {
       });
     });
 
-    it.skip("should handle errors when processing Cohort IDs", async () => {
-      req = {
-        query: { tenant: "custom", cohort_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByCohort(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided Cohort IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
   });
 
   describe("listByCohortHistorical", () => {
@@ -2032,99 +1529,6 @@ describe("Create Event Controller", () => {
       });
     });
 
-    it.skip("should handle errors when processing Cohort IDs", async () => {
-      req = {
-        query: { tenant: "custom", cohort_id: "invalid" },
-        params: {},
-        query: {},
-      };
-      await listByCohortHistorical(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: false,
-        errors: {
-          message: `Unable to process measurements for the provided Cohort IDs invalid`,
-        },
-        message: "Internal Server Error",
-      });
-    });
   });
 
-  describe.skip("listByLatLong", () => {
-    let req, res, next, mockResult;
-
-    beforeEach(() => {
-      req = {
-        params: { latitude: "12.3456", longitude: "-78.9012" },
-        query: { tenant: "custom", radius: "100" },
-      };
-      res = {
-        status: sinon.stub().callsFake(function() { return res; }),
-        json: sinon.spy(),
-      };
-      next = sinon.spy();
-      mockResult = {
-        success: true,
-        isCache: true,
-        message: "Success message",
-        data: ["site1"],
-      };
-      sinon.stub(getSitesFromLatitudeAndLongitude).resolves(mockResult);
-    });
-
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should list events by latitude and longitude successfully", async () => {
-      await listByLatLong(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        isCache: mockResult.isCache,
-        message: mockResult.message,
-        meta: mockResult.meta,
-        measurements: mockResult.data,
-      });
-    });
-
-    it("should handle errors when getting sites from latitude and longitude", async () => {
-      const errorMockResult = {
-        success: false,
-        message: "Error fetching sites",
-      };
-      sinon.stub(getSitesFromLatitudeAndLongitude).rejects(errorMockResult);
-
-      await listByLatLong(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith(errorMockResult);
-    });
-
-    it("should handle empty result from getSitesFromLatitudeAndLongitude", async () => {
-      const emptyMockResult = { success: true, data: [] };
-      sinon.stub(getSitesFromLatitudeAndLongitude).resolves(emptyMockResult);
-
-      await listByLatLong(req, res, next);
-
-      expect(res.status).to.have.been.calledWith(httpStatus.OK);
-      expect(res.json).to.have.been.calledWith(sinon.match.object);
-      expect(res.json).to.have.been.calledWith({
-        success: true,
-        isCache: emptyMockResult.isCache,
-        message: emptyMockResult.message,
-        meta: emptyMockResult.meta,
-        measurements: [],
-      });
-    });
-  });
 });

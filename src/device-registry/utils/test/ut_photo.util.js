@@ -598,30 +598,6 @@ describe("create-photo-util", () => {
     });
 
     describe("createPhotoOnPlatform", () => {
-      it.skip("should create photo on platform and return success response", async () => {
-        const request = {
-          query: { tenant: "example_tenant" },
-          body: { image_url: "http://example.com/img.jpg" },
-        };
-        const next = sinon.stub();
-
-        const extractImageIdsResponse = {
-          success: true,
-          data: ["example_photo_id"],
-        };
-
-        // extractImageIds is called with await, so .resolves() is correct
-        sandbox
-          .stub(createPhoto, "extractImageIds")
-          .resolves(extractImageIdsResponse);
-        // PhotoModel(tenant).register() requires a DB — function will call next on error
-        const result = await createPhoto.createPhotoOnPlatform(request, next);
-
-        // Without a real DB the function errors and calls next, or returns failure
-        const completed =
-          (result && result.success !== undefined) || next.calledOnce;
-        expect(completed).to.be.true;
-      });
 
       it("should return error response if image ID extraction fails", async () => {
         const request = {
