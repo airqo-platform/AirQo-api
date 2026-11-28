@@ -29,7 +29,11 @@ livenessProbes:
 apiServer:
   enabled: true
 celeryWorker:
-  autoscale: 6,2
+  autoscale: '6,2'
+  # Engine options of the Celery result-backend connection pool.
+  resultBackendEngineOptions:
+    pool_pre_ping: true
+    pool_recycle: 45
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
@@ -145,5 +149,5 @@ service:
       protocol: TCP
 autoscaling:
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 1
   targetCPUUtilizationPercentage: 70

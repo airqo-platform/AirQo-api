@@ -30,6 +30,10 @@ apiServer:
   enabled: true
 celeryWorker:
   autoscale: '8,2'
+  # Engine options of the Celery result-backend connection pool.
+  resultBackendEngineOptions:
+    pool_pre_ping: true
+    pool_recycle: 45
 dbClean:
   enabled: true
   schedule: 30 0 * * 0
