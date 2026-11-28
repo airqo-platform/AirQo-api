@@ -1,359 +1,295 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const { distance } = require("@utils/common");
+const distance = require("@utils/common/distance");
+
+const SAN_FRANCISCO = { latitude: 37.7749, longitude: -122.4194 };
+const NEW_YORK = { latitude: 40.7128, longitude: -74.006 };
+const LOS_ANGELES = { latitude: 34.0522, longitude: -118.2437 };
+const CHICAGO = { latitude: 41.8781, longitude: -87.6298 };
 
 describe("distance", () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
   describe("findNearestDevices", () => {
-    it("should return nearest devices within the given radius", () => {
-      const devices = [
-        {
-          latitude: 37.7749,
-          longitude: -122.4194,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        {
-          latitude: 40.7128,
-          longitude: -74.006,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        {
-          latitude: 34.0522,
-          longitude: -118.2437,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        // Add more devices...
-      ];
+    const devices = [SAN_FRANCISCO, NEW_YORK, LOS_ANGELES].map((c) => ({
+      ...c,
+      isActive: true,
+      isPrimaryInLocation: true,
+    }));
 
-      const radius = 10000; // 10 kilometers
-      const latitude = 37.7749;
-      const longitude = -122.4194;
+    it("should return nearest devices within the given radius (km)", () => {
+      const result = distance.findNearestDevices({
+        devices: devices.map((d) => ({ ...d })),
+        radius: 10,
+        latitude: SAN_FRANCISCO.latitude,
+        longitude: SAN_FRANCISCO.longitude,
+      });
 
-      const result = distance.findNearestDevices(
-        devices,
-        radius,
-        latitude,
-        longitude
-      );
-
-      // Ensure only the device at index 0 is included since it's the nearest one.
       expect(result).to.have.lengthOf(1);
-      expect(result[0].latitude).to.equal(37.7749);
-      expect(result[0].longitude).to.equal(-122.4194);
+      expect(result[0].latitude).to.equal(SAN_FRANCISCO.latitude);
+      expect(result[0].longitude).to.equal(SAN_FRANCISCO.longitude);
     });
 
-    it("should not include devices outside the given radius", () => {
-      const devices = [
-        {
-          latitude: 37.7749,
-          longitude: -122.4194,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        {
-          latitude: 40.7128,
-          longitude: -74.006,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        {
-          latitude: 34.0522,
-          longitude: -118.2437,
-          isActive: true,
-          isPrimaryInLocation: true,
-        },
-        // Add more devices...
-      ];
+    it("should set each device's distance to the computed km value", () => {
+      const result = distance.findNearestDevices({
+        devices: devices.map((d) => ({ ...d })),
+        radius: 5000,
+        latitude: SAN_FRANCISCO.latitude,
+        longitude: SAN_FRANCISCO.longitude,
+      });
 
-      const radius = 5000; // 5 kilometers
-      const latitude = 37.7749;
-      const longitude = -122.4194;
+      const byLat = Object.fromEntries(result.map((d) => [d.latitude, d]));
+      expect(byLat[SAN_FRANCISCO.latitude].distance).to.equal(0);
+      expect(byLat[NEW_YORK.latitude].distance).to.be.closeTo(4129.09, 0.01);
+      // Must survive JSON serialisation as a number (it is an API response).
+      expect(JSON.parse(JSON.stringify(result))[1].distance).to.be.a("number");
+    });
 
-      const result = distance.findNearestDevices(
-        devices,
-        radius,
-        latitude,
-        longitude
-      );
+    it("should skip inactive or non-primary devices", () => {
+      const result = distance.findNearestDevices({
+        devices: [
+          { ...SAN_FRANCISCO, isActive: false, isPrimaryInLocation: true },
+          { ...SAN_FRANCISCO, isActive: true, isPrimaryInLocation: false },
+        ],
+        radius: 10,
+        latitude: SAN_FRANCISCO.latitude,
+        longitude: SAN_FRANCISCO.longitude,
+      });
 
-      // Ensure no devices are included since the radius is too small.
       expect(result).to.have.lengthOf(0);
     });
-
-    // Add more test cases...
   });
+
   describe("getDistance", () => {
-    it("should calculate the distance between two points correctly", () => {
-      const lat1 = 37.7749; // San Francisco latitude
-      const lon1 = -122.4194; // San Francisco longitude
-      const lat2 = 40.7128; // New York City latitude
-      const lon2 = -74.006; // New York City longitude
+    it("should calculate the distance between two points in meters", () => {
+      const result = distance.getDistance({
+        lat1: SAN_FRANCISCO.latitude,
+        lon1: SAN_FRANCISCO.longitude,
+        lat2: NEW_YORK.latitude,
+        lon2: NEW_YORK.longitude,
+      });
 
-      // Calculate the distance between San Francisco and New York City
-      const result = distance.getDistance(lat1, lon1, lat2, lon2);
-
-      // We can expect a rough distance since the Earth is not a perfect sphere.
-      // The actual value may vary slightly depending on the calculation method.
-      expect(result).to.be.closeTo(4138608, 1000); // Expected distance: around 4138608 meters
+      // Great-circle distance SF -> NYC is ~4,129 km.
+      expect(result).to.be.closeTo(4129086, 1000);
     });
 
     it("should return 0 when calculating the distance between the same point", () => {
-      const lat1 = 37.7749; // San Francisco latitude
-      const lon1 = -122.4194; // San Francisco longitude
-
-      // Calculate the distance between the same point (San Francisco)
-      const result = distance.getDistance(lat1, lon1, lat1, lon1);
+      const result = distance.getDistance({
+        lat1: SAN_FRANCISCO.latitude,
+        lon1: SAN_FRANCISCO.longitude,
+        lat2: SAN_FRANCISCO.latitude,
+        lon2: SAN_FRANCISCO.longitude,
+      });
 
       expect(result).to.equal(0);
     });
-
-    // Add more test cases...
   });
+
   describe("filterSitesByRadius", () => {
     const sites = [
-      {
-        id: 1,
-        latitude: 37.7749, // San Francisco latitude
-        longitude: -122.4194, // San Francisco longitude
-      },
-      {
-        id: 2,
-        latitude: 40.7128, // New York City latitude
-        longitude: -74.006, // New York City longitude
-      },
-      // Add more site data...
+      { id: 1, ...SAN_FRANCISCO },
+      { id: 2, ...NEW_YORK },
     ];
 
-    it("should filter sites within the specified radius", () => {
-      const lat = 37.7749; // San Francisco latitude
-      const lon = -122.4194; // San Francisco longitude
-      const radius = 5000000; // 5000 kilometers
-
-      // Stub the distance.getDistance function to return a fixed distance
-      const getDistanceStub = sinon.stub(distance, "getDistance");
-      getDistanceStub.returns(4000000); // 4000 kilometers
-
-      // Call the filterSitesByRadius function
+    it("should filter sites within the specified radius (meters)", () => {
       const filteredSites = distance.filterSitesByRadius({
         sites,
-        lat,
-        lon,
-        radius,
+        lat: SAN_FRANCISCO.latitude,
+        lon: SAN_FRANCISCO.longitude,
+        radius: 1000000, // 1,000 km: includes SF, excludes NYC
       });
 
-      // The first site should be within the specified radius (distance < 5000 km)
       expect(filteredSites).to.have.lengthOf(1);
       expect(filteredSites[0].id).to.equal(1);
-
-      // Restore the stubbed function
-      getDistanceStub.restore();
     });
 
     it("should return an empty array if no sites are within the specified radius", () => {
-      const lat = 37.7749; // San Francisco latitude
-      const lon = -122.4194; // San Francisco longitude
-      const radius = 100; // 100 meters
+      sinon.stub(distance, "getDistance").returns(200);
 
-      // Stub the distance.getDistance function to return a distance greater than the radius
-      const getDistanceStub = sinon.stub(distance, "getDistance");
-      getDistanceStub.returns(200); // 200 meters
-
-      // Call the filterSitesByRadius function
       const filteredSites = distance.filterSitesByRadius({
         sites,
-        lat,
-        lon,
-        radius,
+        lat: SAN_FRANCISCO.latitude,
+        lon: SAN_FRANCISCO.longitude,
+        radius: 100,
       });
 
-      // No sites should be within the specified radius (distance > 100 meters)
       expect(filteredSites).to.be.an("array").that.is.empty;
-
-      // Restore the stubbed function
-      getDistanceStub.restore();
     });
-
-    // Add more test cases...
   });
+
   describe("calculateDistance", () => {
-    it("should calculate the correct distance between two coordinates", () => {
-      // Coordinates of San Francisco, California
-      const latitude1 = 37.7749;
-      const longitude1 = -122.4194;
+    it("should calculate the correct distance between two coordinates in km", () => {
+      const result = distance.calculateDistance({
+        latitude1: SAN_FRANCISCO.latitude,
+        longitude1: SAN_FRANCISCO.longitude,
+        latitude2: NEW_YORK.latitude,
+        longitude2: NEW_YORK.longitude,
+      });
 
-      // Coordinates of New York City, New York
-      const latitude2 = 40.7128;
-      const longitude2 = -74.006;
-
-      // Expected distance between the two coordinates (in kilometers)
-      // Calculated using a trusted distance calculator
-      const expectedDistance = 4137.85;
-
-      // Call the calculateDistance function
-      const distanceResult = distance.calculateDistance(
-        latitude1,
-        longitude1,
-        latitude2,
-        longitude2
-      );
-
-      // Check if the calculated distance is close to the expected distance
-      expect(distanceResult).to.be.approximately(expectedDistance, 0.01);
+      expect(result).to.be.closeTo(4129.09, 0.01);
     });
-
-    // Add more test cases...
   });
+
   describe("distanceBtnTwoPoints", () => {
-    it("should calculate the correct distance between two sets of coordinates", () => {
-      // Coordinates of Los Angeles, California
-      const latitude1 = 34.0522;
-      const longitude1 = -118.2437;
+    it("should calculate the correct distance between two sets of coordinates in km", () => {
+      const result = distance.distanceBtnTwoPoints({
+        latitude1: LOS_ANGELES.latitude,
+        longitude1: LOS_ANGELES.longitude,
+        latitude2: CHICAGO.latitude,
+        longitude2: CHICAGO.longitude,
+      });
 
-      // Coordinates of Chicago, Illinois
-      const latitude2 = 41.8781;
-      const longitude2 = -87.6298;
-
-      // Expected distance between the two coordinates (in kilometers)
-      // Calculated using a trusted distance calculator
-      const expectedDistance = 2796.34;
-
-      // Call the distanceBtnTwoPoints function
-      const distanceResult = distance.distanceBtnTwoPoints(
-        latitude1,
-        longitude1,
-        latitude2,
-        longitude2
-      );
-
-      // Check if the calculated distance is close to the expected distance
-      expect(distanceResult).to.be.approximately(expectedDistance, 0.01);
+      expect(result).to.be.closeTo(2803.97, 0.01);
     });
-
-    // Add more test cases...
   });
+
   describe("degreesToRadians", () => {
     it("should convert degrees to radians correctly", () => {
-      // Test with a known degree value (90 degrees)
-      const degrees = 90;
-
-      // Expected result of converting 90 degrees to radians
-      const expectedRadians = Math.PI / 2;
-
-      // Call the degreesToRadians function
-      const radiansResult = distance.degreesToRadians(degrees);
-
-      // Check if the calculated radians is equal to the expected value
-      expect(radiansResult).to.equal(expectedRadians);
+      expect(distance.degreesToRadians(90)).to.equal(Math.PI / 2);
     });
-
-    // Add more test cases...
   });
+
   describe("radiansToDegrees", () => {
     it("should convert radians to degrees correctly", () => {
-      // Test with a known radians value (π/4)
-      const radians = Math.PI / 4;
-
-      // Expected result of converting π/4 radians to degrees
-      const expectedDegrees = 45;
-
-      // Call the radiansToDegrees function
-      const degreesResult = distance.radiansToDegrees(radians);
-
-      // Check if the calculated degrees is equal to the expected value
-      expect(degreesResult).to.equal(expectedDegrees);
+      expect(distance.radiansToDegrees(Math.PI / 4)).to.equal(45);
     });
-
-    // Add more test cases...
   });
+
   describe("generateRandomNumbers", () => {
     it("should generate random integer when min and max are integers", () => {
       const min = 1;
       const max = 10;
 
-      // Call the generateRandomNumbers function
       const result = distance.generateRandomNumbers({ min, max });
 
-      // Check if the result is an integer within the range [min, max]
-      expect(result)
-        .to.be.an("number")
-        .that.is.within(min, max);
+      expect(result).to.be.a("number").that.is.within(min, max);
     });
 
-    it("should generate random decimal number when min and max are floats", () => {
-      const min = 1.5;
-      const max = 5.5;
-      const places = 2;
+    it("should return a number within [min, max) rounded to `places`", () => {
+      for (let i = 0; i < 200; i++) {
+        const result = distance.generateRandomNumbers({
+          min: 1.5,
+          max: 5.5,
+          places: 2,
+        });
 
-      // Call the generateRandomNumbers function
-      const result = distance.generateRandomNumbers({ min, max, places });
-
-      // Check if the result is a number within the range [min, max] with specified decimal places
-      expect(result)
-        .to.be.a("number")
-        .that.is.within(min, max);
-
-      // Check if the result has the correct number of decimal places
-      expect(result.toString().split(".")[1].length).to.equal(places);
+        expect(result).to.be.a("number");
+        expect(result).to.be.at.least(1.5).and.at.most(5.5);
+        expect(Number(result.toFixed(2))).to.equal(result);
+      }
     });
 
-    it("should throw an error if min and max are not numbers", () => {
-      const min = "not_a_number";
-      const max = "also_not_a_number";
-
-      // Call the generateRandomNumbers function and expect it to throw an error
-      expect(() => distance.generateRandomNumbers({ min, max })).to.throw(
-        "Minimum value is not a number."
-      );
+    it("should keep the default bearing within [0, 2π]", () => {
+      for (let i = 0; i < 200; i++) {
+        expect(distance.generateRandomNumbers()).to.be.within(0, 6.28319);
+      }
     });
 
-    it("should throw an error if places is not an integer", () => {
-      const min = 1;
-      const max = 5;
-      const places = "not_an_integer";
+    it("should respect the lower bound even when min is off the precision grid", () => {
+      sinon.stub(Math, "random").returns(0);
 
-      // Call the generateRandomNumbers function and expect it to throw an error
+      // 1.505 is not representable at 2 places; the lowest valid value is 1.51.
+      const result = distance.generateRandomNumbers({
+        min: 1.505,
+        max: 5.5,
+        places: 2,
+      });
+
+      expect(result).to.equal(1.51);
+    });
+
+    it("should never return the exclusive maximum", () => {
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.5,
+        max: 5.5,
+        places: 2,
+      });
+
+      expect(result).to.equal(5.49);
+    });
+
+    it("should stay below an off-grid maximum", () => {
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      // Default bearing range: max 6.28319 at 3 places -> highest value 6.283.
+      expect(distance.generateRandomNumbers()).to.equal(6.283);
+    });
+
+    it("should handle float noise at grid points (1.1 * 100)", () => {
+      sinon.stub(Math, "random").returns(0);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.1,
+        max: 1.2,
+        places: 2,
+      });
+
+      expect(result).to.equal(1.1);
+    });
+
+    it("should keep distinct endpoints for narrow intervals at high precision", () => {
+      // [1.0000000000001, 1.0000000000002) at 13 places contains exactly one value.
+      sinon.stub(Math, "random").returns(0.9999999999);
+
+      const result = distance.generateRandomNumbers({
+        min: 1.0000000000001,
+        max: 1.0000000000002,
+        places: 13,
+      });
+
+      expect(result).to.equal(1.0000000000001);
+    });
+
+    it("should throw when no value at the requested precision fits the range", () => {
+      // [1.501, 1.509) contains no 2-decimal value.
       expect(() =>
-        distance.generateRandomNumbers({ min, max, places })
+        distance.generateRandomNumbers({ min: 1.501, max: 1.509, places: 2 }),
+      ).to.throw("No value with 2 decimal place(s) exists in [1.501, 1.509).");
+    });
+
+    it("should throw if min is not a number", () => {
+      expect(() =>
+        distance.generateRandomNumbers({ min: "abc", max: 5.5 }),
+      ).to.throw("Minimum value is not a number.");
+    });
+
+    it("should throw if max is not a number", () => {
+      expect(() =>
+        distance.generateRandomNumbers({ min: 1.5, max: "abc" }),
+      ).to.throw("Maximum value is not a number.");
+    });
+
+    it("should throw if places is not an integer", () => {
+      expect(() =>
+        distance.generateRandomNumbers({ min: 1.5, max: 5.5, places: "2" }),
       ).to.throw("Number of decimal places is not a number.");
     });
 
-    it("should throw an error if places is not greater than 0", () => {
-      const min = 1;
-      const max = 5;
-      const places = 0;
-
-      // Call the generateRandomNumbers function and expect it to throw an error
+    it("should throw if places is not greater than 0", () => {
       expect(() =>
-        distance.generateRandomNumbers({ min, max, places })
+        distance.generateRandomNumbers({ min: 1.5, max: 5.5, places: 0 }),
       ).to.throw("Number of decimal places must be at least 1.");
     });
-
-    // Add more test cases...
   });
+
   describe("createApproximateCoordinates", () => {
     it("should return approximate coordinates with provided latitude and longitude", () => {
       const latitude = 10.123;
       const longitude = 20.456;
       const approximate_distance_in_km = 0.5;
+      sinon.stub(distance, "generateRandomNumbers").returns(0.123);
 
-      // Stub the generateRandomNumbers function to return a fixed bearing value
-      const bearingStub = sinon.stub(distance, "generateRandomNumbers");
-      bearingStub.returns(0.123); // Set the bearing value to a fixed value
-
-      // Call the createApproximateCoordinates function
       const result = distance.createApproximateCoordinates({
         latitude,
         longitude,
         approximate_distance_in_km,
       });
 
-      // Restore the stub after the test
-      bearingStub.restore();
-
-      // Check if the result contains the expected keys
       expect(result).to.have.keys([
         "approximate_latitude",
         "approximate_longitude",
@@ -362,29 +298,21 @@ describe("distance", () => {
         "provided_latitude",
         "provided_longitude",
       ]);
-
-      // Check if the calculated approximate latitude and longitude are within the expected range
       expect(result.approximate_latitude)
         .to.be.a("number")
         .that.is.within(
           latitude - approximate_distance_in_km,
-          latitude + approximate_distance_in_km
+          latitude + approximate_distance_in_km,
         );
       expect(result.approximate_longitude)
         .to.be.a("number")
         .that.is.within(
           longitude - approximate_distance_in_km,
-          longitude + approximate_distance_in_km
+          longitude + approximate_distance_in_km,
         );
-
-      // Check if the bearing_in_radians is equal to the stubbed value
       expect(result.bearing_in_radians).to.equal(0.123);
-
-      // Check if the provided latitude and longitude are correctly assigned
       expect(result.provided_latitude).to.equal(latitude);
       expect(result.provided_longitude).to.equal(longitude);
     });
-
-    // Add more test cases...
   });
 });

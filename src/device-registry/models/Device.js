@@ -567,6 +567,27 @@ deviceSchema.index({ dateValidStatus: 1, lastRawData: 1 });
 // to stay an index scan (not a full collection scan) as the fleet grows.
 deviceSchema.index({ isActive: 1, site_id: 1 });
 
+/**
+ * mongoose-unique-validator resolves a failed countDocuments as "not unique",
+ * so a DB outage surfaces as a "must be unique!" ValidationError. Re-run each
+ * unique check, excluding only the documents matched by the full update filter
+ * ($nor), to confirm the conflict is real. Throws if a re-check fails; returns
+ * false if any reported duplicate does not actually exist.
+ */
+const confirmUniqueConflicts = async (model, error, filter = {}) => {
+  const uniqueErrors = Object.values(error.errors || {}).filter(
+    (e) => e && e.kind === "unique",
+  );
+  const hasFilter = filter && Object.keys(filter).length > 0;
+  for (const { path, value } of uniqueErrors) {
+    const count = await model.countDocuments({
+      $and: [{ [path]: value }, ...(hasFilter ? [{ $nor: [filter] }] : [])],
+    });
+    if (count === 0) return false;
+  }
+  return true;
+};
+
 const checkDuplicates = (arr, fieldName) => {
   const duplicateValues = arr.filter(
     (value, index, self) => self.indexOf(value) !== index,
@@ -1019,13 +1040,26 @@ deviceSchema.statics = {
       let response = {};
       let message = "Validation errors for some of the provided fields";
 
+      // Confirm "must be unique!" errors are real (see confirmUniqueConflicts).
+      // A new document has nothing to exclude, so no filter is passed.
+      let isGenuineConflict = false;
+      if (error.name === "ValidationError") {
+        try {
+          isGenuineConflict = await confirmUniqueConflicts(this, error);
+        } catch (recheckError) {
+          logger.error(
+            `🐛🐛 Device create uniqueness re-check failed -- ${recheckError.message}`,
+          );
+        }
+      }
+
       if (error instanceof HttpError) {
         logger.error(
           `HTTP Error: ${error.message}, Status: ${error.statusCode}`,
         );
         response.message = error.message;
         response.details = error.details || {};
-      } else if (error.name === "ValidationError") {
+      } else if (isGenuineConflict) {
         // Mongoose unique/validation constraint — an expected business conflict,
         // not an internal failure. Log at WARN so Slack stays clean.
         logger.warn(`🐛 Device validation conflict -- ${stringify(error)}`);
@@ -1034,12 +1068,14 @@ deviceSchema.statics = {
             response[key] = value.message;
           });
         }
-      } else if (error.errors) {
+      } else if (error.errors && error.name !== "ValidationError") {
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         Object.entries(error.errors).forEach(([key, value]) => {
           response[key] = value.message;
         });
       } else {
+        // Includes unconfirmed "must be unique!" errors (e.g. DB outage
+        // during the uniqueness check): don't report them as duplicates.
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         response.message = "An unexpected error occurred.";
       }
@@ -1898,6 +1934,51 @@ deviceSchema.statics = {
       }
     } catch (error) {
       logObject("the error", error);
+      let isGenuineConflict = false;
+      if (error.name === "ValidationError") {
+        try {
+          isGenuineConflict = await confirmUniqueConflicts(this, error, filter);
+        } catch (recheckError) {
+          logger.error(
+            `🐛🐛 Device update uniqueness re-check failed -- ${recheckError.message}`,
+          );
+        }
+      }
+      if (error.code === 11000) {
+        // Duplicate-key error from the unique index itself (e.g. two updates
+        // racing past the validator) — a real conflict, not an outage.
+        const fields = error.keyValue || error.keyPattern || {};
+        logger.warn(`🐛 Device update duplicate key -- ${error.message}`);
+        const details = { message: error.message };
+        Object.entries(fields).forEach(([key, value]) => {
+          details[key] = `${value} must be unique!`;
+        });
+        return next(
+          new HttpError(
+            "Validation errors for some of the provided fields",
+            httpStatus.CONFLICT,
+            details,
+          ),
+        );
+      }
+      if (isGenuineConflict) {
+        // Confirmed unique/validation constraint — an expected business
+        // conflict, not an internal failure. Log at WARN so Slack stays clean.
+        logger.warn(`🐛 Device update validation conflict -- ${error.message}`);
+        const details = { message: error.message };
+        if (error.errors) {
+          Object.entries(error.errors).forEach(([key, value]) => {
+            details[key] = value.message;
+          });
+        }
+        return next(
+          new HttpError(
+            "Validation errors for some of the provided fields",
+            httpStatus.CONFLICT,
+            details,
+          ),
+        );
+      }
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(

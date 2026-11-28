@@ -168,3 +168,11 @@ const handleShutdown = async (signal) => {
 
 process.on("SIGINT", () => handleShutdown("SIGINT"));
 process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+
+// Export for testing or manual control
+module.exports = {
+  JOB_NAME,
+  JOB_SCHEDULE,
+  checkUnassignedSites,
+  jobWrapper,
+};
