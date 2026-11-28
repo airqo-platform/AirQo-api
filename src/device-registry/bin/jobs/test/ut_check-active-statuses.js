@@ -1,97 +1,187 @@
 require("module-alias/register");
+const { expect } = require("chai");
 const sinon = require("sinon");
-const chai = require("chai");
-const expect = chai.expect;
-const sinonChai = require("sinon-chai");
+const proxyquire = require("proxyquire");
 
-const checkActiveStatuses = require("@bin/jobs/check-active-statuses");
+describe("check-active-statuses job", () => {
+  let job;
+  let deviceModel;
+  let shouldAllowLog;
+  let fakeLogger;
+  let cronInstance;
+  let cronSchedule;
 
-const DeviceModelMock = sinon.mock(DeviceModel);
-const logTextSpy = sinon.spy(console.log);
-const logObjectSpy = sinon.spy(console.log);
-const loggerErrorSpy = sinon.spy(logger.error);
+  before(() => {
+    deviceModel = {
+      countDocuments: sinon.stub(),
+      aggregate: sinon.stub(),
+    };
+    shouldAllowLog = sinon.stub();
+    fakeLogger = {
+      info: sinon.stub(),
+      warn: sinon.stub(),
+      error: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    cronInstance = { stop: sinon.stub() };
+    cronSchedule = sinon.stub().returns(cronInstance);
 
-beforeEach(() => {
-  DeviceModelMock = sinon.mock(DeviceModel);
-  logTextSpy = sinon.spy(console.log);
-  logObjectSpy = sinon.spy(console.log);
-  loggerErrorSpy = sinon.spy(logger.error);
-});
-
-afterEach(() => {
-  sinon.restore();
-});
-
-describe("checkActiveStatuses", () => {
-  describe("when devices have incorrect statuses", () => {
-    it("should log deployed devices with incorrect statuses", async () => {
-      DeviceModelMock.expects("countDocuments")
-        .twice()
-        .resolves(5);
-
-      const result = await checkActiveStatuses();
-
-      expect(logTextSpy).to.have.been.calledWith(sinon.match.string);
-      expect(logObjectSpy).to.have.been.calledWith(sinon.match.object);
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
-      expect(logTextSpy).to.have.been.calledWith(sinon.match.string);
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
-
-      sinon.assert.notCalled(loggerErrorSpy);
+    // The job schedules itself and builds a LogThrottleManager (DB-backed) on
+    // import, so every external dependency is replaced before loading it.
+    job = proxyquire("@bin/jobs/check-active-statuses", {
+      "@models/Device": Object.assign(() => deviceModel, {
+        "@noCallThru": true,
+      }),
+      "@utils/common": {
+        getSchedule: (schedule) => schedule,
+        LogThrottleManager: function() {
+          this.shouldAllowLog = shouldAllowLog;
+        },
+        "@noCallThru": true,
+      },
+      "@utils/shared": {
+        logText: () => {},
+        logObject: () => {},
+        "@noCallThru": true,
+      },
+      "node-cron": { schedule: cronSchedule, "@noCallThru": true },
+      log4js: { getLogger: () => fakeLogger, "@noCallThru": true },
     });
   });
 
-  describe("when devices have missing status fields", () => {
-    it("should log deployed devices missing status", async () => {
-      DeviceModelMock.expects("countDocuments")
-        .twice()
-        .resolves(3);
+  after(() => {
+    if (global.cronJobs) delete global.cronJobs[job.JOB_NAME];
+  });
 
-      const result = await checkActiveStatuses();
+  beforeEach(() => {
+    deviceModel.countDocuments.reset();
+    deviceModel.aggregate.reset();
+    shouldAllowLog.reset();
+    shouldAllowLog.resolves(true);
+    Object.values(fakeLogger).forEach((s) => s.resetHistory());
+    delete global.isShuttingDown;
+  });
 
-      expect(logTextSpy).to.have.been.calledWith(sinon.match.string);
-      expect(logObjectSpy).to.have.been.calledWith(sinon.match.object);
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
-      expect(logTextSpy).to.have.been.calledWith(sinon.match.string);
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
+  afterEach(() => {
+    delete global.isShuttingDown;
+  });
 
-      sinon.assert.notCalled(loggerErrorSpy);
+  // countDocuments is called as: [0] active & not deployed, [1] active &
+  // missing status, [2] total active.
+  const stubCounts = ({ incorrect, missing, total }) => {
+    deviceModel.countDocuments.onCall(0).resolves(incorrect);
+    deviceModel.countDocuments.onCall(1).resolves(missing);
+    deviceModel.countDocuments.onCall(2).resolves(total);
+  };
+
+  // aggregate is called as: [0] names with incorrect status, [1] names missing status.
+  const stubNames = ({ incorrect = [], missing = [] }) => {
+    deviceModel.aggregate.onCall(0).resolves(incorrect.map((n) => ({ _id: n })));
+    deviceModel.aggregate.onCall(1).resolves(missing.map((n) => ({ _id: n })));
+  };
+
+  describe("on load", () => {
+    it("schedules itself and registers in global.cronJobs", () => {
+      expect(cronSchedule.calledOnce).to.be.true;
+      expect(cronSchedule.firstCall.args[0]).to.equal(job.JOB_SCHEDULE);
+      expect(global.cronJobs[job.JOB_NAME]).to.include({
+        name: job.JOB_NAME,
+        schedule: job.JOB_SCHEDULE,
+      });
     });
   });
 
-  describe("when both conditions are met", () => {
-    it("should log both deployed devices with incorrect statuses and missing status fields", async () => {
-      DeviceModelMock.expects("countDocuments")
-        .thrice()
-        .resolves([5, 3]);
+  describe("checkActiveStatuses", () => {
+    it("does nothing when the log throttle denies the run", async () => {
+      shouldAllowLog.resolves(false);
 
-      const result = await checkActiveStatuses();
+      await job.checkActiveStatuses();
 
-      expect(logTextSpy).to.have.been.calledThrice();
-      expect(logObjectSpy).to.have.been.calledTwice();
-      expect(logger.info).to.have.been.calledTwice();
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
-      expect(logger.info).to.have.been.calledWith(sinon.match.string);
+      expect(deviceModel.countDocuments.called).to.be.false;
+      expect(fakeLogger.warn.called).to.be.false;
+    });
 
-      sinon.assert.notCalled(loggerErrorSpy);
+    it("does nothing while the application is shutting down", async () => {
+      global.isShuttingDown = true;
+
+      await job.checkActiveStatuses();
+
+      expect(deviceModel.countDocuments.called).to.be.false;
+    });
+
+    it("only counts active devices", async () => {
+      stubCounts({ incorrect: 0, missing: 0, total: 10 });
+      stubNames({});
+
+      await job.checkActiveStatuses();
+
+      deviceModel.countDocuments.getCalls().forEach((call) => {
+        expect(call.args[0]).to.have.property("isActive", true);
+      });
+      expect(deviceModel.countDocuments.firstCall.args[0].status).to.deep.equal(
+        { $ne: "deployed" },
+      );
+    });
+
+    it("treats missing, null and empty statuses as missing", async () => {
+      stubCounts({ incorrect: 0, missing: 0, total: 10 });
+      stubNames({});
+
+      await job.checkActiveStatuses();
+
+      const missingStatusFilter = { $in: [null, ""] };
+      expect(deviceModel.countDocuments.secondCall.args[0]).to.deep.equal({
+        isActive: true,
+        status: missingStatusFilter,
+      });
+      expect(deviceModel.aggregate.secondCall.args[0][0]).to.deep.equal({
+        $match: { isActive: true, status: missingStatusFilter },
+      });
+    });
+
+    it("warns with device names and percentages when statuses are wrong", async () => {
+      stubCounts({ incorrect: 2, missing: 1, total: 8 });
+      stubNames({
+        incorrect: ["aq_g5_01", "aq_g5_02"],
+        missing: ["aq_g5_03"],
+      });
+
+      await job.checkActiveStatuses();
+
+      expect(fakeLogger.warn.calledTwice).to.be.true;
+      const [incorrectMsg] = fakeLogger.warn.firstCall.args;
+      const [missingMsg] = fakeLogger.warn.secondCall.args;
+      expect(incorrectMsg).to.include("aq_g5_01, aq_g5_02").and.include("25.00%");
+      expect(missingMsg).to.include("aq_g5_03").and.include("12.50%");
+      expect(fakeLogger.error.called).to.be.false;
+    });
+
+    it("stays quiet when every active device is correctly deployed", async () => {
+      stubCounts({ incorrect: 0, missing: 0, total: 8 });
+      stubNames({});
+
+      await job.checkActiveStatuses();
+
+      expect(fakeLogger.warn.called).to.be.false;
+      expect(fakeLogger.error.called).to.be.false;
+    });
+
+    it("logs and swallows database errors", async () => {
+      deviceModel.countDocuments.rejects(new Error("connection lost"));
+
+      await job.checkActiveStatuses();
+
+      expect(fakeLogger.error.called).to.be.true;
+      expect(fakeLogger.error.firstCall.args[0]).to.include("connection lost");
     });
   });
 
-  describe("when error occurs", () => {
-    it("should log the error message", async () => {
-      const error = new Error("Test error");
+  describe("stopJob", () => {
+    it("stops the cron schedule and unregisters the job", async () => {
+      await job.stopJob();
 
-      DeviceModelMock.expects("countDocuments").throws(error);
-
-      await checkActiveStatuses();
-
-      expect(logTextSpy).to.have.been.calledWith(sinon.match.string);
-      expect(logger.error).to.have.been.calledWith(sinon.match.string);
-      expect(logger.error).to.have.been.calledWith(sinon.match.string);
-      expect(logger.error).to.have.been.calledWith(sinon.match.string);
-
-      sinon.assert.notCalled(logObjectSpy);
-      sinon.assert.notCalled(logger.info);
+      expect(cronInstance.stop.calledOnce).to.be.true;
+      expect(global.cronJobs).to.not.have.property(job.JOB_NAME);
     });
   });
 });

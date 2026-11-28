@@ -80,8 +80,11 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.app.secret }}
+          env:
+            - name: AIRFLOW__CELERY__RESULT_BACKEND_SQLALCHEMY_ENGINE_OPTIONS
+              value: {{ .Values.celeryWorker.resultBackendEngineOptions | toJson | quote }}
           command: ["airflow"]
-          args: ["celery", "worker", "--autoscale=6,2"]
+          args: ["celery", "worker", "--autoscale={{ .Values.celeryWorker.autoscale }}"]
           lifecycle:
             preStop:
               exec:

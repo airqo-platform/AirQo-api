@@ -1,11 +1,10 @@
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 import os
 from pathlib import Path
 import pandas as pd
 
 import great_expectations as gx
-from great_expectations.exceptions import DataContextError
-from great_expectations.data_context.types.base import DataContextConfig
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
@@ -25,10 +24,8 @@ class AirQoGx:
         expectation_suite_name: str,
         checkpoint_name: str,
         expectations: Dict[str, Any],
-        data_connector_name: str = "default_runtime_data_connector_name",
         execution_engine: str = "sql",
         dataframe=None,
-        cloud_mode=False,
     ):
         """
         Class builds a context and bundles up all necessary bits i.e expectation suite and expectations, checkpoints and also provides a method to run a checkpoint returning the results of the validations.
@@ -39,10 +36,8 @@ class AirQoGx:
             expectation_suite_name (str): Groups together multiple expectations that describe the desired characteristics of a dataset.
             checkpoint_name (str): A checkpoint is a reusable configuration in Great Expectations that bundles together the data source, data asset, expectation suite, and other options for a validation run.
             expectations (dict): Assertions about data, which define what the data should look like.
-            data_connector_name (str): Defines how to connect to a specific data asset within a datasource.
             execution_engine (str): Component responsible for executing expectations against data. The execution engine can be based on different backend technologies, such as SQL for databases or Pandas for dataframes in memory.
             dataframe (pandas.DataFrame):
-            cloud_mode (bool): Enables integration with Great Expectations Cloud.
 
         Notes:
             There are two approaches to passing an expectation dict.
@@ -71,7 +66,6 @@ class AirQoGx:
         """
 
         self.datasource_name = datasource_name
-        self.data_connector_name = data_connector_name
         self.data_asset_name = data_asset_name
         self.expectation_suite_name = expectation_suite_name
         self.checkpoint_name = checkpoint_name
@@ -79,90 +73,28 @@ class AirQoGx:
         self.execution_engine = execution_engine
         self.dataframe = dataframe
         self.project = configuration.GOOGLE_CLOUD_PROJECT_ID
-        self.cloud_mode = cloud_mode
         self.data_checks_table = configuration.BIGQUERY_GX_RESULTS_TABLE
 
     def setup(self):
         """
         Set up the data source, expectation suite, and checkpoint.
 
-        This method builds the data source, retrieves or creates the expectation suite,
-        and adds or updates the expectations. It also creates or updates the checkpoint.
+        This method builds the data source, creates or updates the expectation suite
+        with its expectations, and creates or updates the checkpoint.
+
+        The development environment keeps the Great Expectations project on disk under
+        include/gx, which holds the Data Docs site. Every other environment keeps the
+        project in memory.
         """
-        BASE_PATH = Path(__file__).resolve().parents[1]
-
-        gx_dir = os.path.join(BASE_PATH, "include", "gx")
-
-        data_context_config = DataContextConfig(
-            config_version=3,
-            stores={
-                "expectations_store": {
-                    "class_name": "ExpectationsStore",
-                    "store_backend": {
-                        "class_name": "TupleFilesystemStoreBackend",
-                        "base_directory": gx_dir + "/expectations/",
-                    },
-                },
-                "validations_store": {
-                    "class_name": "ValidationsStore",
-                    "store_backend": {
-                        "class_name": "TupleFilesystemStoreBackend",
-                        "base_directory": gx_dir + "/validations/",
-                    },
-                },
-                "evaluation_parameter_store": {
-                    "class_name": "EvaluationParameterStore",
-                },
-                "checkpoint_store": {
-                    "class_name": "CheckpointStore",
-                    "store_backend": {
-                        "class_name": "TupleFilesystemStoreBackend",
-                        "base_directory": gx_dir + "/checkpoints/",
-                    },
-                },
-            },
-            expectations_store_name="expectations_store",
-            validations_store_name="validations_store",
-            evaluation_parameter_store_name="evaluation_parameter_store",
-            checkpoint_store_name="checkpoint_store",
-            data_docs_sites={
-                "local_site": {
-                    "class_name": "SiteBuilder",
-                    "store_backend": {
-                        "class_name": "TupleFilesystemStoreBackend",
-                        "base_directory": gx_dir + "/uncommitted/data_docs/local_site/",
-                    },
-                    "site_index_builder": {
-                        "class_name": "DefaultSiteIndexBuilder",
-                    },
-                },
-            },
-        )
-        self.context = gx.get_context(
-            project_config=data_context_config,
-            context_root_dir=gx_dir,
-            cloud_mode=self.cloud_mode,
-        )
+        if configuration.ENVIRONMENT == "development":
+            BASE_PATH = Path(__file__).resolve().parents[1]
+            self.context = gx.get_context(
+                mode="file", project_root_dir=os.path.join(BASE_PATH, "include")
+            )
+        else:
+            self.context = gx.get_context(mode="ephemeral")
 
         self.build_data_source()
-
-        # Retrieve or create expectation suite
-        try:
-            expectation_suite = self.context.get_expectation_suite(
-                self.expectation_suite_name
-            )
-            logger.warning(
-                f"Expectation suite '{self.expectation_suite_name}' already exists."
-            )
-        except DataContextError:
-            expectation_suite = self.context.add_expectation_suite(
-                self.expectation_suite_name
-            )
-            logger.warning(
-                f"Created new expectation suite '{self.expectation_suite_name}'."
-            )
-
-        self.context.save_expectation_suite(expectation_suite=expectation_suite)
 
         self.add_or_update_expectations()
 
@@ -175,9 +107,7 @@ class AirQoGx:
 
         gx_metrics = AirQoGxExpectations(self.expectation_suite_name)
 
-        suite = self.context.get_expectation_suite(
-            expectation_suite_name=self.expectation_suite_name
-        )
+        suite = gx.ExpectationSuite(name=self.expectation_suite_name)
 
         for expectation_type, expectation_list in self.expectations.items():
             if hasattr(gx_metrics, expectation_type):
@@ -204,7 +134,7 @@ class AirQoGx:
                                 f"Unsupported format for expectation: {expectation_type}"
                             )
 
-                        suite.add_expectation(expectation_config)
+                        suite.add_expectation(expectation_config.to_domain_obj())
                 except Exception as e:
                     logger.exception(
                         f"Error adding expectation for {expectation_type}: {e}"
@@ -214,7 +144,7 @@ class AirQoGx:
                     f"No method found for expectation type: {expectation_type}"
                 )
 
-        self.context.add_or_update_expectation_suite(expectation_suite=suite)
+        self.suite = self.context.suites.add_or_update(suite)
 
     def build_data_source(self) -> None:
         """
@@ -233,13 +163,13 @@ class AirQoGx:
         match self.execution_engine:
             case "sql":
                 # Seeded with poject id
-                self.data_source = self.context.sources.add_or_update_sql(
+                self.data_source = self.context.data_sources.add_or_update_sql(
                     name=self.datasource_name,
                     connection_string="bigquery://" + self.project,
                     create_temp_table=False,
                 )
             case "pandas":
-                self.data_source = self.context.sources.add_or_update_pandas(
+                self.data_source = self.context.data_sources.add_or_update_pandas(
                     name=self.datasource_name
                 )
 
@@ -247,8 +177,9 @@ class AirQoGx:
         """
         Create or update a Great Expectations checkpoint.
 
-        This method builds a batchrequest based on the execution engine (SQL or Pandas),
-        and configures a checkpoint in the Great Expectations context.
+        This method builds a batch definition based on the execution engine (SQL or Pandas),
+        pairs it with the expectation suite in a validation definition, and configures a
+        checkpoint in the Great Expectations context.
 
         Args:
             data_store: This combines the project name, dataset name and table name. i.e project.dataset
@@ -282,10 +213,10 @@ class AirQoGx:
         if self.execution_engine == "sql":
             query = build_sql_query(self.data_asset_name)
 
-            self.data_source.add_query_asset(
-                name=self.data_asset_name, query=query, order_by=["timestamp"]
+            data_asset = self.data_source.add_query_asset(
+                name=self.data_asset_name, query=query
             )
-            data_asset = self.context.get_datasource(self.datasource_name).get_asset(
+            batch_definition = data_asset.add_batch_definition_whole_table(
                 self.data_asset_name
             )
         elif self.execution_engine == "pandas":
@@ -293,33 +224,40 @@ class AirQoGx:
                 raise ValueError(
                     "DataFrame must be provided for Pandas execution engine."
                 )
-            data_asset = self.data_source.add_dataframe_asset(
-                name=self.data_asset_name, dataframe=self.dataframe
+            data_asset = self.data_source.add_dataframe_asset(name=self.data_asset_name)
+            batch_definition = data_asset.add_batch_definition_whole_dataframe(
+                self.data_asset_name
             )
 
-        batch_request = data_asset.build_batch_request()
+        validation_definition = self.context.validation_definitions.add_or_update(
+            gx.ValidationDefinition(
+                name=self.checkpoint_name, data=batch_definition, suite=self.suite
+            )
+        )
 
-        checkpoint_config = {
-            "name": self.checkpoint_name,
-            "config_version": 1.0,
-            "class_name": "SimpleCheckpoint",
-            "run_name_template": "%Y%m%d-%H%M%S",
-            "validations": [
-                {
-                    "batch_request": batch_request,
-                    "expectation_suite_name": self.expectation_suite_name,
-                }
-            ],
-        }
-
-        self.context.add_or_update_checkpoint(**checkpoint_config)
+        self.checkpoint = self.context.checkpoints.add_or_update(
+            gx.Checkpoint(
+                name=self.checkpoint_name,
+                validation_definitions=[validation_definition],
+                result_format="SUMMARY",
+            )
+        )
         logger.info(f"Checkpoint '{self.checkpoint_name}' created or updated.")
 
     def run(self):
         """
         Returns a dictionary of expectations, their results and meta data if any.
         """
-        results = self.context.run_checkpoint(self.checkpoint_name)
+        run_time = datetime.now(timezone.utc)
+        batch_parameters = (
+            {"dataframe": self.dataframe} if self.execution_engine == "pandas" else None
+        )
+        results = self.checkpoint.run(
+            batch_parameters=batch_parameters,
+            run_id=gx.RunIdentifier(
+                run_name=run_time.strftime("%Y%m%d-%H%M%S"), run_time=run_time
+            ),
+        )
         if configuration.ENVIRONMENT == "development":
             self.context.build_data_docs(site_names=["local_site"])
             self.context.open_data_docs()
@@ -467,30 +405,22 @@ class AirQoGx:
         validation_info: List[Dict[str, Any]] = []
 
         # Extract metadata from the validation result
-        run_name = validation_result["validation_result"]["meta"]["run_id"].run_name
-        run_time = validation_result["validation_result"]["meta"]["run_id"].run_time
-        data_source = validation_result["validation_result"]["meta"][
-            "active_batch_definition"
-        ]["datasource_name"]
-        data_asset = validation_result["validation_result"]["meta"][
-            "active_batch_definition"
-        ]["data_asset_name"]
-        checkpoint_name = validation_result["validation_result"]["meta"][
-            "checkpoint_name"
+        run_name = validation_result["meta"]["run_id"].run_name
+        run_time = validation_result["meta"]["run_id"].run_time
+        data_source = validation_result["meta"]["active_batch_definition"][
+            "datasource_name"
         ]
-        expectation_suite = validation_result["validation_result"]["meta"][
-            "expectation_suite_name"
+        data_asset = validation_result["meta"]["active_batch_definition"][
+            "data_asset_name"
         ]
-        run_result = validation_result["validation_result"]["success"]
-        # Not being used at the moment
-        # local_site = validation_result["actions_results"]["update_data_docs"][
-        #     "local_site"
-        # ]
+        checkpoint_name = self.checkpoint_name
+        expectation_suite = validation_result["suite_name"]
+        run_result = validation_result["success"]
 
         # Extract validation results
-        for result in validation_result["validation_result"]["results"]:
+        for result in validation_result["results"]:
             # Type ExpectationConfig
-            expectation_type = result["expectation_config"]["expectation_type"]
+            expectation_type = result["expectation_config"]["type"]
             partial_unexpected_list = [
                 "null" if pd.isna(x) else x
                 for x in result["result"].get("partial_unexpected_list", [])
