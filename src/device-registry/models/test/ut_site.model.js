@@ -44,87 +44,15 @@ const stubValue = {
 
 describe("the Site Model", function() {
   describe("create", function() {
-    it.skip("should add a new site to the db", async function() {
-      const SiteModel = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      );
-      const stub = sinon.stub(SiteModel, "create").returns(stubValue);
-
-      const site = SiteModel.create(
-        stubValue.name,
-        stubValue.generated_name,
-        stubValue.formatted_name,
-        stubValue.longitude,
-        stubValue.latitude,
-        stubValue.createdAt,
-        stubValue.updatedAt
-      );
-      expect(stub.calledOnce).to.be.true;
-      expect(site._id).to.equal(stubValue._id);
-      expect(site.name).to.equal(stubValue.name);
-      expect(site.generated_name).to.equal(stubValue.generated_name);
-      expect(site.formatted_name).to.equal(stubValue.formatted_name);
-      expect(site.createdAt).to.equal(stubValue.createdAt);
-      expect(site.updatedAt).to.equal(stubValue.updatedAt);
-    });
   });
 
   describe("getSite", function() {
-    it.skip("should retrieve a Site with specific ID", async function() {
-      const SiteModel = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      );
-      const stub = sinon.stub(SiteModel, "list").returns(stubValue);
-      let filter = { lat_long: stubValue.lat_long };
-      const site = SiteModel.list(filter);
-      expect(stub.calledOnce).to.be.true;
-      expect(site._id).to.equal(stubValue._id);
-      expect(site.name).to.equal(stubValue.name);
-      expect(site.generated_name).to.equal(stubValue.generated_name);
-      expect(site.formatted_name).to.equal(stubValue.formatted_name);
-      expect(site.createdAt).to.equal(stubValue.createdAt);
-      expect(site.updatedAt).to.equal(stubValue.updatedAt);
-    });
   });
 
   describe("update", function() {
-    it.skip("should update a Site with specific ID", async function() {
-      const SiteModel = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      );
-      const stub = sinon.stub(SiteModel, "update").returns(stubValue);
-      let body = stubValue;
-      delete body._id;
-
-      const updatedSite = SiteModel.update(stubValue.lat_long, body);
-      expect(stub.calledOnce).to.be.true;
-      expect(updatedSite).to.not.be.empty;
-      expect(updatedSite).to.be.a("object");
-      assert.equal(updatedSite.success, true, "the site has been updated");
-    });
   });
 
   describe("delete", function() {
-    it.skip("should delete a Site with specific ID", async function() {
-      const SiteModel = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      );
-      const stub = sinon.stub(SiteModel, "delete").returns(stubValue);
-
-      const deletedSite = SiteModel.update(stubValue.lat_long);
-      expect(stub.calledOnce).to.be.true;
-      expect(deletedSite).to.not.be.empty;
-      expect(deletedSite).to.be.a("object");
-      assert.equal(deletedSite.success, true, "the site has been deleted");
-    });
   });
 
   describe("coordinate immutability pre-hook", function() {

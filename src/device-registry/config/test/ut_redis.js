@@ -28,17 +28,6 @@ describe("Redis Client Configuration", () => {
     sinon.restore();
   });
 
-  it.skip("should create a Redis client with the correct host and port", () => {
-    expect(redisModule.host).to.equal(constantsStub.REDIS_SERVER);
-    expect(redisModule.port).to.equal(constantsStub.REDIS_PORT);
-
-    sinon.assert.calledOnceWithExactly(redis.createClient, {
-      host: constantsStub.REDIS_SERVER,
-      port: constantsStub.REDIS_PORT,
-      retry_strategy: sinon.match.func,
-    });
-  });
-
   it("should set up error event listener", () => {
     const errorListener = redisClientStub.on.withArgs("error").args[0][1];
     expect(errorListener).to.be.a("function");
