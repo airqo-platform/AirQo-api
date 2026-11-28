@@ -91,8 +91,8 @@ resources:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: 2000m
-      memory: 3000Mi
+      cpu: 1000m
+      memory: 4000Mi
   redis:
     requests:
       cpu: 50m
@@ -120,7 +120,7 @@ resources:
       memory: 512Mi
     limits:
       cpu: 1000m
-      memory: 1500Mi
+      memory: 1000Mi
   dbClean:
     requests:
       cpu: 250m
