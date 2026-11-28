@@ -10,7 +10,7 @@ images:
     initContainer: airqoacr.azurecr.io/airqo-stage-workflows-xcom
     redisContainer: airqoacr.azurecr.io/airqo-stage-redis
     containers: airqoacr.azurecr.io/airqo-stage-workflows
-  tag: stage-b6881b2d-1795794757
+  tag: stage-0fc36e75-1795867487
 inPodRedis:
   enabled: true
 checkMigrations:
@@ -29,8 +29,7 @@ livenessProbes:
 apiServer:
   enabled: true
 celeryWorker:
-  autoscale: '6,2'
-  # Engine options of the Celery result-backend connection pool.
+  autoscale: 6,2
   resultBackendEngineOptions:
     pool_pre_ping: true
     pool_recycle: 45
