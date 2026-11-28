@@ -3,13 +3,14 @@
 import io
 import uuid
 
+import joblib
+import numpy as np
 import pandas as pd
 from flask import Blueprint, current_app, g, jsonify, request, send_file, url_for
-from werkzeug.exceptions import RequestEntityTooLarge
 
 from routes import route
-from training_auth import login_required
-from training_core import REQUIRED, SECONDARY
+from training_auth import login_required, optional_owner
+from training_core import REQUIRED, SECONDARY, FEATURES, build_features
 from training_store import TrainingStore
 
 training_bp = Blueprint("training_bp", __name__)
@@ -31,11 +32,6 @@ def submit_training():
     upload = request.files.get("file")
     if upload is None or not upload.filename:
         return error("Upload paired sensor and reference measurements using the 'file' field.", 400)
-    upload.stream.seek(0, 2)
-    size = upload.stream.tell()
-    upload.stream.seek(0)
-    if size > current_app.config["MAX_CSV_BYTES"]:
-        raise RequestEntityTooLarge()
     try:
         header = pd.read_csv(upload, nrows=0).columns
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError):
@@ -92,22 +88,42 @@ def get_owned_job(store, job_id):
     return store.owned_job(job_id, g.training_owner)
 
 
+def get_visible_job(store, job_id, owner, visibility):
+    try:
+        if str(uuid.UUID(job_id)) != job_id:
+            return None
+    except ValueError:
+        return None
+    return store.visible_job(job_id, owner, visibility)
+
+
 @training_bp.route(route["training_job_v2"], methods=["GET"])
-@login_required
 def training_status(job_id):
+    owner, failure = optional_owner()
+    if failure:
+        return error("Invalid or expired AirQo login token." if failure == 401 else
+                     "AirQo authentication is not configured.", failure)
     store = None
     try:
         store = TrainingStore()
-        job = get_owned_job(store, job_id)
+        job = (get_visible_job(store, job_id, owner, "validations_public") or
+               get_visible_job(store, job_id, owner, "model_public"))
         if job is None:
             return error("Training job not found.", 404)
+        is_owner = owner == job["owner_id"]
         payload = {"success": True, "job_id": job_id, "status": job["status"],
                    "created_at": job["created_at"].isoformat(),
-                   "expires_at": job["expires_at"].isoformat()}
+                   "expires_at": job["expires_at"].isoformat(),
+                   "model_public": job.get("model_public", False),
+                   "validations_public": job.get("validations_public", False)}
         if job["status"] == "completed":
-            payload.update(job["summary"])
-            payload["result_url"] = url_for("training_bp.training_result", job_id=job_id)
-            payload["model_url"] = url_for("training_bp.training_model", job_id=job_id)
+            if is_owner or job.get("validations_public", False):
+                payload.update(job["summary"])
+                payload["result_url"] = url_for("training_bp.training_result", job_id=job_id)
+            if is_owner:
+                payload["model_url"] = url_for("training_bp.training_model", job_id=job_id)
+            if is_owner or job.get("model_public", False):
+                payload["calibrate_url"] = url_for("training_bp.calibrate_with_trained_model", job_id=job_id)
         elif job["status"] == "failed":
             payload["message"] = job["message"]
         return jsonify(payload)
@@ -119,11 +135,64 @@ def training_status(job_id):
             store.close()
 
 
-def download(job_id, kind):
+@training_bp.route(route["training_job_v2"] + "/visibility", methods=["PATCH"])
+@login_required
+def update_training_visibility(job_id):
+    changes = request.get_json(silent=True)
+    if (not isinstance(changes, dict) or not changes
+            or set(changes) - {"model_public", "validations_public"}
+            or any(type(value) is not bool for value in changes.values())):
+        return error("Provide model_public and/or validations_public as booleans.", 400)
+    try:
+        if str(uuid.UUID(job_id)) != job_id:
+            return error("Training job not found.", 404)
+    except ValueError:
+        return error("Training job not found.", 404)
+    store = None
+    try:
+        store = TrainingStore()
+        job = store.set_visibility(job_id, g.training_owner, changes)
+        if job is None:
+            return error("Training job not found.", 404)
+        return jsonify(success=True, job_id=job_id,
+                       model_public=job.get("model_public", False),
+                       validations_public=job.get("validations_public", False))
+    except Exception:
+        current_app.logger.exception("Training visibility update failed")
+        return error("Training visibility could not be updated.", 503)
+    finally:
+        if store:
+            store.close()
+
+
+@training_bp.route(route["training_job_v2"], methods=["DELETE"])
+@login_required
+def delete_training_result(job_id):
     store = None
     try:
         store = TrainingStore()
         job = get_owned_job(store, job_id)
+        if job is None:
+            return error("Training job not found.", 404)
+        if job["status"] not in {"completed", "failed"}:
+            return error("Training job is still in progress.", 409)
+        if not store.delete_finished(job_id, g.training_owner):
+            return error("Training job not found.", 404)
+        return "", 204
+    except Exception:
+        current_app.logger.exception("Training result deletion failed")
+        return error("Training results could not be deleted.", 503)
+    finally:
+        if store:
+            store.close()
+
+
+def download(job_id, kind, owner=None):
+    store = None
+    try:
+        store = TrainingStore()
+        job = (get_owned_job(store, job_id) if kind == "model" else
+               get_visible_job(store, job_id, owner, "validations_public"))
         if job is None:
             return error("Training job not found.", 404)
         if job["status"] != "completed":
@@ -142,12 +211,65 @@ def download(job_id, kind):
 
 
 @training_bp.route(route["training_job_v2"] + "/result", methods=["GET"])
-@login_required
 def training_result(job_id):
-    return download(job_id, "result")
+    owner, failure = optional_owner()
+    if failure:
+        return error("Invalid or expired AirQo login token." if failure == 401 else
+                     "AirQo authentication is not configured.", failure)
+    return download(job_id, "result", owner)
 
 
 @training_bp.route(route["training_job_v2"] + "/model", methods=["GET"])
 @login_required
 def training_model(job_id):
     return download(job_id, "model")
+
+
+@training_bp.route(route["trained_model_calibrate_v2"], methods=["POST"])
+def calibrate_with_trained_model(job_id):
+    """Apply an owner's evaluated training artifact to a new LCS upload."""
+    from calibrate_v2 import csv_response, validated_lcs_upload
+
+    owner, failure = optional_owner()
+    if failure:
+        return error("Invalid or expired AirQo login token." if failure == 401 else
+                     "AirQo authentication is not configured.", failure)
+    try:
+        data = validated_lcs_upload()
+    except ValueError as exc:
+        return error(str(exc), 400)
+
+    store = None
+    try:
+        store = TrainingStore()
+        job = get_visible_job(store, job_id, owner, "model_public")
+        if job is None:
+            return error("Training job not found.", 404)
+        if job["status"] != "completed":
+            return error("Training results are not ready.", 409)
+        with store.files.get(job["model_id"]) as source:
+            artifact = joblib.load(io.BytesIO(source.read()))
+        if (artifact.get("kind") != "user_reference_calibration"
+                or artifact.get("version") != 1 or artifact.get("features") != FEATURES
+                or not artifact.get("models")):
+            raise ValueError("Invalid training artifact")
+        features = build_features(data)
+        result = pd.DataFrame({
+            "avg_pm2_5": features["avg_pm2_5"],
+            "avg_pm10": features["avg_pm10"],
+            "datetime": data["datetime"],
+        })
+        for pollutant, model in artifact["models"].items():
+            if pollutant not in {"pm2_5", "pm10"} or not callable(getattr(model, "predict", None)):
+                raise ValueError("Invalid training artifact model")
+            prediction = np.asarray(model.predict(features))
+            if prediction.shape != (len(data),) or not np.isfinite(prediction).all():
+                raise ValueError("Invalid model predictions")
+            result["calibrated_" + pollutant] = prediction.round(2)
+        return csv_response(result)
+    except Exception:
+        current_app.logger.exception("Trained model calibration failed")
+        return error("Calibration with the trained model is unavailable.", 503)
+    finally:
+        if store:
+            store.close()

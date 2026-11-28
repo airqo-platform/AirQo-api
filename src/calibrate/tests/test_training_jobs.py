@@ -4,6 +4,7 @@ import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 import joblib
@@ -12,6 +13,7 @@ import mongomock
 import mongomock.gridfs
 import numpy as np
 import pandas as pd
+import sklearn
 
 from app import app
 from upload_limits import MAX_CSV_BYTES
@@ -53,9 +55,29 @@ class TrainingJobTests(unittest.TestCase):
                                        tz_aware=True)
 
     def setUp(self):
-        self.environment = patch.dict(os.environ, {"JWT_SECRET": SECRET})
+        self.environment = patch.dict(os.environ, {"AUTH_SERVICE_URL": "http://auth-service.test"})
         self.environment.start()
         self.addCleanup(self.environment.stop)
+        def fake_verify(req, timeout):
+            self.assertEqual(req.full_url, "http://auth-service.test/api/v2/users/verify")
+            self.assertEqual(timeout, 5)
+            self.assertTrue(req.get_header("Authorization").startswith("JWT "))
+            encoded = req.get_header("Authorization")[4:]
+            try:
+                claims = jwt.decode(encoded, SECRET, algorithms=["HS256"], options={"require": ["exp"]})
+                owner = claims.get("userId") or claims.get("id") or claims.get("_id")
+                if not isinstance(owner, str) or len(owner) != 24:
+                    raise jwt.InvalidTokenError()
+            except jwt.InvalidTokenError:
+                raise HTTPError(req.full_url, 401, "invalid token", {}, None)
+            class Response:
+                headers = {"X-Auth-User-Id": owner}
+                def __enter__(self): return self
+                def __exit__(self, *_): return None
+            return Response()
+        verifier_patch = patch("training_auth.urlopen", side_effect=fake_verify)
+        self.verifier = verifier_patch.start()
+        self.addCleanup(verifier_patch.stop)
         self.store = TrainingStore(mongomock.MongoClient(tz_aware=True).jobs)
         factory_patch = patch("training_api.TrainingStore", return_value=self.store)
         self.factory = factory_patch.start()
@@ -91,8 +113,28 @@ class TrainingJobTests(unittest.TestCase):
         artifact = self.client.get(status.json["model_url"], headers=self.auth())
         model = joblib.load(io.BytesIO(artifact.data))
         self.assertEqual(set(model["models"]), {"pm2_5", "pm10"})
-        self.assertEqual(model["versions"]["sklearn"], "1.2.2")
+        self.assertEqual(model["versions"]["sklearn"], sklearn.__version__)
         self.assertIn("no-store", artifact.headers["Cache-Control"])
+        lcs = pd.read_csv(io.BytesIO(sample_csv())).drop(columns=["reference_pm2_5", "reference_pm10"])
+        calibration_url = status.json["calibrate_url"]
+        oversized = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(b"x" * (MAX_CSV_BYTES + 1)), "large.csv")})
+        self.assertEqual(oversized.status_code, 413)
+        self.assertIn("bigger than the 20 MB limit", oversized.json["message"])
+        calibrated = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(calibrated.status_code, 200, calibrated.get_data(as_text=True))
+        predictions = pd.read_csv(io.BytesIO(calibrated.data))
+        self.assertEqual(len(predictions), len(lcs))
+        self.assertIn("calibrated_pm2_5", predictions)
+        self.assertIn("calibrated_pm10", predictions)
+        self.assertEqual(self.client.post(calibration_url, headers=self.auth(USER_B), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")}).status_code, 404)
+        invalid = lcs.copy()
+        invalid.loc[0, "humidity"] = 101
+        rejected = self.client.post(calibration_url, headers=self.auth(), data={
+            "file": (io.BytesIO(invalid.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(rejected.status_code, 400)
         self.assertEqual(self.store.db.training_files.files.count_documents({"filename": "input.csv"}), 0)
         for suffix in ("", "/result", "/model"):
             self.assertEqual(self.client.get(url + suffix, headers=self.auth(USER_B)).status_code, 404)
@@ -104,23 +146,100 @@ class TrainingJobTests(unittest.TestCase):
         self.assertIsNotNone(self.store.owned_job(first.json["job_id"], USER_A))
         self.assertIsNone(self.store.owned_job(first.json["job_id"], USER_B))
 
+    def test_visibility_is_owner_controlled_and_model_download_stays_private(self):
+        url = self.submit().json["status_url"]
+        self.assertTrue(process_one(self.store))
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get(url + "/result").status_code, 404)
+        self.assertEqual(self.client.patch(url + "/visibility", json={"model_public": True}).status_code, 401)
+        self.assertEqual(self.client.patch(url + "/visibility", headers=self.auth(USER_B),
+                                           json={"model_public": True}).status_code, 404)
+        self.assertEqual(self.client.patch(url + "/visibility", headers=self.auth(),
+                                           json={"model_public": "true"}).status_code, 400)
+        response = self.client.patch(url + "/visibility", headers=self.auth(),
+                                     json={"model_public": True})
+        self.assertEqual(response.status_code, 200)
+        public_status = self.client.get(url).json
+        self.assertIn("calibrate_url", public_status)
+        self.assertNotIn("metrics", public_status)
+        self.assertNotIn("model_url", public_status)
+        self.assertNotIn("result_url", public_status)
+        self.assertEqual(self.client.get(url + "/model").status_code, 401)
+        self.assertEqual(self.client.get(url + "/model", headers=self.auth(USER_B)).status_code, 404)
+        lcs = pd.read_csv(io.BytesIO(sample_csv())).drop(columns=["reference_pm2_5", "reference_pm10"])
+        calibrated = self.client.post(public_status["calibrate_url"], data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(calibrated.status_code, 200)
+        self.assertIn("calibrated_pm2_5", pd.read_csv(io.BytesIO(calibrated.data)))
+        self.client.patch(url + "/visibility", headers=self.auth(), json={"validations_public": True})
+        public_status = self.client.get(url).json
+        self.assertIn("r2", public_status["metrics"]["pm2_5"])
+        self.assertEqual(self.client.get(public_status["result_url"]).status_code, 200)
+        self.client.patch(url + "/visibility", headers=self.auth(),
+                          json={"model_public": False, "validations_public": False})
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get(url + "/result").status_code, 404)
+        self.assertEqual(self.client.post(url + "/calibrate", data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")}).status_code, 404)
+
+    def test_owner_can_delete_finished_results_and_model(self):
+        url = self.submit().json["status_url"]
+        self.assertEqual(self.client.delete(url, headers=self.auth()).status_code, 409)
+        self.assertTrue(process_one(self.store))
+        self.assertEqual(self.client.delete(url, headers=self.auth(USER_B)).status_code, 404)
+        self.assertGreater(self.store.db.training_files.files.count_documents({}), 0)
+        self.assertEqual(self.client.delete(url, headers=self.auth()).status_code, 204)
+        self.assertEqual(self.store.db.training_files.files.count_documents({}), 0)
+        self.assertEqual(self.client.get(url, headers=self.auth()).status_code, 404)
+        self.assertEqual(self.client.get(url + "/model", headers=self.auth()).status_code, 404)
+        self.assertEqual(self.client.get(url + "/result", headers=self.auth()).status_code, 404)
+        self.assertEqual(self.client.delete(url, headers=self.auth()).status_code, 404)
+
+    def test_owner_can_delete_failed_result(self):
+        url = self.submit(sample_csv(5)).json["status_url"]
+        self.assertTrue(process_one(self.store))
+        self.assertEqual(self.client.delete(url, headers=self.auth()).status_code, 204)
+        self.assertEqual(self.client.get(url, headers=self.auth()).status_code, 404)
+
     def test_authentication_required_for_all_routes(self):
         url = "/api/v2/calibrate/tool/train"
-        for path, method in ((url, "post"), (url + "/" + str(uuid.uuid4()), "get"),
+        for path, method in ((url, "post"), (url + "/" + str(uuid.uuid4()), "delete"),
                              (url + "/" + str(uuid.uuid4()) + "/model", "get"),
-                             (url + "/" + str(uuid.uuid4()) + "/result", "get")):
+                             (url + "/" + str(uuid.uuid4()) + "/visibility", "patch")):
             self.assertEqual(getattr(self.client, method)(path).status_code, 401)
+        self.factory.assert_not_called()
+        for path in (url + "/" + str(uuid.uuid4()),
+                     url + "/" + str(uuid.uuid4()) + "/result",
+                     url + "/" + str(uuid.uuid4()) + "/calibrate"):
+            method = "post" if path.endswith("/calibrate") else "get"
+            self.assertEqual(getattr(self.client, method)(path).status_code, 404 if method == "get" else 400)
         expired = token(exp=utcnow() - timedelta(seconds=1))
         invalid = jwt.encode({"_id": USER_A, "exp": utcnow() + timedelta(hours=1)}, "wrong-key", algorithm="HS256")
         no_expiry = jwt.encode({"_id": USER_A}, SECRET, algorithm="HS256")
         for encoded in (expired, invalid, no_expiry):
             self.assertEqual(self.client.post(url, headers={"Authorization": "Bearer " + encoded}).status_code, 401)
-        self.factory.assert_not_called()
 
     def test_auth_configuration_fails_closed(self):
-        with patch.dict(os.environ, {"JWT_SECRET": ""}):
+        with patch.dict(os.environ, {"AUTH_SERVICE_URL": ""}):
             response = self.client.post("/api/v2/calibrate/tool/train", headers=self.auth())
         self.assertEqual(response.status_code, 503)
+
+    def test_auth_service_unavailable_fails_closed(self):
+        self.verifier.side_effect = URLError("auth service unavailable")
+        response = self.client.post("/api/v2/calibrate/tool/train", headers=self.auth())
+        self.assertEqual(response.status_code, 503)
+
+    def test_client_identity_header_cannot_replace_valid_jwt(self):
+        response = self.client.post("/api/v2/calibrate/tool/train", headers={
+            "X-Auth-User-Id": USER_A, "Authorization": "JWT invalid"})
+        self.assertEqual(response.status_code, 401)
+        self.factory.assert_not_called()
+
+    def test_signed_id_claim_is_accepted(self):
+        encoded = jwt.encode({"id": USER_A, "exp": utcnow() + timedelta(hours=1)}, SECRET, algorithm="HS256")
+        response = self.client.post("/api/v2/calibrate/tool/train", headers={"Authorization": "JWT " + encoded},
+                                    data={"file": (io.BytesIO(sample_csv()), "paired.csv")})
+        self.assertEqual(response.status_code, 202, response.json)
 
     def test_invalid_submission_headers_and_size(self):
         self.assertEqual(self.submit(b"datetime,pm2_5\n").status_code, 400)
@@ -139,6 +258,13 @@ class TrainingJobTests(unittest.TestCase):
         self.assertTrue(process_one(self.store))
         status = self.client.get(submitted.json["status_url"], headers=self.auth()).json
         self.assertEqual(set(status["metrics"]), {"pm2_5"})
+        lcs = frame.drop(columns=["reference_bam"])
+        response = self.client.post(status["calibrate_url"], headers=self.auth(), data={
+            "file": (io.BytesIO(lcs.to_csv(index=False).encode()), "sensor.csv")})
+        self.assertEqual(response.status_code, 200)
+        calibrated = pd.read_csv(io.BytesIO(response.data))
+        self.assertIn("calibrated_pm2_5", calibrated)
+        self.assertNotIn("calibrated_pm10", calibrated)
 
     def test_invalid_rows_fail_job_and_remove_upload(self):
         submitted = self.submit(sample_csv(5))

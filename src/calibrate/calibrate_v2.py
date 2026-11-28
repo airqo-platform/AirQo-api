@@ -20,32 +20,32 @@ def error(message, status=400):
     return jsonify(success=False, message=message), status
 
 
-@calibrate_v2_bp.route(route["calibrate_tool_v2"], methods=["POST"])
-def calibrate_tool():
+def validated_lcs_upload():
+    """Return validated sensor readings for either calibration path."""
     upload = request.files.get("file")
     if upload is None or not upload.filename:
-        return error("Upload a CSV using the 'file' field.")
+        raise ValueError("Upload a CSV using the 'file' field.")
 
     try:
         source = pd.read_csv(upload)
     except (ValueError, pd.errors.ParserError, UnicodeDecodeError):
-        return error("The uploaded file could not be read as CSV.")
+        raise ValueError("The uploaded file could not be read as CSV.") from None
     mappings = {}
     for field in FIELDS:
         if field in request.form:
             column = request.form[field].strip()
             if not column:
-                return error("Column mapping cannot be empty: " + field)
+                raise ValueError("Column mapping cannot be empty: " + field)
             mappings[field] = column
         elif field in REQUIRED_FIELDS or field in source.columns:
             mappings[field] = field
     if len(set(mappings.values())) != len(mappings):
-        return error("Each field must map to a different CSV column.")
+        raise ValueError("Each field must map to a different CSV column.")
     missing = [column for column in mappings.values() if column not in source.columns]
     if missing:
-        return error("Missing CSV columns: " + ", ".join(missing))
+        raise ValueError("Missing CSV columns: " + ", ".join(missing))
     if source.empty:
-        return error("The CSV must contain at least one data row.")
+        raise ValueError("The CSV must contain at least one data row.")
 
     # Select before renaming so unrelated columns cannot collide or drop rows.
     data = source[list(mappings.values())].copy()
@@ -60,14 +60,31 @@ def calibrate_tool():
     for field in FIELDS[1:]:
         data[field] = pd.to_numeric(data[field], errors="coerce")
     if data.isna().any().any() or not np.isfinite(data[list(FIELDS[1:])].values).all():
-        return error("Required values must contain valid timestamps and finite numbers; no rows were processed.")
+        raise ValueError("Required values must contain valid timestamps and finite numbers; no rows were processed.")
     pm_fields = ["pm2_5", "s2_pm2_5", "pm10", "s2_pm10"]
     if (data[pm_fields] < 0).any().any():
-        return error("Particulate measurements must be nonnegative.")
+        raise ValueError("Particulate measurements must be nonnegative.")
     if not data["humidity"].between(0, 100).all():
-        return error("Humidity must be between 0 and 100.")
+        raise ValueError("Humidity must be between 0 and 100.")
     if (data[["pm10", "s2_pm10"]].mean(axis=1).round(2) <= 0).any():
-        return error("Average PM10 must remain greater than zero when rounded to two decimals.")
+        raise ValueError("Average PM10 must remain greater than zero when rounded to two decimals.")
+
+    return data
+
+
+def csv_response(result):
+    response = make_response(result.to_csv(index=False))
+    response.headers["Content-Type"] = "text/csv"
+    response.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
+    return response
+
+
+@calibrate_v2_bp.route(route["calibrate_tool_v2"], methods=["POST"])
+def calibrate_tool():
+    try:
+        data = validated_lcs_upload()
+    except ValueError as exc:
+        return error(str(exc))
 
     try:
         model = Regression(bucket=os.getenv("FORECAST_MODELS_BUCKET", "airqo_prediction_bucket_dev"))
@@ -83,7 +100,4 @@ def calibrate_tool():
         current_app.logger.exception("Calibration prediction failed")
         return error("Calibration failed.", 500)
 
-    response = make_response(result.to_csv(index=False))
-    response.headers["Content-Type"] = "text/csv"
-    response.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
-    return response
+    return csv_response(result)

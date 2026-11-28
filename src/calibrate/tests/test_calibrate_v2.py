@@ -1,9 +1,11 @@
 import io
 import os
 import unittest
+import warnings
 from unittest.mock import patch, MagicMock
 
 import numpy as np
+from sklearn.linear_model import Lasso
 from app import app
 from upload_limits import MAX_CSV_BYTES
 from calibrate_v2 import FIELDS
@@ -19,6 +21,10 @@ class CalibrationTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
+    def test_shared_calibration_does_not_require_login(self):
+        response = app.test_client().post("/api/v2/calibrate/tool")
+        self.assertEqual(response.status_code, 400)
+
     def upload(self, row="2026-10-28T10:00:00Z,25,27,40,42,65,24", **mappings):
         payload = {field: field for field in FIELDS}
         payload.update(mappings)
@@ -29,20 +35,19 @@ class CalibrationTests(unittest.TestCase):
     def test_routes_registered(self):
         paths = {rule.rule for rule in app.url_map.iter_rules()}
         self.assertIn("/api/v2/calibrate/tool", paths)
-        self.assertIn("/api/v1/calibrate/tool", paths)
-        self.assertIn("/api/v1/calibrate/tool/train", paths)
+        self.assertNotIn("/api/v1/calibrate/tool", paths)
+        self.assertNotIn("/api/v1/calibrate/tool/train", paths)
 
-    def test_v1_routes_available(self):
+    def test_v1_routes_removed(self):
         for path in ("/api/v1/calibrate/tool", "/api/v1/calibrate/tool/train"):
             with self.subTest(path=path):
-                self.assertEqual(self.client.post(path).status_code, 400)
+                self.assertEqual(self.client.post(path).status_code, 404)
 
     def test_missing_file(self):
         self.assertEqual(self.client.post("/api/v2/calibrate/tool").status_code, 400)
 
     def test_upload_size_limit(self):
-        for path in ("/api/v1/calibrate/tool", "/api/v1/calibrate/tool/train",
-                     "/api/v2/calibrate/tool"):
+        for path in ("/api/v2/calibrate/tool",):
             with self.subTest(path=path), patch("calibrate_v2.Regression") as model:
                 response = self.client.post(path, data={
                     "file": (io.BytesIO(b"x" * (MAX_CSV_BYTES + 1)), "large.csv")})
@@ -99,6 +104,18 @@ class CalibrationTests(unittest.TestCase):
         self.assertIn("26.0,41.0", lines[1])
         self.assertTrue(lines[1].endswith(",12.35,12.35"))
 
+    def test_array_fitted_lasso_predicts_without_feature_name_warning(self):
+        model = Lasso().fit(np.tile(np.arange(9, dtype=float), (4, 1)),
+                            np.array([10., 11., 12., 13.]))
+        with patch.object(Regression, "__init__", return_value=None), \
+                patch.object(Regression, "rf_regressor", Predictor(), create=True), \
+                patch.object(Regression, "lasso_regressor", model, create=True):
+            with warnings.catch_warnings(record=True) as seen:
+                warnings.simplefilter("always")
+                response = self.upload()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(any("feature names" in str(item.message) for item in seen))
+
     def test_mixed_timestamp_formats(self):
         csv = ("datetime,pm2_5,pm10,humidity,temperature\n"
                "2026-10-28,25,40,65,24\n"
@@ -146,7 +163,6 @@ class CalibrationTests(unittest.TestCase):
 
         with patch.object(Regression, "__init__", return_value=None):
             model = Regression()
-        model.workflow_features = True
         model.rf_regressor = MagicMock()
         model.lasso_regressor = MagicMock()
         model.rf_regressor.predict.return_value = np.array([10.0])
