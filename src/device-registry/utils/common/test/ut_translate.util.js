@@ -39,15 +39,14 @@ describe("translate", () => {
     }).timeout(10000);
 
     it("should handle translation errors gracefully", async () => {
-      const healthTips = null;
-      const targetLanguage = "fr";
-      const result = await translate.translateTips(healthTips, targetLanguage);
+      const next = sinon.spy();
+      await translate.translateTips({ healthTips: null, targetLanguage: "fr" }, next);
 
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property("status", 500);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.have.property("message");
+      expect(next).to.have.been.calledOnce;
+      const err = next.firstCall.args[0];
+      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(err.message).to.equal("Internal Server Error");
+      expect(err.errors).to.have.property("message");
     });
   });
 
@@ -113,15 +112,14 @@ describe("translate", () => {
     }).timeout(10000);
 
     it("should handle translation errors gracefully", async () => {
-      const lessons = null;
-      const targetLanguage = "fr";
-      const result = await translate.translateLessons(lessons, targetLanguage);
+      const next = sinon.spy();
+      await translate.translateLessons({ lessons: null, targetLanguage: "fr" }, next);
 
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property("status", 500);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.have.property("message");
+      expect(next).to.have.been.calledOnce;
+      const err = next.firstCall.args[0];
+      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(err.message).to.equal("Internal Server Error");
+      expect(err.errors).to.have.property("message");
     });
   });
   describe("translateQuizzes", () => {
@@ -210,18 +208,14 @@ describe("translate", () => {
     }).timeout(10000);
 
     it("should handle translation errors gracefully", async () => {
-      const kyaQuizzes = null;
-      const targetLanguage = "fr";
-      const result = await translate.translateQuizzes(
-        kyaQuizzes,
-        targetLanguage
-      );
+      const next = sinon.spy();
+      await translate.translateQuizzes({ quizzes: null, targetLanguage: "fr" }, next);
 
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property("message", "Internal Server Error");
-      expect(result).to.have.property("status", 500);
-      expect(result).to.have.property("errors");
-      expect(result.errors).to.have.property("message");
+      expect(next).to.have.been.calledOnce;
+      const err = next.firstCall.args[0];
+      expect(err.statusCode).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(err.message).to.equal("Internal Server Error");
+      expect(err.errors).to.have.property("message");
     });
   });
 });
